@@ -577,3 +577,4 @@ Aureon is framed as a three-tier commercial product aligned to distinct institut
 ---
 
 *Project Aureon · Guillermo "Bill" Ravelo · Columbia University MS Technology Management*
+# aureon
