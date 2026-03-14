@@ -124,6 +124,12 @@ From the repository root:
 
 ```bash
 pip install flask yfinance reportlab python-dotenv
+./scripts/start.sh
+```
+
+Alternative:
+
+```bash
 python server.py
 ```
 
@@ -217,6 +223,8 @@ Snapshot   -> http://localhost:5001/api/snapshot
 Portfolio  -> http://localhost:5001/api/portfolio
 Decisions  -> http://localhost:5001/api/decisions
 ```
+
+The Flask app binds to `0.0.0.0:5001`, so it is reachable from the container or host network while you develop locally.
 
 ---
 
@@ -577,4 +585,3 @@ Aureon is framed as a three-tier commercial product aligned to distinct institut
 ---
 
 *Project Aureon · Guillermo "Bill" Ravelo · Columbia University MS Technology Management*
-# aureon

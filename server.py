@@ -2,18 +2,18 @@
 ╔══════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                     ║
 ║  Doctrine-Driven Financial Operating System                      ║
-║  server.py — Self-contained backend. Zero external imports.      ║
+║  server.py — Flask backend with live-data fallbacks.             ║
 ║                                                                  ║
 ║  HOW TO RUN:                                                     ║
 ║    1. Open this folder in VS Code                                ║
 ║    2. Open Terminal  (View → Terminal  or  Ctrl + `)             ║
-║    3. pip install flask                                          ║
-║    4. python server.py                                           ║
+║    3. pip install flask yfinance reportlab python-dotenv         ║
+║    4. ./scripts/start.sh   or   python server.py                 ║
 ║    5. Open http://localhost:5001 in your browser                 ║
 ╚══════════════════════════════════════════════════════════════════╝
 
 WHAT THIS FILE DOES (plain English):
-  - Starts a tiny web server on port 5000
+  - Starts a tiny web server on port 5001
   - Serves index.html as the dashboard
   - Exposes /api/* endpoints that the dashboard calls every few seconds
   - Simulates a live $50M paper portfolio with price drift
@@ -42,7 +42,6 @@ STRUCTURE:
 # 'hashlib'   → generate deterministic audit hashes (like a fingerprint)
 
 import os
-from dotenv import load_dotenv; load_dotenv()  # loads .env from the project folder
 import io
 import json
 import math
@@ -138,6 +137,19 @@ MMF_PROVIDERS = {
         "currency":     "GBP",
     },
 }
+
+
+def _resolve_mmf_provider(provider=None):
+    """
+    Normalize persisted/provider state so Treasury and sweep logic always
+    have a valid jurisdiction-aware MMF definition to work with.
+    """
+    fallback = MMF_PROVIDERS.get(PORTFOLIO_JURISDICTION, MMF_PROVIDERS["US"])
+    if isinstance(provider, dict):
+        required = {"name", "ticker", "jurisdiction", "currency"}
+        if required.issubset(provider):
+            return provider
+    return fallback
 PORTFOLIO_JURISDICTION = "US"   # configurable per deployment
 
 RISK_MANAGER_POLICY = {
@@ -660,14 +672,15 @@ def _build_trade_report(decision, exec_price, authority_hash, gate_results, port
     ofr_snapshot = _get_ofr_stress_snapshot(macro_snapshot)
 
     notional   = decision["shares"] * exec_price
-    cash_after = portfolio_before["cash"] - notional
+    action_sign = -1 if decision["action"] == "BUY" else 1
+    cash_after = portfolio_before["cash"] + (action_sign * notional)
 
     pv               = portfolio_before["portfolio_value"]
     n_positions_pre  = portfolio_before["n_positions"]
-    n_positions_post = n_positions_pre + 1
+    n_positions_post = n_positions_pre + 1 if decision["action"] == "BUY" else max(0, n_positions_pre - 1)
     conc_pre   = (notional / pv * 100) if pv > 0 else 0
     conc_post  = conc_pre
-    var_impact = -(notional / pv * 0.08 * 100) if pv > 0 else 0
+    var_impact = (-(notional / pv * 0.08 * 100) if decision["action"] == "BUY" else (notional / pv * 0.05 * 100)) if pv > 0 else 0
 
     # Instrument reference lookup
     sym = decision["symbol"]
@@ -730,6 +743,55 @@ def _build_trade_report(decision, exec_price, authority_hash, gate_results, port
         report["pdf_bytes"] = None
 
     return report
+
+
+def _apply_approved_trade(decision: dict, exec_price: float):
+    """
+    Apply an approved trade to positions and cash.
+    BUY adds a new lot and deducts cash.
+    SELL reduces existing lots FIFO-style and adds cash.
+    Returns (ok: bool, error_message: str | None).
+    """
+    symbol = decision["symbol"]
+    shares = decision["shares"]
+    asset_class = decision["asset_class"]
+    notional = shares * exec_price
+
+    if decision["action"] == "BUY":
+        aureon_state["positions"].append({
+            "symbol":      symbol,
+            "asset_class": asset_class,
+            "shares":      shares,
+            "cost":        round(exec_price, 2),
+            "agent":       "THIFUR_H",
+        })
+        aureon_state["cash"] -= notional
+        return True, None
+
+    remaining = shares
+    matched_positions = [p for p in aureon_state["positions"] if p["symbol"] == symbol]
+    available = sum(p.get("shares", 0) for p in matched_positions)
+    if available < shares:
+        return False, f"SELL blocked — available {symbol} shares {available:,.0f} < requested {shares:,.0f}"
+
+    new_positions = []
+    for pos in aureon_state["positions"]:
+        if pos["symbol"] != symbol or remaining <= 0:
+            new_positions.append(pos)
+            continue
+
+        lot_shares = pos.get("shares", 0)
+        to_sell = min(lot_shares, remaining)
+        remaining -= to_sell
+        left = lot_shares - to_sell
+        if left > 0:
+            updated = dict(pos)
+            updated["shares"] = left
+            new_positions.append(updated)
+
+    aureon_state["positions"] = new_positions
+    aureon_state["cash"] += notional
+    return True, None
 
 
 def _market_is_open():
@@ -2654,6 +2716,7 @@ def _save_state():
                 # ── MMF / Cash management ──────────────────────────
                 "mmf_balance":        aureon_state.get("mmf_balance", 0.0),
                 "mmf_yield_accrued":  aureon_state.get("mmf_yield_accrued", 0.0),
+                "mmf_provider":       _resolve_mmf_provider(aureon_state.get("mmf_provider")),
                 "sweep_log":          list(aureon_state.get("sweep_log", [])),
                 "saved_at":           datetime.now(timezone.utc).isoformat(),
             }
@@ -2756,7 +2819,7 @@ def _perform_cash_sweep():
         cash        = aureon_state["cash"]
         pv          = aureon_state["portfolio_value"]
         mmf_balance = aureon_state["mmf_balance"]
-        provider    = aureon_state["mmf_provider"]
+        provider    = _resolve_mmf_provider(aureon_state.get("mmf_provider"))
 
     floor     = pv * OPERATING_CASH_FLOOR_PCT
     sweepable = max(0.0, cash - floor)
@@ -2812,7 +2875,7 @@ def _unwind_cash_sweep():
     """
     with _lock:
         mmf_balance = aureon_state["mmf_balance"]
-        provider    = aureon_state["mmf_provider"]
+        provider    = _resolve_mmf_provider(aureon_state.get("mmf_provider"))
 
     if mmf_balance < 1.0:
         return   # nothing swept — nothing to unwind
@@ -2997,11 +3060,13 @@ def run_doctrine_stack():
             # ── MMF / Cash management fields ──────────────────────
             aureon_state["mmf_balance"]       = saved.get("mmf_balance",       0.0)
             aureon_state["mmf_yield_accrued"] = saved.get("mmf_yield_accrued", 0.0)
+            aureon_state["mmf_provider"]      = _resolve_mmf_provider(saved.get("mmf_provider"))
             aureon_state["sweep_log"]         = saved.get("sweep_log",         [])
         else:
             # ── First-ever launch — seed from INITIAL_POSITIONS ───
             aureon_state["positions"] = [dict(p) for p in INITIAL_POSITIONS]
             aureon_state["cash"]      = remaining_cash
+            aureon_state["mmf_provider"] = _resolve_mmf_provider()
 
         if not aureon_state["pending_decisions"]:
             aureon_state["pending_decisions"] = [dict(d) for d in PENDING_DECISIONS_INIT]
@@ -3253,23 +3318,29 @@ def api_resolve_decision(decision_id):
         aureon_state["authority_log"].insert(0, log_entry)
 
         if resolution == "APPROVED":
-            # Execute the trade: add position and deduct cash
             exec_price = aureon_state["prices"].get(decision["symbol"], decision["price"])
-            aureon_state["positions"].append({
-                "symbol":      decision["symbol"],
-                "asset_class": decision["asset_class"],
-                "shares":      decision["shares"],
-                "cost":        round(exec_price, 2),
-                "agent":       "THIFUR_H",
-            })
-            aureon_state["cash"] -= decision["shares"] * exec_price
+            portfolio_snapshot = {
+                "cash":            aureon_state["cash"],
+                "portfolio_value": aureon_state["portfolio_value"],
+                "drawdown":        aureon_state["drawdown"],
+                "n_positions":     len(aureon_state["positions"]),
+            }
+            ok, exec_error = _apply_approved_trade(decision, exec_price)
+            if not ok:
+                aureon_state["pending_decisions"].insert(0, decision)
+                return jsonify({"error": exec_error}), 409
+
             aureon_state["trades"].insert(0, {
                 "ts":             datetime.now(timezone.utc).isoformat(),
                 "action":         decision["action"],
                 "symbol":         decision["symbol"],
                 "asset_class":    decision["asset_class"],
+                "shares":         decision["shares"],
+                "price":          round(exec_price, 2),
                 "notional":       decision["notional"],
                 "agent":          "THIFUR_H",
+                "decision_id":    decision_id,
+                "signal_type":    decision.get("signal_type"),
                 "human_approved": True,
                 "hash":           authority_hash,
             })
@@ -3278,12 +3349,6 @@ def api_resolve_decision(decision_id):
 
             # ── Kaladan L2: write compliance trade report at execution moment ──
             gate_results = aureon_state.get("_pretrade_cache", {}).get(decision_id, {}).get("checks", [])
-            portfolio_snapshot = {
-                "cash":            aureon_state["cash"] + decision["shares"] * exec_price,
-                "portfolio_value": aureon_state["portfolio_value"],
-                "drawdown":        aureon_state["drawdown"],
-                "n_positions":     len(aureon_state["positions"]) - 1,
-            }
             trade_report = _build_trade_report(
                 decision, exec_price, authority_hash, gate_results, portfolio_snapshot
             )
@@ -3987,7 +4052,7 @@ def api_treasury():
         drawdown         = aureon_state["drawdown"]
         mmf_balance      = round(aureon_state.get("mmf_balance", 0.0), 2)
         mmf_yield_acc    = round(aureon_state.get("mmf_yield_accrued", 0.0), 2)
-        mmf_provider     = aureon_state.get("mmf_provider", MMF_PROVIDERS["US"])
+        mmf_provider     = _resolve_mmf_provider(aureon_state.get("mmf_provider"))
         sweep_log        = list(aureon_state.get("sweep_log", []))[:10]
         cash_floor       = round(portfolio_val * OPERATING_CASH_FLOOR_PCT, 2)
 
@@ -4210,14 +4275,10 @@ def start():
     print()
     print("  Starting background threads...")
 
-    # Flask's reloader works by spawning two processes: a watcher and a child.
-    # WERKZEUG_RUN_MAIN is only set to "true" in the child — the one that actually
-    # serves requests. Without this check, all three threads would start twice
-    # (once in the watcher, once in the child), corrupting shared state.
-    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-        threading.Thread(target=run_doctrine_stack, daemon=True).start()
-        threading.Thread(target=market_loop, daemon=True).start()
-        threading.Thread(target=email_scheduler, daemon=True).start()
+    # Run Aureon in a single process so stateful background threads only start once.
+    threading.Thread(target=run_doctrine_stack, daemon=True).start()
+    threading.Thread(target=market_loop, daemon=True).start()
+    threading.Thread(target=email_scheduler, daemon=True).start()
 
     print()
     print("  Dashboard  →  http://localhost:5001")
@@ -4228,7 +4289,7 @@ def start():
     print("  Press Ctrl+C to stop.")
     print("=" * 60)
 
-    app.run(host="0.0.0.0", port=5001, debug=True, use_reloader=True)
+    app.run(host="0.0.0.0", port=5001, debug=False, use_reloader=False)
 
 
 # Standard Python entry point:
