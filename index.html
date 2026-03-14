@@ -1,0 +1,4005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Aureon — Doctrine-Driven Financial Operating System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --void:      #060810;
+  --deep:      #0a0f1e;
+  --surface:   #0f1628;
+  --elevated:  #151d35;
+  --border:    rgba(0,212,255,0.12);
+  --border2:   rgba(0,212,255,0.06);
+  --cyan:      #00D4FF;
+  --blue:      #3B82F6;
+  --indigo:    #6366F1;
+  --orange:    #F97316;
+  --green:     #10B981;
+  --red:       #EF4444;
+  --yellow:    #F59E0B;
+  --white:     #F0F4FF;
+  --muted:     #4A5578;
+  --dim:       #2A3154;
+  --font-display: 'Syne', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--void);
+  color: var(--white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── BACKGROUND GRID ─────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── HEADER ──────────────────────────────────────────── */
+header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  background: rgba(6,8,16,0.92);
+  backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.logo-lockup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-decoration: none;
+}
+
+.logo-svg {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.logo-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, var(--cyan) 0%, var(--blue) 60%, var(--indigo) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+.logo-sub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+nav {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.nav-btn {
+  padding: 6px 16px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.nav-btn:hover {
+  color: var(--white);
+  border-color: var(--border);
+}
+
+.nav-btn.active {
+  background: rgba(0,212,255,0.08);
+  border-color: rgba(0,212,255,0.3);
+  color: var(--cyan);
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid rgba(16,185,129,0.3);
+  border-radius: 20px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--green);
+  text-transform: uppercase;
+}
+
+.pulse {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2s infinite;
+}
+.pulse.pulse-off {
+  background: #F59E0B;
+  animation: none;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.8); }
+}
+
+/* ── MAIN ────────────────────────────────────────────── */
+main {
+  padding: 88px 32px 48px;
+  max-width: 1400px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── TABS ────────────────────────────────────────────── */
+.tab { display: none; }
+.tab.active { display: block; animation: fadeIn 0.3s ease; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── CARDS ───────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  opacity: 0.3;
+}
+
+.card-label {
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.card-value {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.card-sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ── GRIDS ───────────────────────────────────────────── */
+.grid { display: grid; gap: 16px; }
+.g2   { grid-template-columns: 1fr 1fr; }
+.g3   { grid-template-columns: 1fr 1fr 1fr; }
+.g4   { grid-template-columns: repeat(4, 1fr); }
+.g5   { grid-template-columns: repeat(5, 1fr); }
+.g12  { grid-template-columns: 1fr 2fr; }
+.g21  { grid-template-columns: 2fr 1fr; }
+
+/* ── SECTION HEADERS ─────────────────────────────────── */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--white);
+}
+
+.section-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.layer-tag {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.tag-cyan   { background: rgba(0,212,255,0.1);   color: var(--cyan);   border: 1px solid rgba(0,212,255,0.2); }
+.tag-blue   { background: rgba(59,130,246,0.1);  color: var(--blue);   border: 1px solid rgba(59,130,246,0.2); }
+.tag-white  { background: rgba(240,244,255,0.06);color: var(--white);  border: 1px solid var(--border); }
+.tag-orange { background: rgba(249,115,22,0.1);  color: var(--orange); border: 1px solid rgba(249,115,22,0.2); }
+.tag-green  { background: rgba(16,185,129,0.1);  color: var(--green);  border: 1px solid rgba(16,185,129,0.2); }
+.tag-red    { background: rgba(239,68,68,0.1);   color: var(--red);    border: 1px solid rgba(239,68,68,0.2); }
+.tag-yellow { background: rgba(245,158,11,0.1);  color: var(--yellow); border: 1px solid rgba(245,158,11,0.2); }
+
+/* ── TABLE ───────────────────────────────────────────── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.data-table th {
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+}
+
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border2);
+  color: var(--white);
+}
+
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: rgba(0,212,255,0.02); }
+
+/* ── COLORS ──────────────────────────────────────────── */
+.up     { color: var(--green); }
+.down   { color: var(--red); }
+.warn   { color: var(--yellow); }
+.info   { color: var(--blue); }
+.dim-t  { color: var(--muted); }
+
+/* ── LAYER STACK VISUAL ──────────────────────────────── */
+.layer-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.layer-row {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border2);
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+
+.layer-row::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+}
+
+.layer-row.l0::before { background: var(--cyan); }
+.layer-row.l1::before { background: var(--blue); }
+.layer-row.l2::before { background: var(--white); }
+.layer-row.l3::before { background: var(--orange); }
+
+.layer-row.active { border-color: rgba(0,212,255,0.25); background: rgba(0,212,255,0.03); }
+
+.layer-name {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.layer-desc { font-size: 11px; color: var(--muted); }
+
+/* ── CYCLE INDICATOR ─────────────────────────────────── */
+.cycle-phases {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.phase-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--dim);
+  transition: background 0.4s, box-shadow 0.4s;
+}
+
+.phase-dot.done { background: var(--green); }
+.phase-dot.active {
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+  animation: pulseDot 1s infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.4); }
+}
+
+/* ── ALLOCATION BAR ──────────────────────────────────── */
+.alloc-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--dim);
+  position: relative;
+  margin-top: 6px;
+}
+
+.alloc-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 1s ease;
+}
+
+/* ── DECISION CARD ───────────────────────────────────── */
+.decision-card {
+  border: 1px solid rgba(249,115,22,0.4);
+  border-radius: 8px;
+  padding: 20px;
+  background: rgba(249,115,22,0.04);
+  position: relative;
+  overflow: hidden;
+}
+
+.decision-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--orange), transparent);
+}
+
+.btn {
+  padding: 9px 20px;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.btn-approve { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+.btn-reject  { background: rgba(239,68,68,0.15);  color: var(--red);   border: 1px solid rgba(239,68,68,0.3); }
+.btn-modify  { background: rgba(59,130,246,0.1);  color: var(--blue);  border: 1px solid rgba(59,130,246,0.25); }
+
+.btn:hover { filter: brightness(1.2); transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+
+/* ── ALERT ROW ───────────────────────────────────────── */
+.alert-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border2);
+}
+
+.alert-row:last-child { border-bottom: none; }
+
+.alert-icon {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+/* ── LINEAGE HASH ────────────────────────────────────── */
+.hash {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+/* ── PROGRESS RING ───────────────────────────────────── */
+.ring-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring-label {
+  position: absolute;
+  text-align: center;
+}
+
+/* ── SCROLLBAR ───────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--void); }
+::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+
+/* ── DIVIDER ─────────────────────────────────────────── */
+.divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+/* ── TOAST ───────────────────────────────────────────── */
+#toast {
+  position: fixed;
+  bottom: 32px; right: 32px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 20px;
+  font-size: 12px;
+  z-index: 999;
+  transform: translateY(80px);
+  opacity: 0;
+  transition: all 0.3s ease;
+  max-width: 320px;
+}
+
+#toast.show { transform: translateY(0); opacity: 1; }
+
+/* ── REPORT SECTION ──────────────────────────────────── */
+.report-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.report-block h3 {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border2);
+  font-size: 12px;
+}
+
+.check-row:last-child { border-bottom: none; }
+
+.check-icon { font-size: 14px; }
+
+/* ── ABOUT TAB ───────────────────────────────────────── */
+.doctrine-pillar {
+  border-left: 2px solid var(--cyan);
+  padding-left: 20px;
+  margin-bottom: 24px;
+}
+
+.doctrine-pillar h4 {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.doctrine-pillar p {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.7;
+  font-family: var(--font-mono);
+}
+
+/* ── PRE-TRADE & POST-TRADE MODALS ──────────────────────────── */
+.modal-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(6,8,16,0.85);
+  backdrop-filter: blur(6px);
+  z-index: 9000;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.active { display: flex; }
+.modal-box {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 32px;
+  width: 520px;
+  max-width: 95vw;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+}
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  margin-bottom: 6px;
+}
+.modal-subtitle {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 20px;
+  font-family: var(--font-mono);
+}
+.pretrade-check-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border2);
+  font-size: 12px;
+}
+.pretrade-check-row:last-child { border-bottom: none; }
+.check-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  margin-top: 3px; flex-shrink: 0;
+}
+.check-dot.PASS { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.check-dot.WARN { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+.check-dot.FAIL { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.check-dot.PENDING { background: var(--muted); animation: pulse-dot 0.8s infinite; }
+@keyframes pulse-dot {
+  0%,100% { opacity:1; } 50% { opacity:0.3; }
+}
+.check-gate { font-weight: 600; color: var(--white); min-width: 140px; }
+.check-layer { font-size: 10px; color: var(--cyan); margin-top: 2px; }
+.check-detail { color: var(--muted); font-size: 11px; margin-top: 2px; line-height: 1.4; }
+.check-badge { font-size: 10px; padding: 2px 7px; border-radius: 3px; font-weight: 600; margin-left: auto; flex-shrink: 0; }
+.check-badge.PASS { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+.check-badge.WARN { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+.check-badge.FAIL { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+.check-badge.PENDING { background: rgba(74,85,120,0.3); color: var(--muted); border: 1px solid rgba(74,85,120,0.3); }
+.modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+.btn-execute { background: rgba(16,185,129,0.2); color: var(--green); border: 1px solid rgba(16,185,129,0.4);
+  padding: 10px 20px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;
+  letter-spacing: 0.06em; font-family: var(--font-mono); transition: all 0.2s; }
+.btn-execute:hover { background: rgba(16,185,129,0.35); }
+.btn-execute:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-cancel-modal { background: rgba(239,68,68,0.1); color: var(--red); border: 1px solid rgba(239,68,68,0.3);
+  padding: 10px 20px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;
+  letter-spacing: 0.06em; font-family: var(--font-mono); transition: all 0.2s; }
+.btn-cancel-modal:hover { background: rgba(239,68,68,0.2); }
+.posttrade-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid var(--border2); font-size: 12px;
+}
+.posttrade-row:last-child { border-bottom: none; }
+.posttrade-label { color: var(--muted); }
+.posttrade-value { color: var(--white); font-family: var(--font-mono); font-weight: 600; }
+.posttrade-value.green { color: var(--green); }
+.posttrade-value.hash { font-size: 11px; color: var(--cyan); letter-spacing: 0.05em; }
+.settlement-badge {
+  display: inline-block; padding: 4px 12px; border-radius: 4px;
+  background: rgba(0,212,255,0.1); color: var(--cyan);
+  border: 1px solid rgba(0,212,255,0.25); font-size: 11px; font-weight: 700;
+  font-family: var(--font-mono); margin-left: 8px;
+}
+
+/* ── EMERGENCY HALT ───────────────────────────────────────────── */
+.halt-banner {
+  display: none;
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 9500;
+  background: linear-gradient(90deg, #7f1d1d, #991b1b, #7f1d1d);
+  border-bottom: 2px solid #EF4444;
+  padding: 10px 24px;
+  display: none;
+  align-items: center;
+  gap: 16px;
+  font-family: var(--font-mono);
+}
+.halt-banner.active { display: flex; }
+.halt-banner-icon { font-size: 20px; animation: pulse-halt 1s infinite; }
+@keyframes pulse-halt { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.halt-banner-text { flex: 1; }
+.halt-banner-title { font-size: 13px; font-weight: 700; color: #FCA5A5; letter-spacing: 0.1em; }
+.halt-banner-sub { font-size: 10px; color: rgba(252,165,165,0.7); margin-top: 2px; }
+.btn-halt {
+  background: rgba(239,68,68,0.2); color: #EF4444;
+  border: 1px solid rgba(239,68,68,0.5);
+  padding: 6px 14px; border-radius: 5px;
+  font-size: 11px; font-weight: 700; cursor: pointer;
+  font-family: var(--font-mono); letter-spacing: 0.08em;
+  transition: all 0.2s;
+}
+.btn-halt:hover { background: rgba(239,68,68,0.35); }
+.btn-resume {
+  background: rgba(16,185,129,0.2); color: var(--green);
+  border: 1px solid rgba(16,185,129,0.4);
+  padding: 6px 14px; border-radius: 5px;
+  font-size: 11px; font-weight: 700; cursor: pointer;
+  font-family: var(--font-mono); letter-spacing: 0.08em;
+  transition: all 0.2s;
+}
+.btn-resume:hover { background: rgba(16,185,129,0.35); }
+.halt-btn-header {
+  background: rgba(239,68,68,0.12); color: #EF4444;
+  border: 1px solid rgba(239,68,68,0.35);
+  padding: 5px 12px; border-radius: 4px;
+  font-size: 10px; font-weight: 700; cursor: pointer;
+  font-family: var(--font-mono); letter-spacing: 0.1em;
+  transition: all 0.2s; white-space: nowrap;
+}
+.halt-btn-header:hover { background: rgba(239,68,68,0.28); border-color: rgba(239,68,68,0.6); }
+.halt-btn-header.active { background: rgba(16,185,129,0.15); color: var(--green);
+  border-color: rgba(16,185,129,0.4); }
+
+/* ── INTEGRATION MODE INDICATOR ──────────────────────────────── */
+.integration-mode-pill {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 4px;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap;
+  border: 1px solid; cursor: default; user-select: none;
+}
+.integration-mode-pill.standalone {
+  background: rgba(99,102,241,0.1); color: #818CF8;
+  border-color: rgba(99,102,241,0.3);
+}
+.integration-mode-pill.oms-overlay {
+  background: rgba(0,212,255,0.1); color: var(--cyan);
+  border-color: rgba(0,212,255,0.3);
+}
+.integration-mode-pill .mode-dot {
+  width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+}
+.integration-mode-pill.standalone .mode-dot { background: #818CF8; }
+.integration-mode-pill.oms-overlay .mode-dot { background: var(--cyan); animation: pulse 2.5s infinite; }
+
+/* ── DOCTRINE GOVERNANCE ─────────────────────────────────────── */
+.authority-tier {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 12px 0; border-bottom: 1px solid var(--border2);
+}
+.authority-tier:last-child { border-bottom: none; }
+.tier-badge {
+  width: 36px; height: 36px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800; flex-shrink: 0;
+  font-family: var(--font-display);
+}
+.tier-0 { background: rgba(239,68,68,0.15); color: #EF4444; border: 1px solid rgba(239,68,68,0.3); }
+.tier-1 { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+.tier-2 { background: rgba(59,130,246,0.15); color: var(--blue); border: 1px solid rgba(59,130,246,0.3); }
+.tier-3 { background: rgba(74,85,120,0.2); color: var(--muted); border: 1px solid rgba(74,85,120,0.3); }
+.tier-content { flex: 1; }
+.tier-name { font-size: 12px; font-weight: 700; color: var(--white); margin-bottom: 2px; }
+.tier-role { font-size: 11px; color: var(--muted); line-height: 1.5; }
+.tier-capability { font-size: 10px; margin-top: 4px; font-family: var(--font-mono); }
+.tier-capability.can { color: var(--green); }
+.tier-capability.cannot { color: rgba(239,68,68,0.7); }
+.docver-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--border2);
+  font-size: 11px; font-family: var(--font-mono);
+}
+.docver-row:last-child { border-bottom: none; }
+.docver-badge {
+  font-size: 12px; font-weight: 700; color: var(--cyan);
+  min-width: 36px;
+}
+.docver-arrow { color: var(--muted); font-size: 10px; }
+.docver-hash { color: var(--cyan); font-size: 10px; letter-spacing: 0.05em; }
+.docver-meta { color: var(--muted); font-size: 10px; }
+.pending-update-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px; background: rgba(245,158,11,0.06);
+  border: 1px solid rgba(245,158,11,0.2); border-radius: 6px;
+  margin-bottom: 8px; font-size: 11px;
+}
+.btn-doctrine-approve {
+  background: rgba(16,185,129,0.15); color: var(--green);
+  border: 1px solid rgba(16,185,129,0.3); padding: 4px 10px;
+  border-radius: 4px; font-size: 10px; font-weight: 700;
+  cursor: pointer; font-family: var(--font-mono);
+}
+.btn-doctrine-reject {
+  background: rgba(239,68,68,0.1); color: var(--red);
+  border: 1px solid rgba(239,68,68,0.3); padding: 4px 10px;
+  border-radius: 4px; font-size: 10px; font-weight: 700;
+  cursor: pointer; font-family: var(--font-mono);
+}
+.btn-propose-doctrine {
+  background: rgba(59,130,246,0.12); color: var(--blue);
+  border: 1px solid rgba(59,130,246,0.3); padding: 8px 16px;
+  border-radius: 5px; font-size: 11px; font-weight: 700;
+  cursor: pointer; font-family: var(--font-mono); width: 100%;
+  letter-spacing: 0.06em; margin-top: 12px;
+}
+.btn-propose-doctrine:hover { background: rgba(59,130,246,0.22); }
+#propose-form { display:none; margin-top:12px; }
+#propose-form textarea {
+  width: 100%; background: var(--deep); border: 1px solid var(--border);
+  color: var(--white); font-family: var(--font-mono); font-size: 11px;
+  padding: 8px 10px; border-radius: 5px; resize: vertical; min-height: 60px;
+  margin-bottom: 8px; box-sizing: border-box;
+}
+#propose-form select {
+  background: var(--deep); border: 1px solid var(--border);
+  color: var(--white); font-family: var(--font-mono); font-size: 11px;
+  padding: 6px 10px; border-radius: 5px; margin-bottom: 8px; width: 100%;
+}
+.doctrine-halted-overlay {
+  text-align: center; padding: 20px;
+  color: #EF4444; font-family: var(--font-mono); font-size: 12px;
+  border: 1px solid rgba(239,68,68,0.25); border-radius: 6px;
+  background: rgba(239,68,68,0.06);
+}
+
+</style>
+</head>
+<body>
+
+<!-- ── EMERGENCY HALT BANNER (fixed top, shown when halted) ── -->
+<div class="halt-banner" id="halt-banner">
+  <span class="halt-banner-icon">⛔</span>
+  <div class="halt-banner-text">
+    <div class="halt-banner-title">EMERGENCY HALT ACTIVE — ALL THIFUR EXECUTION FROZEN</div>
+    <div class="halt-banner-sub" id="halt-banner-reason">Reason: —</div>
+  </div>
+  <button class="btn-resume" onclick="resumeFromHalt()">RESUME SYSTEM</button>
+</div>
+
+<!-- ── HALT CONFIRM MODAL ─────────────────────────────────── -->
+<div class="modal-overlay" id="halt-modal">
+  <div class="modal-box" style="width:440px;border-color:rgba(239,68,68,0.4)">
+    <div class="modal-title" style="color:#EF4444">⛔ Emergency Halt</div>
+    <div class="modal-subtitle">Tier 0 authority · All execution frozen · Resume requires explicit re-auth</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+      This will immediately stop all Thifur signal generation and block all trade approvals.
+      No automated process can override this. You must manually resume.
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:6px;letter-spacing:0.06em">HALT REASON (required)</div>
+      <textarea id="halt-reason-input" style="width:100%;background:var(--deep);border:1px solid rgba(239,68,68,0.3);
+        color:var(--white);font-family:var(--font-mono);font-size:11px;padding:8px 10px;
+        border-radius:5px;resize:vertical;min-height:50px;box-sizing:border-box"
+        placeholder="e.g. Unusual market conditions — circuit breaker engaged"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel-modal" style="background:rgba(239,68,68,0.2);color:#EF4444;
+        border-color:rgba(239,68,68,0.5);flex:1;font-size:13px"
+        onclick="confirmHalt()">CONFIRM HALT</button>
+      <button class="btn-execute" onclick="closeHaltModal()">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── PRE-TRADE ROUTING MODAL ──────────────────────────── -->
+<div class="modal-overlay" id="pretrade-modal">
+  <div class="modal-box">
+    <div class="modal-title">⬡ Pre-Trade Routing Check</div>
+    <div class="modal-subtitle" id="pretrade-subtitle">Running doctrine gate checks…</div>
+    <div id="pretrade-checks"></div>
+    <div class="modal-actions">
+      <button class="btn-execute" id="pretrade-execute-btn" disabled
+              onclick="confirmExecute()">EXECUTE ORDER</button>
+      <button class="btn-cancel-modal" onclick="closePretradeModal()">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── POST-TRADE CONFIRMATION MODAL ─────────────────────── -->
+<div class="modal-overlay" id="posttrade-modal">
+  <div class="modal-box">
+    <div class="modal-title" style="color:var(--green)">✓ Order Executed</div>
+    <div class="modal-subtitle">Post-trade confirmation · Doctrine-stamped execution report</div>
+    <div id="posttrade-content"></div>
+    <div class="modal-actions" style="justify-content:space-between;align-items:center">
+      <a id="posttrade-pdf-link" href="#" target="_blank"
+         style="font-size:11px;color:var(--cyan);border:1px solid rgba(0,212,255,.3);
+           padding:6px 14px;border-radius:4px;text-decoration:none;
+           background:rgba(0,212,255,.06);display:none">
+        ↗ View PDF Compliance Report
+      </a>
+      <button class="btn-execute" onclick="closePosttradeModal()">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── HEADER ──────────────────────────────────────────── -->
+<header>
+  <div class="logo-lockup">
+    <svg class="logo-svg" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="lg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%"   style="stop-color:#00D4FF"/>
+          <stop offset="50%"  style="stop-color:#3B82F6"/>
+          <stop offset="100%" style="stop-color:#6366F1"/>
+        </linearGradient>
+        <filter id="gw"><feGaussianBlur stdDeviation="1.5" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <circle cx="60" cy="60" r="56" fill="none" stroke="url(#lg)" stroke-width="1.5" opacity="0.35"/>
+      <line x1="20" y1="82" x2="100" y2="82" stroke="url(#lg)" stroke-width="2.5" filter="url(#gw)"/>
+      <line x1="32" y1="87" x2="88" y2="87" stroke="url(#lg)" stroke-width="1" opacity="0.35"/>
+      <line x1="60" y1="20" x2="28"  y2="82" stroke="url(#lg)" stroke-width="3" stroke-linecap="round" filter="url(#gw)"/>
+      <line x1="60" y1="20" x2="92"  y2="82" stroke="url(#lg)" stroke-width="3" stroke-linecap="round" filter="url(#gw)"/>
+      <line x1="37" y1="70" x2="83" y2="70" stroke="url(#lg)" stroke-width="1.5" opacity="0.9"/>
+      <line x1="43" y1="58" x2="77" y2="58" stroke="url(#lg)" stroke-width="1.5" opacity="0.65"/>
+      <line x1="49" y1="46" x2="71" y2="46" stroke="url(#lg)" stroke-width="1.5" opacity="0.45"/>
+      <line x1="55" y1="34" x2="65" y2="34" stroke="url(#lg)" stroke-width="1.5" opacity="0.3"/>
+      <circle cx="60" cy="20" r="3.5" fill="url(#lg)" filter="url(#gw)"/>
+      <circle cx="28" cy="82" r="2.5" fill="url(#lg)"/>
+      <circle cx="92" cy="82" r="2.5" fill="url(#lg)"/>
+      <path d="M 36 63 Q 22 48 36 33" fill="none" stroke="url(#lg)" stroke-width="1" stroke-dasharray="3 4" opacity="0.3"/>
+      <path d="M 84 63 Q 98 48 84 33" fill="none" stroke="url(#lg)" stroke-width="1" stroke-dasharray="3 4" opacity="0.3"/>
+    </svg>
+    <div class="logo-text">
+      <div class="logo-name">Aureon</div>
+      <div class="logo-sub">Doctrine-Driven Financial OS</div>
+    </div>
+  </div>
+
+  <nav>
+    <button class="nav-btn active" onclick="showTab('overview')">Overview</button>
+    <button class="nav-btn" onclick="showTab('trading')">Live Trading</button>
+    <button class="nav-btn" onclick="showTab('compliance')">Compliance</button>
+    <button class="nav-btn" onclick="showTab('governance')">Governance</button>
+    <button class="nav-btn" onclick="showTab('reports')">Reports</button>
+    <button class="nav-btn" onclick="showTab('treasury')">Treasury</button>
+    <button class="nav-btn" onclick="showTab('about')">Framework</button>
+  </nav>
+
+  <!-- Integration Mode indicator — toggles between STANDALONE and OMS OVERLAY -->
+  <div class="integration-mode-pill standalone" id="integration-mode-pill"
+       title="Aureon integration mode. STANDALONE = no OMS connected. OMS OVERLAY = governing above an existing order management system.">
+    <div class="mode-dot"></div>
+    <span id="integration-mode-label">Standalone</span>
+  </div>
+
+  <button class="halt-btn-header" id="halt-header-btn" onclick="openHaltModal()">
+    ⛔ EMERGENCY HALT
+  </button>
+
+  <div class="status-pill">
+    <div class="pulse" id="market-pulse"></div>
+    <span id="market-status-label">Checking market...</span>
+  </div>
+</header>
+
+<main>
+
+<!-- ════════════════════════════════════════════════════════
+     TAB 1 — OVERVIEW
+════════════════════════════════════════════════════════ -->
+<div id="tab-overview" class="tab active">
+
+  <!-- KPI ROW -->
+  <div class="grid g5" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-label">Portfolio Value</div>
+      <div class="card-value" id="kpi-value">$50,000,000</div>
+      <div class="card-sub">AUM inception</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Total P&L</div>
+      <div class="card-value up" id="kpi-pnl">+$0</div>
+      <div class="card-sub up" id="kpi-pnlp">+0.00%</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Drawdown</div>
+      <div class="card-value" id="kpi-dd">0.00%</div>
+      <div class="card-sub">Limit: 10.00%</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Positions</div>
+      <div class="card-value" id="kpi-pos">0</div>
+      <div class="card-sub">Across 5 classes</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Doctrine Version</div>
+      <div class="card-value" style="font-size:16px;color:var(--cyan)">1.2</div>
+      <div class="card-sub">AUREON-MENTAT</div>
+    </div>
+  </div>
+
+  <div class="grid g12" style="margin-bottom:20px">
+
+    <!-- LAYER STACK -->
+    <div class="card">
+      <div class="section-header">
+        <div class="section-title">Operating Stack</div>
+        <div class="section-line"></div>
+        <div id="cycle-clock" style="font-size:10px;color:var(--muted)">Cycle —</div>
+      </div>
+
+      <div class="layer-stack">
+        <div class="layer-row l0 active" id="layer-verana">
+          <div class="layer-tag tag-cyan">L0</div>
+          <div>
+            <div class="layer-name" style="color:var(--cyan)">Verana</div>
+            <div class="layer-desc">Network Governance · 7-Phase Cycle</div>
+          </div>
+          <div class="cycle-phases" id="phases-verana">
+            <div class="phase-dot done"></div>
+            <div class="phase-dot done"></div>
+            <div class="phase-dot done"></div>
+            <div class="phase-dot done"></div>
+            <div class="phase-dot done"></div>
+            <div class="phase-dot done"></div>
+            <div class="phase-dot done"></div>
+          </div>
+        </div>
+
+        <div class="layer-row l1 active" id="layer-mentat">
+          <div class="layer-tag tag-blue">L1</div>
+          <div>
+            <div class="layer-name" style="color:var(--blue)">Mentat</div>
+            <div class="layer-desc">Strategic Intelligence · 80/20 Doctrine</div>
+          </div>
+          <div class="cycle-phases" id="phases-mentat">
+            <div class="phase-dot done"></div>
+            <div class="phase-dot done"></div>
+            <div class="phase-dot done"></div>
+            <div class="phase-dot done"></div>
+          </div>
+        </div>
+
+        <div class="layer-row l2 active" id="layer-kaladan">
+          <div class="layer-tag tag-white">L2</div>
+          <div>
+            <div class="layer-name">Kaladan</div>
+            <div class="layer-desc">Lifecycle Orchestration · 5-Phase Engine</div>
+          </div>
+          <div class="cycle-phases" id="phases-kaladan">
+            <div class="phase-dot done"></div>
+            <div class="phase-dot done"></div>
+            <div class="phase-dot done"></div>
+            <div class="phase-dot done"></div>
+            <div class="phase-dot done"></div>
+          </div>
+        </div>
+
+        <div class="layer-row l3 active" id="layer-thifur">
+          <div class="layer-tag tag-orange">L3</div>
+          <div>
+            <div class="layer-name" style="color:var(--orange)">Thifur</div>
+            <div class="layer-desc">Agentic Execution · R / J / H</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <span class="layer-tag tag-green" style="font-size:9px">R</span>
+            <span class="layer-tag tag-blue"  style="font-size:9px">J</span>
+            <span class="layer-tag tag-orange"style="font-size:9px">H</span>
+          </div>
+        </div>
+
+        <!-- Telemetry arrow -->
+        <div style="text-align:center;padding:6px 0;font-size:10px;
+                    color:var(--muted);letter-spacing:1px">
+          ↑ TELEMETRY LOOP · Thifur → Mentat · Doctrine Refinement ↑
+        </div>
+      </div>
+    </div>
+
+    <!-- ALLOCATION -->
+    <div class="card">
+      <div class="section-header">
+        <div class="section-title">Asset Allocation</div>
+        <div class="section-line"></div>
+        <div style="font-size:10px;color:var(--muted)">$50M AUM</div>
+      </div>
+
+      <div id="alloc-rows"></div>
+    </div>
+  </div>
+
+  <!-- NETWORK STATE -->
+  <div class="grid g3">
+    <div class="card">
+      <div class="card-label">Network Nodes</div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px">
+        <span class="card-value" style="color:var(--cyan)">15</span>
+        <span style="font-size:12px;color:var(--green)">15 operational</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);line-height:2">
+        Settlement Rails · Clearing Agents<br>
+        Custodians · Data Providers<br>
+        Messaging · Counterparties
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Doctrine Integrity</div>
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:11px;color:var(--muted)">Compliance decisions</span>
+          <span class="up">9 / 9</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:11px;color:var(--muted)">Lineage stamped</span>
+          <span class="up">100%</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:11px;color:var(--muted)">Zero Unobserved Action</span>
+          <span class="up">✓ Active</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="font-size:11px;color:var(--muted)">Human Authority</span>
+          <span class="up">✓ Engaged</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Live Market Feed</div>
+      <div id="market-ticker" style="font-size:12px;line-height:2.2"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Macro Regime</div>
+      <div id="macro-monitor" style="font-size:12px;line-height:2.1;color:var(--muted)">
+        Loading FRED macro snapshot...
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <div class="section-header">
+      <div class="section-title">Thesis Intelligence Lab</div>
+      <div class="section-line"></div>
+      <span class="layer-tag tag-green">Phase 5</span>
+    </div>
+    <div style="font-size:11px;color:var(--muted);line-height:1.8;margin-bottom:14px">
+      Paste an investment thesis or IC memo excerpt. Aureon converts the narrative into factor exposures,
+      scenario prompts, and governance-readiness signals before capital is deployed.
+    </div>
+    <div class="grid g2">
+      <div>
+        <textarea id="thesis-memo-input" style="width:100%;min-height:220px;background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:6px;padding:14px;color:var(--white);font-size:12px;line-height:1.7;resize:vertical" placeholder="Paste a thesis memo, IC note, or research excerpt here..."></textarea>
+        <input id="thesis-file-input" type="file" accept=".txt,.md,.json,.docx,.pdf,.ppt,.pptx" style="display:none" onchange="uploadThesisFile(event)">
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <button class="btn btn-approve" onclick="analyzeThesisMemo()">Analyze Thesis</button>
+          <button class="btn btn-modify" onclick="registerCurrentMemo()">Register Memo</button>
+          <button class="btn btn-modify" onclick="document.getElementById('thesis-file-input').click()">Document Upload</button>
+          <button class="btn btn-modify" onclick="loadSampleThesis()">Load Sample</button>
+        </div>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:6px;padding:16px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">
+          <div style="font-size:12px;font-weight:600;color:var(--white)">Structured Output</div>
+          <span id="thesis-ready-badge" style="font-size:9px;font-family:var(--font-mono);padding:2px 8px;border-radius:999px;background:rgba(245,158,11,.12);color:var(--yellow);border:1px solid rgba(245,158,11,.28)">Awaiting memo</span>
+        </div>
+        <div id="thesis-analysis-output" style="font-size:11px;color:var(--muted);line-height:1.8">
+          No thesis analyzed yet. Use this lab to bridge narrative conviction and structured governance review.
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="section-header">
+        <div class="section-title">Source Document Registry</div>
+        <div class="section-line"></div>
+        <span class="layer-tag tag-cyan" id="source-doc-count">0 documents</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.8;margin-bottom:12px">
+        Registered source documents become durable governance origins with IDs, hashes, timestamps, and linked thesis analysis.
+      </div>
+      <div id="source-document-registry" style="font-size:11px;color:var(--muted);line-height:1.8">
+        No source documents registered yet.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     TAB 2 — LIVE TRADING
+════════════════════════════════════════════════════════ -->
+<div id="tab-trading" class="tab">
+
+  <!-- PENDING DECISIONS -->
+  <div class="section-header" style="margin-bottom:12px">
+    <div class="section-title">Pending Human Decisions</div>
+    <div class="section-line"></div>
+    <span class="layer-tag tag-orange" id="pending-count">2 pending</span>
+  </div>
+
+  <div id="decision-cards" style="margin-bottom:28px"></div>
+
+  <!-- POSITIONS -->
+  <div class="section-header" style="margin-bottom:12px">
+    <div class="section-title">Open Positions</div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <table class="data-table" id="positions-table">
+      <thead>
+        <tr>
+          <th>Symbol</th><th>Class</th><th>Shares</th>
+          <th>Avg Cost</th><th>Price</th><th>Value</th><th>P&L</th><th>Agent</th>
+        </tr>
+      </thead>
+      <tbody id="positions-body">
+        <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">
+          Initializing — Thifur-H scanning for entry signals...
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- RECENT TRADES -->
+  <div class="section-header" style="margin-bottom:12px">
+    <div class="section-title">Trade Log</div>
+    <div class="section-line"></div>
+    <span class="layer-tag tag-orange">Thifur-H</span>
+  </div>
+
+  <div class="card">
+    <table class="data-table">
+      <thead>
+        <tr><th>Time</th><th>Action</th><th>Symbol</th><th>Class</th>
+            <th>Notional</th><th>Agent</th><th>Human</th><th>Lineage</th></tr>
+      </thead>
+      <tbody id="trades-body">
+        <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">
+          No trades executed yet.
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     TAB 3 — COMPLIANCE
+════════════════════════════════════════════════════════ -->
+<div id="tab-compliance" class="tab">
+
+  <div class="grid g4" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-label">Active Alerts</div>
+      <div class="card-value up" id="cmp-active">0</div>
+      <div class="card-sub">All checks passing</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Drawdown</div>
+      <div class="card-value" id="cmp-dd">0.00%</div>
+      <div class="card-sub">Limit: 10.00%</div>
+    </div>
+    <div class="card">
+      <div class="card-label">VaR Estimate</div>
+      <div class="card-value" id="cmp-var">—</div>
+      <div class="card-sub">Daily · 2% limit</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Risk Manager</div>
+      <div class="card-value" id="cmp-risk">ACTIVE</div>
+      <div class="card-sub" id="cmp-conc">Largest position —</div>
+    </div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card">
+      <div class="section-header">
+        <div class="section-title">Active Alerts</div>
+        <div class="section-line"></div>
+      </div>
+      <div id="active-alerts">
+        <div style="color:var(--green);padding:16px;font-size:12px">
+          ✓ All compliance checks passing. No active alerts.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-header">
+        <div class="section-title">Compliance Framework</div>
+        <div class="section-line"></div>
+      </div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>SR 11-7 — Model Risk Management</span></div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>OCC 2023-17 — Third-Party Risk</span></div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>BCBS 239 — Risk Data Aggregation</span></div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>MiFID II Art. 17 / RTS 6</span></div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>DORA — Digital Operational Resilience</span></div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>EU AI Act — High-Risk AI Systems</span></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="section-header">
+      <div class="section-title">Alert History</div>
+      <div class="section-line"></div>
+    </div>
+    <div id="alert-history">
+      <div style="color:var(--muted);padding:16px;font-size:12px">
+        No alerts recorded this session.
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="section-header">
+      <div class="section-title">Systemic Stress Overlay</div>
+      <div class="section-line"></div>
+      <span class="layer-tag tag-cyan">OFR</span>
+    </div>
+    <div id="systemic-stress-overlay" style="font-size:12px;color:var(--muted);line-height:1.9">
+      Loading OFR systemic stress overlay...
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     TAB 4 — GOVERNANCE
+════════════════════════════════════════════════════════ -->
+<div id="tab-governance" class="tab">
+
+  <!-- KPI ROW -->
+  <div class="grid g4" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-label">Doctrine Version</div>
+      <div class="card-value" style="color:var(--cyan)" id="gov-doctrine-version">1.2</div>
+      <div class="card-sub" id="gov-doctrine-hash" style="font-family:var(--font-mono);font-size:10px">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">System Status</div>
+      <div class="card-value" style="color:var(--green)" id="gov-system-status">ACTIVE</div>
+      <div class="card-sub" id="gov-halt-sub">All layers operational</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Human Overrides</div>
+      <div class="card-value" id="gov-overrides">0</div>
+      <div class="card-sub">All logged with authority tier</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Pending Doctrine Updates</div>
+      <div class="card-value" id="gov-pending-updates">0</div>
+      <div class="card-sub">Awaiting Tier 1 approval</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="section-header">
+      <div class="section-title">Governance Fingerprint Engine</div>
+      <div class="section-line"></div>
+      <span class="layer-tag tag-green">Pre-Trade Seal</span>
+    </div>
+    <div style="font-size:11px;color:var(--muted);line-height:1.8;margin-bottom:14px">
+      Aureon seals the decision environment through stack audit, doctrine lineage, authority hash,
+      and compliance artifact linkage so a governance package can be reconstructed later.
+    </div>
+    <div class="grid g4" style="margin-bottom:10px">
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:6px;padding:12px">
+        <div class="card-label">Stack Audit</div>
+        <div id="fp-audit-hash" class="hash" style="margin-top:4px">—</div>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:6px;padding:12px">
+        <div class="card-label">Authority Seal</div>
+        <div id="fp-authority-hash" class="hash" style="margin-top:4px">—</div>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:6px;padding:12px">
+        <div class="card-label">Doctrine Lineage</div>
+        <div id="fp-doctrine-hash" class="hash" style="margin-top:4px">—</div>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:6px;padding:12px">
+        <div class="card-label">Compliance Artifact</div>
+        <div id="fp-report-id" class="hash" style="margin-top:4px">—</div>
+      </div>
+    </div>
+    <div id="fp-summary" style="font-size:10px;color:var(--muted)">No execution fingerprint recorded yet.</div>
+  </div>
+
+  <div class="grid g2" style="margin-bottom:16px">
+
+    <!-- L0 AUTHORITY HIERARCHY -->
+    <div class="card">
+      <div class="section-header">
+        <div class="section-title">L0 Modification Authority</div>
+        <div class="section-line"></div>
+        <span class="layer-tag tag-blue" style="font-size:9px">Verana L0</span>
+      </div>
+      <div class="authority-tier">
+        <div class="tier-badge tier-0">0</div>
+        <div class="tier-content">
+          <div class="tier-name">Emergency Halt</div>
+          <div class="tier-role">Instant freeze — above all doctrine. One human, one action, full stop. No layer can override.</div>
+          <div class="tier-capability can">✓ Freeze all Thifur execution · Block all approvals</div>
+          <div class="tier-capability can">✓ Resume requires explicit re-authorization</div>
+        </div>
+      </div>
+      <div class="authority-tier">
+        <div class="tier-badge tier-1">1</div>
+        <div class="tier-content">
+          <div class="tier-name">Human Authority (Bill)</div>
+          <div class="tier-role">Trade approvals, doctrine version approval, conflict resolution. Current operator.</div>
+          <div class="tier-capability can">✓ Approve/reject trades · Approve doctrine updates</div>
+          <div class="tier-capability can">✓ Resolve regulatory conflicts · Activate/resume halt</div>
+        </div>
+      </div>
+      <div class="authority-tier">
+        <div class="tier-badge tier-2">2</div>
+        <div class="tier-content">
+          <div class="tier-name">Regulatory Mandate</div>
+          <div class="tier-role">External rules (SEC, DORA, MiFID II) absorbed by Verana L0. Creates pending update — Tier 1 must approve before version increments.</div>
+          <div class="tier-capability can">✓ Force doctrine update proposal</div>
+          <div class="tier-capability cannot">✗ Cannot self-approve — always requires Tier 1</div>
+        </div>
+      </div>
+      <div class="authority-tier">
+        <div class="tier-badge tier-3">3</div>
+        <div class="tier-content">
+          <div class="tier-name">Thifur Telemetry</div>
+          <div class="tier-role">Signals doctrine gaps via execution telemetry. Read-only — surfaces recommendations to Tier 1. Zero self-modification.</div>
+          <div class="tier-capability can">✓ Signal doctrine gaps · Confirm lineage integrity</div>
+          <div class="tier-capability cannot">✗ Cannot modify doctrine under any condition</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DOCTRINE VERSION LOG -->
+    <div class="card">
+      <div class="section-header">
+        <div class="section-title">Doctrine Version Log</div>
+        <div class="section-line"></div>
+        <span class="layer-tag tag-cyan" style="font-size:9px">Immutable</span>
+      </div>
+      <div id="doctrine-version-log">
+        <div style="color:var(--muted);font-size:11px;padding:8px 0">Loading...</div>
+      </div>
+
+      <!-- PENDING DOCTRINE UPDATES -->
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border2)">
+        <div style="font-size:10px;letter-spacing:0.08em;color:var(--muted);margin-bottom:10px">
+          PENDING DOCTRINE UPDATES
+        </div>
+        <div id="pending-doctrine-updates">
+          <div style="color:var(--muted);font-size:11px">No pending updates.</div>
+        </div>
+        <button class="btn-propose-doctrine" onclick="toggleProposeForm()">
+          + PROPOSE DOCTRINE UPDATE
+        </button>
+
+        <!-- ── L0→L1 EVALUATION PROGRESS ── -->
+        <div id="doctrine-eval-progress" style="display:none;margin:12px 0;padding:12px;
+             background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.15);border-radius:6px">
+          <div style="font-size:9px;letter-spacing:.1em;color:var(--cyan);margin-bottom:10px">
+            DOCTRINE EVALUATION IN PROGRESS</div>
+          <div id="eval-step-l0" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;opacity:.4">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--blue);flex-shrink:0"></div>
+            <span style="font-size:10px;color:var(--white)">Verana L0 — Regulatory absorption &amp; network governance check</span>
+            <span id="eval-l0-status" style="margin-left:auto;font-size:9px;color:var(--muted)">QUEUED</span>
+          </div>
+          <div id="eval-step-l1" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;opacity:.4">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--cyan);flex-shrink:0"></div>
+            <span style="font-size:10px;color:var(--white)">Mentat L1 — Strategic doctrine truth evaluation</span>
+            <span id="eval-l1-status" style="margin-left:auto;font-size:9px;color:var(--muted)">QUEUED</span>
+          </div>
+          <div id="eval-step-t1" style="display:flex;align-items:center;gap:8px;opacity:.4">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--yellow);flex-shrink:0"></div>
+            <span style="font-size:10px;color:var(--white)">Tier 1 Human Authority — Awaiting your approval</span>
+            <span id="eval-t1-status" style="margin-left:auto;font-size:9px;color:var(--muted)">PENDING</span>
+          </div>
+        </div>
+
+        <div id="propose-form">
+          <!-- Title -->
+          <input id="propose-title" type="text"
+            placeholder="Title — e.g. MiFID II Best Execution Policy Update"
+            style="width:100%;box-sizing:border-box;background:rgba(255,255,255,0.04);
+                   border:1px solid var(--border2);border-radius:5px;padding:8px 10px;
+                   color:var(--white);font-size:11px;font-family:var(--font-mono);
+                   margin-bottom:8px;outline:none"/>
+          <!-- Trigger + Urgency row -->
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <select id="propose-trigger" style="flex:1">
+              <option value="HUMAN_AUTHORITY">Human Authority (Tier 1 direct)</option>
+              <option value="REGULATORY">Regulatory Mandate (Tier 2)</option>
+              <option value="TELEMETRY">Thifur Telemetry Signal (Tier 3)</option>
+            </select>
+            <select id="propose-urgency" style="flex:1;background:rgba(255,255,255,0.04);
+                   border:1px solid var(--border2);border-radius:5px;padding:6px 10px;
+                   color:var(--white);font-size:10px;font-family:var(--font-mono)">
+              <option value="ROUTINE">Routine</option>
+              <option value="URGENT">Urgent</option>
+              <option value="CRITICAL">Critical</option>
+            </select>
+          </div>
+          <!-- Affected frameworks -->
+          <div style="margin-bottom:8px">
+            <div style="font-size:9px;letter-spacing:.08em;color:var(--muted);margin-bottom:6px">
+              AFFECTED FRAMEWORKS (select all that apply)</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px" id="framework-checkboxes">
+              <label class="fw-label" style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:var(--muted);padding:3px 8px;border:1px solid var(--border2);border-radius:4px">
+                <input type="checkbox" value="MiFID II"   class="fw-check" style="accent-color:var(--cyan)"> MiFID II</label>
+              <label class="fw-label" style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:var(--muted);padding:3px 8px;border:1px solid var(--border2);border-radius:4px">
+                <input type="checkbox" value="SR 11-7"    class="fw-check" style="accent-color:var(--cyan)"> SR 11-7</label>
+              <label class="fw-label" style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:var(--muted);padding:3px 8px;border:1px solid var(--border2);border-radius:4px">
+                <input type="checkbox" value="Basel III"  class="fw-check" style="accent-color:var(--cyan)"> Basel III</label>
+              <label class="fw-label" style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:var(--muted);padding:3px 8px;border:1px solid var(--border2);border-radius:4px">
+                <input type="checkbox" value="DORA"       class="fw-check" style="accent-color:var(--cyan)"> DORA</label>
+              <label class="fw-label" style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:var(--muted);padding:3px 8px;border:1px solid var(--border2);border-radius:4px">
+                <input type="checkbox" value="Dodd-Frank" class="fw-check" style="accent-color:var(--cyan)"> Dodd-Frank</label>
+              <label class="fw-label" style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:var(--muted);padding:3px 8px;border:1px solid var(--border2);border-radius:4px">
+                <input type="checkbox" value="EMIR"       class="fw-check" style="accent-color:var(--cyan)"> EMIR</label>
+              <label class="fw-label" style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:var(--muted);padding:3px 8px;border:1px solid var(--border2);border-radius:4px">
+                <input type="checkbox" value="UCITS"      class="fw-check" style="accent-color:var(--cyan)"> UCITS</label>
+            </div>
+          </div>
+          <textarea id="propose-reason" placeholder="State the rationale for this doctrine update — include regulatory citation if applicable…"></textarea>
+          <div style="display:flex;gap:8px">
+            <button class="btn-doctrine-approve" style="flex:1;padding:7px"
+                    onclick="submitDoctrineProposal()">SUBMIT TO L0 → L1 → TIER 1</button>
+            <button class="btn-doctrine-reject" onclick="toggleProposeForm()">CANCEL</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HUMAN AUTHORITY LOG -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="section-header">
+      <div class="section-title">Human Authority Log</div>
+      <div class="section-line"></div>
+      <span class="layer-tag tag-cyan">Tier 0 / 1 / 2 / 3</span>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr><th>Time</th><th>Tier</th><th>Decision Type</th><th>Authority</th><th>Outcome</th><th>Lineage</th></tr>
+      </thead>
+      <tbody id="authority-log">
+        <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">
+          No human authority decisions recorded yet.
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- DOCTRINE UPDATE CYCLE (static historical) -->
+  <div class="card">
+    <div class="section-header">
+      <div class="section-title">Doctrine Update Cycle</div>
+      <div class="section-line"></div>
+    </div>
+    <div class="alert-row">
+      <div class="alert-icon" style="background:var(--blue)"></div>
+      <div>
+        <div style="font-weight:600;margin-bottom:3px">MDU-001 — DORA EBA RTS Regulatory Change</div>
+        <div class="dim-t">EU DORA Article 28 absorbed. 4 nodes flagged. Doctrine updated.</div>
+        <div class="hash" style="margin-top:4px">v1.0 → v1.1 · Propagated to Kaladan + Thifur</div>
+      </div>
+      <div class="layer-tag tag-blue" style="margin-left:auto;flex-shrink:0">REGULATORY</div>
+    </div>
+    <div class="alert-row">
+      <div class="alert-icon" style="background:var(--cyan)"></div>
+      <div>
+        <div style="font-weight:600;margin-bottom:3px">MDU-002 — EMIR Operational Signal</div>
+        <div class="dim-t">Kaladan signaled EMIR reporting pattern. Doctrine gap reviewed. No change required.</div>
+        <div class="hash" style="margin-top:4px">Source: Kaladan lifecycle telemetry</div>
+      </div>
+      <div class="layer-tag tag-cyan" style="margin-left:auto;flex-shrink:0">OPERATIONAL</div>
+    </div>
+    <div class="alert-row">
+      <div class="alert-icon" style="background:var(--yellow)"></div>
+      <div>
+        <div style="font-weight:600;margin-bottom:3px">MDU-003 — Tier 2 Human Authority Resolution</div>
+        <div class="dim-t">Basel III Endgame vs EU CRR III true conflict. Apply HIGHER RWA standard. New precedent set.</div>
+        <div class="hash" style="margin-top:4px">MDR-J-NEW-001 · v1.1 → v1.2</div>
+      </div>
+      <div class="layer-tag tag-yellow" style="margin-left:auto;flex-shrink:0">HUMAN AUTH</div>
+    </div>
+    <div class="alert-row">
+      <div class="alert-icon" style="background:var(--green)"></div>
+      <div>
+        <div style="font-weight:600;margin-bottom:3px">MDU-TEL-002 — Thifur Telemetry Confirmation</div>
+        <div class="dim-t">Execution telemetry confirms lineage integrity across all agent classes. Zero Unobserved Action verified.</div>
+        <div class="hash" style="margin-top:4px">Source: Thifur-R / J / H · All 8 ROE checks passed</div>
+      </div>
+      <div class="layer-tag tag-green" style="margin-left:auto;flex-shrink:0">TELEMETRY</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     TAB 5 — REPORTS
+════════════════════════════════════════════════════════ -->
+<div id="tab-reports" class="tab">
+
+  <div class="grid g4" style="margin-bottom:20px">
+    <div class="card" style="cursor:pointer" onclick="showReport('weekly')">
+      <div class="card-label">Weekly P&L Report</div>
+      <div class="card-value" style="font-size:18px">
+        <span id="weekly-pnl">$0</span>
+      </div>
+      <div class="card-sub">Last 7 days · Emailed Fridays 5pm ET</div>
+    </div>
+    <div class="card" style="cursor:pointer" onclick="showReport('compliance')">
+      <div class="card-label">Compliance Trade Reports</div>
+      <div class="card-value" style="font-size:18px;color:var(--cyan)" id="ctr-count">0</div>
+      <div class="card-sub">Kaladan L2 · Generated at execution · PDF artifacts</div>
+    </div>
+    <div class="card" style="cursor:pointer" onclick="showReport('audit')">
+      <div class="card-label">Audit Report</div>
+      <div class="card-value" style="font-size:18px;color:var(--cyan)">PASS</div>
+      <div class="card-sub">Full stack integrity · 10 checks · All green</div>
+    </div>
+    <div class="card" style="cursor:pointer" onclick="showReport('replay')">
+      <div class="card-label">Regulatory Replay Engine</div>
+      <div class="card-value" style="font-size:18px;color:var(--green)" id="replay-count">0</div>
+      <div class="card-sub">Decision lifecycle reconstruction</div>
+    </div>
+  </div>
+
+  <!-- WEEKLY P&L REPORT -->
+  <div id="report-weekly" class="report-block">
+    <h3 style="color:var(--cyan)">Weekly P&L Report — Week of <span id="report-week"></span></h3>
+
+    <div class="grid g3" style="margin-bottom:20px">
+      <div style="text-align:center">
+        <div class="card-label" style="text-align:center">Portfolio Value</div>
+        <div style="font-size:20px;font-weight:700;text-align:center" id="rpt-value">$50,000,000</div>
+      </div>
+      <div style="text-align:center">
+        <div class="card-label" style="text-align:center">Week P&L</div>
+        <div style="font-size:20px;font-weight:700;text-align:center" id="rpt-wpnl">$0 (0.00%)</div>
+      </div>
+      <div style="text-align:center">
+        <div class="card-label" style="text-align:center">Total P&L Since Inception</div>
+        <div style="font-size:20px;font-weight:700;text-align:center" id="rpt-tpnl">$0 (0.00%)</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div style="margin-bottom:16px">
+      <div class="card-label" style="margin-bottom:12px;text-align:center">Asset Class Performance</div>
+      <div id="class-performance"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div style="font-size:11px;color:var(--muted);line-height:1.8">
+      <strong style="color:var(--white)">Aureon Governance Notes:</strong><br>
+      All trades executed under Thifur-H adaptive intelligence within Mentat doctrine boundaries.
+      Human Authority Doctrine engaged for trades exceeding $500K threshold.
+      Compliance monitor active 24×5. Zero doctrine breaches this period.
+    </div>
+  </div>
+
+  <!-- COMPLIANCE TRADE REPORTS -->
+  <div id="report-compliance" class="report-block" style="display:none">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+      <h3 style="color:var(--cyan)">Compliance Trade Reports</h3>
+      <span style="font-size:10px;color:var(--muted);font-family:var(--font-mono)">
+        KALADAN L2 · Lifecycle Artifacts · Generated at Execution Moment
+      </span>
+      <span style="margin-left:auto;font-size:10px;font-family:var(--font-mono);
+        background:rgba(0,212,255,.08);color:var(--cyan);border:1px solid rgba(0,212,255,.2);
+        padding:3px 10px;border-radius:3px" id="ctr-live-count">0 reports</span>
+    </div>
+
+    <div style="font-size:11px;color:var(--muted);margin-bottom:16px;
+      padding:10px 14px;border-left:2px solid rgba(0,212,255,0.3);
+      background:rgba(0,212,255,0.04);border-radius:0 4px 4px 0">
+      Each report is generated the instant Kaladan L2 confirms execution — not when the order is
+      submitted, not when the gate clears, but at the moment the position legally exists and cash
+      is deducted. Three sections per report: Trade Identity · Governance Block · Risk State.
+      PDF artifacts serve as immutable regulatory records (MiFID II Art.17/RTS6 · SR 11-7).
+    </div>
+
+    <div id="ctr-feed">
+      <div style="color:var(--muted);font-size:12px;padding:32px;text-align:center">
+        No compliance reports yet. Approve a trade to generate the first report.
+      </div>
+    </div>
+  </div>
+
+  <!-- AUDIT REPORT -->
+  <div id="report-audit" class="report-block" style="display:none">
+    <h3 style="color:var(--cyan)">Full Cycle Audit Report — <span id="audit-cycle-id"></span></h3>
+    <div class="grid g2" style="margin-bottom:16px">
+      <div>
+        <div class="card-label">Report Hash</div>
+        <div class="hash" id="audit-hash" style="font-size:12px;margin-top:4px">—</div>
+      </div>
+      <div>
+        <div class="card-label">Generated</div>
+        <div style="font-size:12px;margin-top:4px" id="audit-ts">—</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div>
+      <div class="card-label" style="margin-bottom:12px">Doctrine Integrity Checks</div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>All compliance decisions lineage-stamped</span></div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>All Thifur executions lineage-stamped</span></div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>80/20 Law enforced — universal rules applied globally</span></div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>Determinism verified — Mentat</span></div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>Zero Unobserved Action — Thifur</span></div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>Human Authority Doctrine — conditions triggered correctly</span></div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>Network-calibrated doctrine — Verana → Mentat</span></div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>Bidirectional intelligence loop closed — Thifur → Mentat</span></div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>Exception taxonomy — all exceptions classified</span></div>
+      <div class="check-row"><span class="check-icon up">✓</span><span>Audit trail continuous and unbroken</span></div>
+    </div>
+    <div class="divider"></div>
+    <div style="font-size:11px;color:var(--muted);line-height:1.8">
+      This audit record is immutable from the moment of generation.
+      Every decision, execution, and doctrine change carries the lineage required
+      for supervisory reconstruction at any granularity, on demand,
+      within the 10-year retention window.
+    </div>
+  </div>
+
+  <div id="report-replay" class="report-block" style="display:none">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+      <h3 style="color:var(--green)">Regulatory Replay Engine</h3>
+      <span style="font-size:10px;color:var(--muted);font-family:var(--font-mono)">
+        Signal → Governance → Risk → Approval → Execution → Settlement
+      </span>
+      <span style="margin-left:auto;font-size:10px;font-family:var(--font-mono);
+        background:rgba(16,185,129,.08);color:var(--green);border:1px solid rgba(16,185,129,.2);
+        padding:3px 10px;border-radius:3px" id="replay-live-count">0 replays</span>
+    </div>
+
+    <div style="font-size:11px;color:var(--muted);margin-bottom:16px;
+      padding:10px 14px;border-left:2px solid rgba(16,185,129,0.3);
+      background:rgba(16,185,129,0.04);border-radius:0 4px 4px 0">
+      Each replay reconstructs the trade lifecycle from the recorded governance package:
+      decision id, doctrine version, risk gates, authority seal, execution timestamp, settlement path,
+      and compliance artifact id.
+    </div>
+
+    <div id="replay-feed">
+      <div style="color:var(--muted);font-size:12px;padding:32px;text-align:center">
+        No replay packages available yet. Approve a trade to generate the first lifecycle reconstruction.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     TAB 6 — FRAMEWORK / ABOUT
+════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- TAB: TREASURY OPERATIONS                                    -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="tab-treasury" class="tab">
+
+  <!-- HEADER -->
+  <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px">
+    <h2 style="font-size:18px;font-weight:700;letter-spacing:.04em;color:var(--white)">Treasury Operations</h2>
+    <span style="font-size:11px;color:var(--cyan);font-family:var(--font-mono)">KALADAN L2 · SETTLEMENT INTEGRITY</span>
+    <span id="treasury-rail-badge" style="margin-left:auto;font-size:10px;font-family:var(--font-mono);background:rgba(16,185,129,.15);color:#10B981;border:1px solid rgba(16,185,129,.3);padding:3px 10px;border-radius:3px">ALL RAILS OPERATIONAL</span>
+  </div>
+
+  <!-- KPI ROW -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px">
+    <div class="card" style="padding:20px">
+      <div class="dim-t" style="font-size:10px;margin-bottom:8px;letter-spacing:.08em">T+0 CASH POSITION</div>
+      <div id="tr-t0cash" style="font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--cyan)">$50,000,000</div>
+      <div class="dim-t" style="font-size:10px;margin-top:6px">Settled cash · all accounts</div>
+    </div>
+    <div class="card" style="padding:20px">
+      <div class="dim-t" style="font-size:10px;margin-bottom:8px;letter-spacing:.08em">CASH AVAILABLE TO TRADE</div>
+      <div id="tr-available" style="font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--green)">$50,000,000</div>
+      <div class="dim-t" style="font-size:10px;margin-top:6px">T+0 less pending obligations</div>
+    </div>
+    <div class="card" style="padding:20px">
+      <div class="dim-t" style="font-size:10px;margin-bottom:8px;letter-spacing:.08em">PENDING OBLIGATIONS</div>
+      <div id="tr-obligations" style="font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--yellow)">$0</div>
+      <div class="dim-t" style="font-size:10px;margin-top:6px">Instructed + Matched BUYs</div>
+    </div>
+    <div class="card" style="padding:20px">
+      <div class="dim-t" style="font-size:10px;margin-bottom:8px;letter-spacing:.08em">IN-FLIGHT SETTLEMENTS</div>
+      <div id="tr-inflight" style="font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--white)">0</div>
+      <div id="tr-settled-today" class="dim-t" style="font-size:10px;margin-top:6px">0 fully settled today</div>
+    </div>
+  </div>
+
+  <!-- LIQUIDITY GATE INDICATOR -->
+  <div id="tr-gate-banner" class="card" style="padding:14px 20px;margin-bottom:24px;display:flex;align-items:center;gap:12px;border-left:3px solid var(--green)">
+    <div style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)"></div>
+    <div>
+      <span style="font-size:12px;font-weight:600;color:var(--green)">LIQUIDITY GATE: OPEN</span>
+      <span id="tr-gate-detail" class="dim-t" style="font-size:11px;margin-left:12px">Sufficient cash available for new trade execution</span>
+    </div>
+    <span class="dim-t" style="margin-left:auto;font-size:10px;font-family:var(--font-mono)">KALADAN COMPLIANCE GATE · REAL-TIME</span>
+  </div>
+
+  <!-- SETTLEMENT PIPELINE -->
+  <div class="card" style="padding:20px;margin-bottom:24px">
+    <div style="font-size:12px;font-weight:600;letter-spacing:.06em;margin-bottom:16px;color:var(--white)">SETTLEMENT PIPELINE</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+
+      <!-- INSTRUCTED -->
+      <div style="background:var(--deep);border-radius:6px;padding:14px;border-top:2px solid var(--muted)">
+        <div style="font-size:10px;letter-spacing:.08em;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between">
+          INSTRUCTED
+          <span id="cnt-instructed" style="background:rgba(74,85,120,.3);padding:1px 7px;border-radius:3px;font-family:var(--font-mono)">0</span>
+        </div>
+        <div style="font-size:9px;color:var(--muted);margin-bottom:10px">SWIFT/Fedwire sent · pending confirmation</div>
+        <div id="pipe-instructed" style="display:flex;flex-direction:column;gap:6px;min-height:40px"></div>
+      </div>
+
+      <!-- MATCHED -->
+      <div style="background:var(--deep);border-radius:6px;padding:14px;border-top:2px solid var(--yellow)">
+        <div style="font-size:10px;letter-spacing:.08em;color:var(--yellow);margin-bottom:10px;display:flex;justify-content:space-between">
+          MATCHED
+          <span id="cnt-matched" style="background:rgba(245,158,11,.12);padding:1px 7px;border-radius:3px;font-family:var(--font-mono)">0</span>
+        </div>
+        <div style="font-size:9px;color:var(--muted);margin-bottom:10px">Counterparty confirmed · T+1 staged</div>
+        <div id="pipe-matched" style="display:flex;flex-direction:column;gap:6px;min-height:40px"></div>
+      </div>
+
+      <!-- CASH SETTLED -->
+      <div style="background:var(--deep);border-radius:6px;padding:14px;border-top:2px solid var(--blue)">
+        <div style="font-size:10px;letter-spacing:.08em;color:var(--blue);margin-bottom:10px;display:flex;justify-content:space-between">
+          CASH SETTLED
+          <span id="cnt-cash-settled" style="background:rgba(59,130,246,.12);padding:1px 7px;border-radius:3px;font-family:var(--font-mono)">0</span>
+        </div>
+        <div style="font-size:9px;color:var(--muted);margin-bottom:10px">Affirmed · T+0 settled / T+1 pending next-day cutoff</div>
+        <div id="pipe-cash-settled" style="display:flex;flex-direction:column;gap:6px;min-height:40px"></div>
+      </div>
+
+      <!-- FULLY SETTLED -->
+      <div style="background:var(--deep);border-radius:6px;padding:14px;border-top:2px solid var(--green)">
+        <div style="font-size:10px;letter-spacing:.08em;color:var(--green);margin-bottom:10px;display:flex;justify-content:space-between">
+          FULLY SETTLED
+          <span id="cnt-fully-settled" style="background:rgba(16,185,129,.12);padding:1px 7px;border-radius:3px;font-family:var(--font-mono)">0</span>
+        </div>
+        <div style="font-size:9px;color:var(--muted);margin-bottom:10px">Both legs complete · trade closed</div>
+        <div id="pipe-fully-settled" style="display:flex;flex-direction:column;gap:6px;min-height:40px"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="card" style="padding:20px;margin-bottom:24px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600;letter-spacing:.06em;color:var(--white)">SETTLED TRADE REPOSITORY</div>
+      <span style="font-size:9px;font-family:var(--font-mono);color:var(--green)">VISIBLE SETTLEMENT HISTORY</span>
+      <span style="margin-left:auto;font-size:9px;color:var(--muted)">Derived from persisted trade history</span>
+    </div>
+    <div style="font-size:10px;color:var(--muted);line-height:1.7;margin-bottom:12px">
+      Fully settled trades remain visible here even after they fall out of the live Treasury pipeline window.
+    </div>
+    <div id="settled-repository-list" style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto">
+      <div class="dim-t" style="font-size:10px">No fully settled trades recorded yet</div>
+    </div>
+  </div>
+
+  <!-- ── INSTITUTIONAL CASH MANAGEMENT PANEL ─────────────────── -->
+  <div class="card" style="padding:20px;margin-bottom:24px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:600;letter-spacing:.06em;color:var(--white)">INSTITUTIONAL CASH MANAGEMENT</div>
+      <span style="font-size:9px;font-family:var(--font-mono);color:var(--cyan)">KALADAN L2 · THIFUR-R</span>
+      <span id="mmf-sweep-badge" style="margin-left:auto;font-size:9px;font-family:var(--font-mono);background:rgba(16,185,129,.12);color:#10B981;border:1px solid rgba(16,185,129,.3);padding:2px 8px;border-radius:3px">MMF SWEEP ACTIVE</span>
+    </div>
+
+    <!-- MMF KPI Row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+      <div style="background:var(--deep);border-radius:6px;padding:14px">
+        <div class="dim-t" style="font-size:9px;letter-spacing:.08em;margin-bottom:6px">OPERATING CASH (T+0)</div>
+        <div id="mmf-cash" style="font-size:18px;font-weight:700;font-family:var(--font-mono);color:var(--cyan)">—</div>
+        <div class="dim-t" style="font-size:9px;margin-top:4px">Available · post-floor</div>
+      </div>
+      <div style="background:var(--deep);border-radius:6px;padding:14px">
+        <div class="dim-t" style="font-size:9px;letter-spacing:.08em;margin-bottom:6px">MMF BALANCE (SWEPT)</div>
+        <div id="mmf-balance" style="font-size:18px;font-weight:700;font-family:var(--font-mono);color:var(--green)">$0</div>
+        <div id="mmf-provider-label" class="dim-t" style="font-size:9px;margin-top:4px">FDRXX · Fidelity Gov't MMF</div>
+      </div>
+      <div style="background:var(--deep);border-radius:6px;padding:14px">
+        <div class="dim-t" style="font-size:9px;letter-spacing:.08em;margin-bottom:6px">OPERATING FLOOR (3%)</div>
+        <div id="mmf-floor" style="font-size:18px;font-weight:700;font-family:var(--font-mono);color:var(--yellow)">—</div>
+        <div class="dim-t" style="font-size:9px;margin-top:4px">Min. liquid cash retained</div>
+      </div>
+      <div style="background:var(--deep);border-radius:6px;padding:14px">
+        <div class="dim-t" style="font-size:9px;letter-spacing:.08em;margin-bottom:6px">YIELD ACCRUED (YTD)</div>
+        <div id="mmf-yield" style="font-size:18px;font-weight:700;font-family:var(--font-mono);color:#A78BFA">$0</div>
+        <div id="mmf-rate-label" class="dim-t" style="font-size:9px;margin-top:4px">5.25% annualised</div>
+      </div>
+    </div>
+
+    <!-- Sweep lifecycle explanation + last sweep log -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <div class="dim-t" style="font-size:9px;letter-spacing:.06em;margin-bottom:8px">SWEEP LIFECYCLE (KALADAN L2)</div>
+        <div style="font-size:10px;color:var(--muted);line-height:1.7">
+          <span style="color:var(--yellow)">16:15 ET</span> — Idle cash above 3% floor swept to
+          <span id="mmf-ticker-inline" style="color:var(--green);font-family:var(--font-mono)">FDRXX</span>
+          <br>
+          <span style="color:var(--cyan)">08:30 ET</span> — MMF liquidated + overnight yield returned to cash
+          <br>
+          <span style="color:var(--muted)">Cash segmentation: Operating (&lt;3mo) · ST Strategic · LT Strategic</span>
+        </div>
+      </div>
+      <div>
+        <div class="dim-t" style="font-size:9px;letter-spacing:.06em;margin-bottom:8px">RECENT SWEEP LOG</div>
+        <div id="mmf-sweep-log" style="display:flex;flex-direction:column;gap:5px;max-height:80px;overflow-y:auto">
+          <div class="dim-t" style="font-size:10px">No sweeps yet today</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM ROW: Rail Status + Settlement Stats -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+    <!-- SETTLEMENT RAIL STATUS -->
+    <div class="card" style="padding:20px">
+      <div style="font-size:12px;font-weight:600;letter-spacing:.06em;margin-bottom:14px;color:var(--white)">SETTLEMENT RAIL STATUS
+        <span class="dim-t" style="font-size:9px;font-weight:400;margin-left:8px">VERANA L0 · NETWORK REGISTRY</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div id="rail-swift-dot" style="width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0"></div>
+          <div style="flex:1;font-size:12px">SWIFT <span class="dim-t" style="font-size:10px">International messaging</span></div>
+          <span id="rail-swift-tag" style="font-size:10px;font-family:var(--font-mono);color:var(--green)">OPERATIONAL</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div id="rail-fedwire-dot" style="width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0"></div>
+          <div style="flex:1;font-size:12px">Fedwire <span class="dim-t" style="font-size:10px">U.S. RTGS · real-time</span></div>
+          <span id="rail-fedwire-tag" style="font-size:10px;font-family:var(--font-mono);color:var(--green)">OPERATIONAL</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div id="rail-custodian-dot" style="width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0"></div>
+          <div style="flex:1;font-size:12px">Custodian <span class="dim-t" style="font-size:10px">Custody chain</span></div>
+          <span id="rail-custodian-tag" style="font-size:10px;font-family:var(--font-mono);color:var(--green)">OPERATIONAL</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div id="rail-clearing-dot" style="width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0"></div>
+          <div style="flex:1;font-size:12px">Clearing <span class="dim-t" style="font-size:10px">Central counterparty</span></div>
+          <span id="rail-clearing-tag" style="font-size:10px;font-family:var(--font-mono);color:var(--green)">OPERATIONAL</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTLEMENT STATS -->
+    <div class="card" style="padding:20px">
+      <div style="font-size:12px;font-weight:600;letter-spacing:.06em;margin-bottom:14px;color:var(--white)">SETTLEMENT BREAKDOWN</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span class="dim-t" style="font-size:11px">Instructed</span>
+          <span id="stat-instructed" style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">0 trades</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span class="dim-t" style="font-size:11px">Matched</span>
+          <span id="stat-matched" style="font-family:var(--font-mono);font-size:12px;color:var(--yellow)">0 trades</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span class="dim-t" style="font-size:11px">Cash Settled</span>
+          <span id="stat-cash-settled" style="font-family:var(--font-mono);font-size:12px;color:var(--blue)">0 trades</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span class="dim-t" style="font-size:11px">Fully Settled</span>
+          <span id="stat-fully-settled" style="font-family:var(--font-mono);font-size:12px;color:var(--green)">0 trades</span>
+        </div>
+        <div style="border-top:1px solid var(--border2);margin-top:4px;padding-top:12px;display:flex;justify-content:space-between">
+          <span class="dim-t" style="font-size:11px">Settled Notional</span>
+          <span id="stat-notional" style="font-family:var(--font-mono);font-size:12px;color:var(--white)">$0</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div><!-- end tab-treasury -->
+
+
+<div id="tab-about" class="tab">
+
+  <!-- HERO -->
+  <div style="text-align:center;padding:40px 0 48px">
+    <svg viewBox="0 0 120 120" width="64" height="64" style="margin:0 auto 20px;display:block">
+      <defs>
+        <linearGradient id="lg2" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%"   style="stop-color:#00D4FF"/>
+          <stop offset="50%"  style="stop-color:#3B82F6"/>
+          <stop offset="100%" style="stop-color:#6366F1"/>
+        </linearGradient>
+      </defs>
+      <circle cx="60" cy="60" r="56" fill="none" stroke="url(#lg2)" stroke-width="1.5" opacity="0.35"/>
+      <line x1="20" y1="82" x2="100" y2="82" stroke="url(#lg2)" stroke-width="2.5"/>
+      <line x1="60" y1="20" x2="28"  y2="82" stroke="url(#lg2)" stroke-width="3" stroke-linecap="round"/>
+      <line x1="60" y1="20" x2="92"  y2="82" stroke="url(#lg2)" stroke-width="3" stroke-linecap="round"/>
+      <line x1="37" y1="70" x2="83" y2="70" stroke="url(#lg2)" stroke-width="1.5" opacity="0.9"/>
+      <line x1="43" y1="58" x2="77" y2="58" stroke="url(#lg2)" stroke-width="1.5" opacity="0.65"/>
+      <line x1="49" y1="46" x2="71" y2="46" stroke="url(#lg2)" stroke-width="1.5" opacity="0.45"/>
+      <line x1="55" y1="34" x2="65" y2="34" stroke="url(#lg2)" stroke-width="1.5" opacity="0.3"/>
+      <circle cx="60" cy="20" r="3.5" fill="url(#lg2)"/>
+      <circle cx="28" cy="82" r="2.5" fill="url(#lg2)"/>
+      <circle cx="92" cy="82" r="2.5" fill="url(#lg2)"/>
+    </svg>
+    <div style="font-family:var(--font-display);font-size:40px;font-weight:800;
+                letter-spacing:6px;text-transform:uppercase;
+                background:linear-gradient(135deg,#00D4FF,#3B82F6,#6366F1);
+                -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                background-clip:text;margin-bottom:12px">
+      AUREON
+    </div>
+    <div style="font-size:13px;color:var(--muted);letter-spacing:3px;
+                text-transform:uppercase;margin-bottom:8px">
+      Doctrine-Driven Financial Operating System
+    </div>
+    <div style="font-size:12px;color:var(--muted)">
+      Columbia University · MS Technology Management · Guillermo "Bill" Ravelo
+    </div>
+    <div style="margin-top:18px">
+      <button onclick="openFrameworkBrief()"
+              style="background:linear-gradient(135deg,rgba(0,212,255,.18),rgba(59,130,246,.22));
+                     border:1px solid rgba(0,212,255,.35);color:var(--white);padding:10px 16px;
+                     border-radius:999px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+                     font-family:var(--font-mono);cursor:pointer">
+        Open Executive Brief
+      </button>
+    </div>
+  </div>
+
+  <!-- CORE INSIGHT -->
+  <div class="report-block" style="margin-bottom:24px">
+    <h3>The Foundational Insight</h3>
+    <p style="font-size:13px;color:var(--muted);line-height:1.9;font-family:var(--font-mono)">
+      The financial system's failures are not failures of intelligence or execution.
+      They are <strong style="color:var(--white)">failures of governance</strong>.
+      Doctrine without a governed network is theory. Intelligence without structure is noise.
+      Execution without determinism is chaos. Aureon solves all three simultaneously
+      through four interdependent layers — and does so in the right order:
+      governance first, technology second.
+    </p>
+  </div>
+
+  <!-- FOUR LAYERS -->
+  <div class="report-block" style="margin-bottom:24px">
+    <h3>The Four-Layer Architecture</h3>
+
+    <div class="doctrine-pillar">
+      <h4 style="color:var(--cyan)">Layer 0 — Verana · Ground Level</h4>
+      <p>Network Governance & Adaptive Control Plane. Owns the relationships, contracts, boundaries,
+      and accountability structures. Absorbs change at the network level so layers above never rebuild.
+      When Lehman collapsed in 2008, the cascade happened because no institution had a deterministic
+      map of its own counterparty network. Verana fixes that at the foundation.</p>
+    </div>
+
+    <div class="doctrine-pillar" style="border-color:var(--blue)">
+      <h4 style="color:var(--blue)">Layer 1 — Mentat · 30,000 ft</h4>
+      <p>Strategic Intelligence & Doctrine Engine. Defines how the world should be understood so
+      systems beneath may operate with precision, transparency, and trust. The 80/20 Law:
+      80% of financial workflows are universal — Mentat governs them with a single unified doctrine.
+      The remaining 20% are jurisdiction-specific — governed by modular inserts without fragmentation.</p>
+    </div>
+
+    <div class="doctrine-pillar" style="border-color:var(--green)">
+      <h4 style="color:var(--green)">Layer 1B — Risk Manager</h4>
+      <p>Independent portfolio risk governance aligned to institutional risk disciplines.
+      Owns drawdown bands, concentration thresholds, liquidity constraints, and VaR framing
+      before a trade can move deeper into the lifecycle. This keeps strategy logic and risk
+      supervision visibly separate.</p>
+    </div>
+
+    <div class="doctrine-pillar" style="border-color:rgba(240,244,255,0.4)">
+      <h4>Layer 2 — Kaladan · 10,000 ft</h4>
+      <p>Lifecycle Orchestration. Transforms strategic intelligence into coordinated workflows.
+      End-to-end lifecycle ownership, modular jurisdiction containers, universal tax engine integration,
+      regulator-grade transparency. The operational brainstem of the financial world — the first system
+      that harmonizes identity, compliance, tax, execution, and auditability into one coherent architecture.</p>
+    </div>
+
+    <div class="doctrine-pillar" style="border-color:var(--orange)">
+      <h4 style="color:var(--orange)">Layer 3 — Thifur · 500 ft</h4>
+      <p>Agentic Execution with three agent classes. Thifur-R (Ranger): zero autonomy, deterministic
+      settlement — the Citi $900M Revlon error is structurally impossible under Thifur-R.
+      Thifur-J (JTAC): bounded autonomy for multi-constraint flows. Thifur-H (Hunter-Killer):
+      adaptive intelligence operating within Mentat's doctrine-defined objective functions.
+      Every action explainable before execution. Zero Unobserved Action.</p>
+    </div>
+  </div>
+
+  <!-- REGULATORY -->
+  <div class="report-block" style="margin-bottom:24px">
+    <h3>Regulatory Alignment</h3>
+    <div class="grid g3">
+      <div style="text-align:center;padding:16px">
+        <div style="font-size:32px;font-weight:800;color:var(--green)">49%</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">FULLY SATISFIED</div>
+        <div style="font-size:10px;color:var(--muted)">Before any amendments</div>
+      </div>
+      <div style="text-align:center;padding:16px">
+        <div style="font-size:32px;font-weight:800;color:var(--yellow)">32%</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">PARTIAL</div>
+        <div style="font-size:10px;color:var(--muted)">Targeted additions needed</div>
+      </div>
+      <div style="text-align:center;padding:16px">
+        <div style="font-size:32px;font-weight:800;color:var(--red)">19%</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">GAPS</div>
+        <div style="font-size:10px;color:var(--muted)">9 gaps · all remediable · none architectural</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.7;
+                border-top:1px solid var(--border);padding-top:12px">
+      Frameworks mapped: SR 11-7 · OCC 2023-17 · BCBS 239 · MiFID II Art.17/RTS 6 · DORA · EU AI Act
+    </div>
+  </div>
+
+  <!-- PREPARED BY -->
+  <div style="text-align:center;padding:32px 0;color:var(--muted);font-size:11px;
+              letter-spacing:1.5px;line-height:2">
+    PREPARED BY GUILLERMO "BILL" RAVELO<br>
+    COLUMBIA UNIVERSITY · MS IN TECHNOLOGY MANAGEMENT<br>
+    PROJECT AUREON · DRAFT 1.0 · DOCTRINE-DRIVEN OPERATING SYSTEM FOR GLOBAL FINANCIAL INFRASTRUCTURE
+  </div>
+</div>
+
+</main>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ── STATE — driven by Flask API ───────────────────────
+const API = {
+  portfolio:        '/api/portfolio',
+  compliance:       '/api/compliance',
+  decisions:        '/api/decisions',
+  governance:       '/api/governance',
+  treasury:         '/api/treasury',
+  resolve:          (id) => `/api/decisions/${id}`,
+  pretrade:         (id) => `/api/decisions/${id}/pretrade`,
+  halt:             '/api/halt',
+  haltResume:       '/api/halt/resume',
+  doctrinePropose:  '/api/doctrine/propose',
+  doctrineApprove:  (id) => `/api/doctrine/approve/${id}`,
+  tradeReports:     '/api/trade-reports',
+  tradeReportPdf:   (id) => `/api/trade-reports/${id}/pdf`,
+  thesisAnalyze:    '/api/thesis/analyze',
+  thesisRegister:   '/api/thesis/register',
+  thesisRegistry:   '/api/thesis/registry',
+  thesisUpload:     '/api/thesis/upload',
+  macro:            '/api/macro',
+};
+
+const state = {
+  portfolioValue: 50_000_000,
+  cash: 50_000_000,
+  pnl: 0,
+  pnlPct: 0,
+  drawdown: 0,
+  positions: [],
+  trades: [],
+  decisions: [],
+  alerts: [],
+  authorityLog: [],
+  cycleCount: 0,
+  classTotals: {},
+  allocations: {},
+  doctrineVersion: '1.2',
+  stackStatus: 'initializing',
+  doctrineUpdates: [],
+  frameworks: [],
+  liveMode: false,
+  // L0 Governance
+  haltActive: false,
+  haltReason: '',
+  haltTs: null,
+  haltAuthority: '',
+  doctrineVersionLog: [],
+  pendingDoctrineUpdates: [],
+  auditHash: '',
+  fingerprintEngine: {},
+  riskManager: {},
+  thesisAnalysis: null,
+  sourceDocuments: [],
+  macroMonitor: {},
+  // Compliance Trade Reports
+  tradeReports: [],
+  // Integration mode: 'standalone' | 'oms-overlay'
+  integrationMode: 'standalone',
+};
+
+// ── BASE PRICES for market ticker fallback ────────────
+const BASE_PRICES = {
+  'SPY':535.1,'AAPL':219.5,'NVDA':875.3,'EEM':43.2,
+  'TLT':91.5,'HYG':78.2,'AGG':97.4,
+  'EUR/USD':1.0842,'GBP/USD':1.2651,'USD/JPY':149.32,
+  'BTC':67420,'ETH':3510,'SOL':142,
+  'GLD':213.4,'USO':72.1,'DBC':21.8,
+};
+let prices     = { ...BASE_PRICES };
+let prevPrices = { ...BASE_PRICES };  // previous tick prices for % change calculation
+
+const ALLOCATIONS_DEFAULT = {
+  equities:     { target: 0.40, color: '#3B82F6', label: 'Equities' },
+  fixed_income: { target: 0.25, color: '#10B981', label: 'Fixed Income' },
+  fx:           { target: 0.15, color: '#F59E0B', label: 'FX' },
+  crypto:       { target: 0.10, color: '#F97316', label: 'Crypto' },
+  commodities:  { target: 0.10, color: '#8B5CF6', label: 'Commodities' },
+};
+
+// ── LIVE API FETCH ────────────────────────────────────
+async function fetchPortfolio() {
+  try {
+    const r = await fetch(API.portfolio);
+    if (!r.ok) return;
+    const d = await r.json();
+    state.portfolioValue = d.portfolio_value;
+    state.cash           = d.cash;
+    state.pnl            = d.pnl;
+    state.pnlPct         = d.pnl_pct;
+    state.drawdown       = d.drawdown;
+    state.positions      = d.positions || [];
+    state.trades         = d.trades    || [];
+    state.classTotals    = d.class_totals || {};
+    state.allocations    = d.allocations  || ALLOCATIONS_DEFAULT;
+    state.cycleCount     = d.cycle_count  || state.cycleCount + 1;
+    state.liveMode       = true;
+    // Update market status header pill
+    const lbl   = document.getElementById('market-status-label');
+    const pulse = document.getElementById('market-pulse');
+    if (d.market_open) {
+      lbl.textContent = 'Market Open · Thifur Active';
+      pulse.classList.remove('pulse-off');
+    } else {
+      lbl.textContent = 'Market Closed · Thifur Standby';
+      pulse.classList.add('pulse-off');
+    }
+    // Snapshot current prices before updating, so the ticker can show tick-over-tick % change
+    prevPrices = { ...prices };
+    for (const pos of state.positions) {
+      if (pos.price) prices[pos.symbol] = pos.price;
+    }
+  } catch(e) {
+    // Backend not running — use simulated fallback
+    tickSimulated();
+  }
+}
+
+async function fetchCompliance() {
+  try {
+    const r = await fetch(API.compliance);
+    if (!r.ok) return;
+    const d = await r.json();
+    state.alerts      = d.alerts        || [];
+    state.drawdown    = d.drawdown      || state.drawdown;
+    state.frameworks  = d.frameworks    || [];
+    state.riskManager = d.risk_manager  || {};
+    state.macroMonitor = d.macro || state.macroMonitor || {};
+    if (state.macroMonitor && d.ofr) state.macroMonitor.ofr = d.ofr;
+  } catch(e) {}
+}
+
+async function fetchMacro() {
+  try {
+    const r = await fetch(API.macro);
+    if (!r.ok) return;
+    state.macroMonitor = await r.json();
+  } catch(e) {}
+}
+
+async function fetchSourceRegistry() {
+  try {
+    const r = await fetch(API.thesisRegistry);
+    if (!r.ok) return;
+    const d = await r.json();
+    state.sourceDocuments = d.documents || [];
+  } catch(e) {}
+}
+
+async function fetchDecisions() {
+  try {
+    const r = await fetch(API.decisions);
+    if (!r.ok) return;
+    const d = await r.json();
+    state.decisions = d.pending || [];
+  } catch(e) {}
+}
+
+async function fetchGovernance() {
+  try {
+    const r = await fetch(API.governance);
+    if (!r.ok) return;
+    const d = await r.json();
+
+    // Core doctrine state
+    state.doctrineVersion        = d.doctrine_version         || '1.2';
+    state.stackStatus            = d.stack_status             || 'ready';
+    state.doctrineUpdates        = d.doctrine_updates         || [];
+    state.authorityLog           = d.authority_log            || [];
+    state.doctrineVersionLog     = d.doctrine_version_log     || [];
+    state.pendingDoctrineUpdates = d.pending_doctrine_updates || [];
+    state.auditHash              = d.audit_hash               || '';
+    state.fingerprintEngine      = d.fingerprint_engine       || {};
+
+    // L0 halt state
+    state.haltActive    = d.halt_active    || false;
+    state.haltReason    = d.halt_reason    || '';
+    state.haltTs        = d.halt_ts        || null;
+    state.haltAuthority = d.halt_authority || '';
+
+    // KPI cards
+    document.getElementById('gov-doctrine-version').textContent = state.doctrineVersion;
+    document.getElementById('gov-overrides').textContent        = d.override_count || state.authorityLog.length;
+    document.getElementById('gov-pending-updates').textContent  = state.pendingDoctrineUpdates.length;
+
+    // System status card
+    const statusEl  = document.getElementById('gov-system-status');
+    const statusSub = document.getElementById('gov-halt-sub');
+    if (state.haltActive) {
+      statusEl.textContent = 'HALTED';
+      statusEl.style.color = 'var(--red)';
+      statusSub.textContent = `Reason: ${state.haltReason || '—'}`;
+      statusSub.style.color = 'var(--red)';
+    } else {
+      statusEl.textContent = 'ACTIVE';
+      statusEl.style.color = 'var(--green)';
+      statusSub.textContent = 'All layers operational';
+      statusSub.style.color = '';
+    }
+
+    const fp = state.fingerprintEngine || {};
+    const shortHash = v => (v || '—').toString().slice(0, 16).toUpperCase();
+    document.getElementById('fp-audit-hash').textContent     = shortHash(fp.stack_audit_hash);
+    document.getElementById('fp-authority-hash').textContent = shortHash(fp.latest_authority_hash);
+    document.getElementById('fp-doctrine-hash').textContent  = shortHash(fp.latest_doctrine_hash);
+    document.getElementById('fp-report-id').textContent      = fp.latest_report_id || '—';
+    document.getElementById('gov-doctrine-hash').textContent = shortHash(fp.latest_doctrine_hash);
+    const fpSummary = document.getElementById('fp-summary');
+    if (fpSummary) {
+      fpSummary.textContent = fp.latest_authority_hash
+        ? `Latest sealed package: ${fp.latest_authority_type || 'Authority action'} · ${fp.latest_authority_ts || '—'}`
+        : 'No execution fingerprint recorded yet.';
+    }
+
+    // Halt banner
+    const banner = document.getElementById('halt-banner');
+    const bannerReason = document.getElementById('halt-banner-reason');
+    if (state.haltActive) {
+      banner.classList.add('active');
+      if (bannerReason) bannerReason.textContent = `Reason: ${state.haltReason || '—'} · Authority: ${state.haltAuthority || '—'}`;
+    } else {
+      banner.classList.remove('active');
+    }
+
+    // Header halt button style
+    const haltBtn = document.getElementById('halt-header-btn');
+    if (haltBtn) {
+      haltBtn.style.background   = state.haltActive ? 'var(--green)' : '';
+      haltBtn.style.borderColor  = state.haltActive ? 'var(--green)' : '';
+      haltBtn.style.color        = state.haltActive ? '#000' : '';
+      haltBtn.textContent        = state.haltActive ? '✓ SYSTEM HALTED' : '⛔ EMERGENCY HALT';
+      haltBtn.onclick            = state.haltActive ? resumeFromHalt : openHaltModal;
+    }
+
+    // Render doctrine version log
+    renderDoctrineVersionLog();
+
+    // Render pending doctrine updates
+    renderPendingDoctrineUpdates();
+
+  } catch(e) {}
+}
+
+// ── Compliance Trade Reports ───────────────────────────────────
+
+async function fetchTradeReports() {
+  try {
+    const r = await fetch(API.tradeReports);
+    if (!r.ok) return;
+    const d = await r.json();
+    state.tradeReports = d.reports || [];
+    renderTradeReports();
+    renderReplayReports();
+    const cnt = state.tradeReports.length;
+    const ctrCount = document.getElementById('ctr-count');
+    const ctrLive  = document.getElementById('ctr-live-count');
+    const replayCount = document.getElementById('replay-count');
+    const replayLive  = document.getElementById('replay-live-count');
+    if (ctrCount) ctrCount.textContent = cnt;
+    if (ctrLive)  ctrLive.textContent  = `${cnt} report${cnt !== 1 ? 's' : ''}`;
+    if (replayCount) replayCount.textContent = cnt;
+    if (replayLive)  replayLive.textContent  = `${cnt} replay${cnt !== 1 ? 's' : ''}`;
+  } catch(e) {}
+}
+
+function renderTradeReports() {
+  const el = document.getElementById('ctr-feed');
+  if (!el) return;
+  const reports = state.tradeReports;
+  if (!reports || reports.length === 0) {
+    el.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:32px;text-align:center">
+      No compliance reports yet. Approve a trade to generate the first report.
+    </div>`;
+    return;
+  }
+  el.innerHTML = reports.map(r => {
+    const action     = r.action || '—';
+    const symbol     = r.symbol || '—';
+    const notional   = r.notional || 0;
+    const reportId   = r.report_id || '—';
+    const decisionId = r.decision_id || '—';
+    const execTs     = (r.exec_ts || '').slice(0, 19).replace('T', ' ') + ' UTC';
+    const settlement = r.settlement || 'T+1';
+    const doctrine   = r.doctrine_version || '—';
+    const hash       = (r.authority_hash || '').slice(0, 16).toUpperCase();
+    const dd         = (r.drawdown_at_exec || 0).toFixed(2);
+    const cashAfter  = r.cash_after || 0;
+    const varImp     = r.var_impact || 0;
+    const actColor   = action === 'BUY' ? 'var(--green)' : 'var(--red)';
+    const settleClr  = settlement === 'T+0' ? 'var(--cyan)' : 'var(--orange)';
+    const ddColor    = parseFloat(dd) > 5 ? 'var(--red)' : parseFloat(dd) > 2 ? 'var(--yellow)' : 'var(--green)';
+    const gates      = r.gate_results || [];
+    const gatePills  = gates.map(g => {
+      const sc = g.status==='PASS' ? 'var(--green)' : g.status==='WARN' ? 'var(--yellow)' : 'var(--red)';
+      return `<span style="font-size:9px;color:${sc};background:rgba(0,0,0,.3);
+        padding:2px 5px;border-radius:3px;border:1px solid ${sc}">${(g.gate||'').split(' ')[0]} ${g.status}</span>`;
+    }).join('');
+
+    return `<div style="background:rgba(255,255,255,.03);border:1px solid var(--border);
+      border-radius:6px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <span style="font-size:13px;font-weight:700;color:${actColor};border:1px solid ${actColor};
+          padding:2px 8px;border-radius:3px">${action}</span>
+        <span style="font-family:var(--font-display);font-size:18px;font-weight:700">${symbol}</span>
+        <span style="font-size:14px;font-weight:600">$${notional.toLocaleString('en-US',{maximumFractionDigits:0})}</span>
+        <span style="font-size:10px;color:${settleClr};border:1px solid ${settleClr};
+          padding:1px 6px;border-radius:3px">${settlement}</span>
+        <span style="font-size:10px;color:var(--muted);margin-left:auto">${execTs}</span>
+        <a href="${API.tradeReportPdf(reportId)}" target="_blank"
+           style="font-size:10px;color:var(--cyan);border:1px solid rgba(0,212,255,.3);
+             padding:3px 10px;border-radius:3px;text-decoration:none;
+             background:rgba(0,212,255,.06)">↗ PDF Report</a>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;
+        margin-bottom:12px;font-size:11px">
+        <div>
+          <div style="font-size:9px;letter-spacing:.1em;color:var(--cyan);margin-bottom:8px">TRADE IDENTITY</div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="color:var(--muted)">Asset Class</span>
+            <span>${(r.asset_class||'—').replace('_',' ').toUpperCase()}</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="color:var(--muted)">Quantity</span>
+            <span>${(r.shares||0).toLocaleString()} shares</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="color:var(--muted)">Exec Price</span>
+            <span>$${(r.exec_price||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--muted)">Agent</span>
+            <span style="color:var(--orange)">${r.agent||'THIFUR_H'}</span></div>
+        </div>
+        <div>
+          <div style="font-size:9px;letter-spacing:.1em;color:var(--cyan);margin-bottom:8px">GOVERNANCE BLOCK</div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="color:var(--muted)">Doctrine</span>
+            <span>v${doctrine}</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="color:var(--muted)">Tier</span>
+            <span>Tier 1 — Human</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+            <span style="color:var(--muted)">Approved By</span>
+            <span style="font-size:10px">${r.approved_by||'—'}</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px">${gatePills}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;letter-spacing:.1em;color:var(--cyan);margin-bottom:8px">RISK STATE</div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="color:var(--muted)">Drawdown</span>
+            <span style="color:${ddColor}">${dd}%</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="color:var(--muted)">Macro / OFR</span>
+            <span>${(r.macro_regime_at_exec || '—').toUpperCase()} · ${r.ofr_fsi_at_exec === undefined || r.ofr_fsi_at_exec === null ? '—' : Number(r.ofr_fsi_at_exec).toFixed(2)} ${(r.ofr_band_at_exec || '').toUpperCase()}</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="color:var(--muted)">Cash After</span>
+            <span>$${cashAfter.toLocaleString('en-US',{maximumFractionDigits:0})}</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="color:var(--muted)">VaR Impact</span>
+            <span style="color:${varImp<0?'var(--red)':'var(--green)'}">${varImp>=0?'+':''}${varImp.toFixed(2)}%</span></div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--muted)">Positions</span>
+            <span>${r.positions_post||0}</span></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;padding-top:10px;border-top:1px solid var(--border2);
+        font-size:9px;color:var(--muted)">
+        <span>Report: <span class="hash">${reportId}</span></span>
+        <span>Decision: <span class="hash">${decisionId}</span></span>
+        <span style="margin-left:auto">Hash: <span class="hash">${hash}</span></span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderReplayReports() {
+  const el = document.getElementById('replay-feed');
+  if (!el) return;
+  const reports = state.tradeReports || [];
+  const replayCount = document.getElementById('replay-count');
+  const replayLive = document.getElementById('replay-live-count');
+  if (replayCount) replayCount.textContent = reports.length;
+  if (replayLive) replayLive.textContent = `${reports.length} replay${reports.length !== 1 ? 's' : ''}`;
+
+  if (!reports.length) {
+    el.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:32px;text-align:center">
+      No replay packages available yet. Approve a trade to generate the first lifecycle reconstruction.
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = reports.map(r => {
+    const gates = (r.gate_results || []).map(g => `
+      <div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border2);font-size:10px">
+        <span style="color:var(--white)">${g.gate}</span>
+        <span style="color:var(--muted)">${g.layer}</span>
+        <span style="color:${g.status==='PASS'?'var(--green)':g.status==='WARN'?'var(--yellow)':'var(--red)'}">${g.status}</span>
+      </div>
+    `).join('');
+
+    const timeline = [
+      { label: 'Decision Package', detail: `${r.decision_id || '—'} · ${r.action || '—'} ${r.symbol || '—'}` },
+      { label: 'Doctrine Version', detail: `v${r.doctrine_version || '—'} · lineage sealed` },
+      { label: 'Risk + Compliance', detail: `${(r.gate_results || []).length} gates evaluated before execution · OFR ${(r.ofr_fsi_at_exec === undefined || r.ofr_fsi_at_exec === null) ? '—' : Number(r.ofr_fsi_at_exec).toFixed(2)} ${(r.ofr_band_at_exec || '').toUpperCase()}` },
+      { label: 'Human Authority', detail: `${(r.approved_by || 'Human Authority')} · ${(r.authority_hash || '—').slice(0,16).toUpperCase()}` },
+      { label: 'Execution', detail: `${(r.exec_ts || '').slice(0,19).replace('T',' ')} UTC · ${r.settlement || 'T+1'}` },
+      { label: 'Artifact', detail: `${r.report_id || '—'} · replayable compliance record · ${(r.systemic_overlay_source || 'overlay').replace(/_/g,' ')}` },
+    ].map(item => `
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--green);margin-top:5px;flex-shrink:0"></div>
+        <div style="font-size:10px;line-height:1.6">
+          <div style="color:var(--white);font-weight:600">${item.label}</div>
+          <div style="color:var(--muted)">${item.detail}</div>
+        </div>
+      </div>
+    `).join('');
+
+    return `<div style="background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:6px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <span style="font-size:11px;font-family:var(--font-mono);color:var(--green)">REPLAY PACKAGE</span>
+        <span style="font-size:16px;font-weight:700;color:var(--white)">${r.symbol || '—'}</span>
+        <span style="font-size:11px;color:var(--muted)">${r.report_id || '—'}</span>
+        <span style="margin-left:auto;font-size:10px;color:var(--cyan);font-family:var(--font-mono)">${(r.authority_hash || '').slice(0,16).toUpperCase()}</span>
+      </div>
+      <div class="grid g2" style="margin-bottom:14px">
+        <div style="display:flex;flex-direction:column;gap:10px">${timeline}</div>
+        <div style="background:rgba(0,0,0,.18);border:1px solid var(--border2);border-radius:6px;padding:12px">
+          <div style="font-size:10px;letter-spacing:.08em;color:var(--muted);margin-bottom:10px">PRE-TRADE GATE RECONSTRUCTION</div>
+          ${gates || '<div style="color:var(--muted);font-size:10px">No gate records found.</div>'}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Treasury helpers ──────────────────────────────────────────
+function fmtM(v) {
+  if (v === null || v === undefined) return '$0';
+  if (Math.abs(v) >= 1_000_000) return '$' + (v/1_000_000).toFixed(2) + 'M';
+  if (Math.abs(v) >= 1_000)    return '$' + (v/1_000).toFixed(1) + 'K';
+  return '$' + v.toFixed(0);
+}
+
+function pipeCard(t) {
+  const clr        = t.action === 'BUY' ? 'var(--green)' : 'var(--red)';
+  const settle     = t.settlement || ((['BTC','ETH','SOL'].includes(t.symbol)) ? 'T+0' : 'T+1');
+  const settleClr  = settle === 'T+0' ? 'var(--cyan)' : 'var(--orange)';
+  return `<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 9px;font-size:10px;font-family:var(--font-mono)">
+    <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+      <span style="color:${clr};font-weight:700">${t.action}</span>
+      <span style="color:var(--white)">${t.symbol}</span>
+      <span style="color:${settleClr};font-size:9px;font-weight:700">${settle}</span>
+    </div>
+    <div style="color:var(--muted)">${fmtM(t.notional)} · ${t.agent.replace('THIFUR_','')}</div>
+  </div>`;
+}
+
+function setRail(name, status) {
+  const ok    = status === 'OPERATIONAL';
+  const color = ok ? 'var(--green)' : 'var(--yellow)';
+  const dot   = document.getElementById(`rail-${name}-dot`);
+  const tag   = document.getElementById(`rail-${name}-tag`);
+  if (dot) dot.style.background = color;
+  if (tag) { tag.style.color = color; tag.textContent = status; }
+}
+
+function openFrameworkBrief() {
+  window.open('/framework-brief', '_blank', 'noopener,noreferrer');
+}
+
+function settledRepoCard(t) {
+  const settledAt = t.settled_at ? new Date(t.settled_at).toLocaleString() : 'Pending timestamp';
+  const actionClr = t.action === 'BUY' ? 'var(--green)' : 'var(--red)';
+  const settleClr = t.settlement === 'T+0' ? 'var(--cyan)' : 'var(--orange)';
+  return `<div style="background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:6px;padding:10px 12px">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:4px">
+      <div style="font-size:11px;color:var(--white)">
+        <span style="color:${actionClr};font-weight:700">${t.action}</span>
+        <span style="margin-left:6px">${t.symbol}</span>
+        <span style="margin-left:8px;color:${settleClr};font-size:9px;font-family:var(--font-mono)">${t.settlement}</span>
+      </div>
+      <div style="font-size:10px;color:var(--white);font-family:var(--font-mono)">${fmtM(t.notional)}</div>
+    </div>
+    <div style="font-size:10px;color:var(--muted)">${t.summary}</div>
+    <div style="font-size:9px;color:var(--muted);margin-top:5px">Settled ${settledAt}</div>
+  </div>`;
+}
+
+async function fetchTreasury() {
+  try {
+    const r = await fetch(API.treasury);
+    if (!r.ok) return;
+    const d = await r.json();
+
+    // KPI cards
+    document.getElementById('tr-t0cash').textContent      = fmtM(d.t0_cash);
+    document.getElementById('tr-available').textContent   = fmtM(d.cash_available);
+    document.getElementById('tr-obligations').textContent = fmtM(d.pending_obligations);
+    document.getElementById('tr-inflight').textContent    = d.in_flight;
+    document.getElementById('tr-settled-today').textContent = `${d.settled_today} fully settled today`;
+
+    // Liquidity gate banner
+    const gateLow   = d.cash_available < 1_000_000;
+    const gate      = document.getElementById('tr-gate-banner');
+    const gateLabel = gate ? gate.querySelector('span') : null;
+    const gateDetail= document.getElementById('tr-gate-detail');
+    if (gate) gate.style.borderLeftColor = gateLow ? 'var(--red)' : 'var(--green)';
+    if (gateLabel) {
+      gateLabel.textContent = gateLow ? 'LIQUIDITY GATE: CONSTRAINED' : 'LIQUIDITY GATE: OPEN';
+      gateLabel.style.color = gateLow ? 'var(--red)' : 'var(--green)';
+    }
+    if (gateDetail) gateDetail.textContent = gateLow
+      ? `Only ${fmtM(d.cash_available)} available — Kaladan holding new executions`
+      : `${fmtM(d.cash_available)} available for new trade execution`;
+
+    // Pipeline columns
+    const colMap = { INSTRUCTED:'instructed', MATCHED:'matched', CASH_SETTLED:'cash-settled', FULLY_SETTLED:'fully-settled' };
+    Object.entries(colMap).forEach(([st, id]) => {
+      const trades = (d.pipeline || []).filter(t => t.state === st);
+      const cntEl  = document.getElementById(`cnt-${id}`);
+      const pipeEl = document.getElementById(`pipe-${id}`);
+      if (cntEl)  cntEl.textContent  = trades.length;
+      if (pipeEl) pipeEl.innerHTML   = trades.length
+        ? trades.map(pipeCard).join('')
+        : '<div style="color:var(--muted);font-size:10px;padding:4px 0">—</div>';
+    });
+
+    // Stats
+    const sc = d.state_counts || {};
+    document.getElementById('stat-instructed').textContent    = `${sc.INSTRUCTED||0} trades`;
+    document.getElementById('stat-matched').textContent       = `${sc.MATCHED||0} trades`;
+    document.getElementById('stat-cash-settled').textContent  = `${sc.CASH_SETTLED||0} trades`;
+    document.getElementById('stat-fully-settled').textContent = `${sc.FULLY_SETTLED||0} trades`;
+    document.getElementById('stat-notional').textContent      = fmtM(d.settled_notional || 0);
+
+    const repoEl = document.getElementById('settled-repository-list');
+    if (repoEl) {
+      const repo = d.settled_repository || [];
+      repoEl.innerHTML = repo.length
+        ? repo.map(settledRepoCard).join('')
+        : '<div style="color:var(--muted);font-size:10px;padding:4px 0">No fully settled trades recorded yet</div>';
+    }
+
+    // Rail status dots + tags
+    const rails = d.rails || {};
+    ['swift','fedwire','custodian','clearing'].forEach(name => setRail(name, rails[name] || 'OPERATIONAL'));
+
+    // Top badge
+    const allOk = Object.values(rails).every(s => s === 'OPERATIONAL');
+    const badge = document.getElementById('treasury-rail-badge');
+    if (badge) {
+      badge.textContent          = allOk ? 'ALL RAILS OPERATIONAL' : 'RAIL DEGRADED';
+      badge.style.color          = allOk ? '#10B981' : 'var(--yellow)';
+      badge.style.background     = allOk ? 'rgba(16,185,129,.15)' : 'rgba(245,158,11,.15)';
+      badge.style.borderColor    = allOk ? 'rgba(16,185,129,.3)'  : 'rgba(245,158,11,.3)';
+    }
+
+    // Available-to-trade color
+    const avEl = document.getElementById('tr-available');
+    if (avEl) avEl.style.color = gateLow ? 'var(--red)' : 'var(--green)';
+
+    // ── MMF / Institutional Cash Management panel ────────────────
+    const mmf = d.mmf || {};
+    const el  = id => document.getElementById(id);
+
+    if (el('mmf-cash'))           el('mmf-cash').textContent           = fmtM(d.t0_cash || 0);
+    if (el('mmf-balance'))        el('mmf-balance').textContent        = fmtM(mmf.balance || 0);
+    if (el('mmf-floor'))          el('mmf-floor').textContent          = fmtM(d.cash_floor || 0);
+    if (el('mmf-yield'))          el('mmf-yield').textContent          = fmtM(mmf.yield_accrued || 0);
+    if (el('mmf-provider-label')) el('mmf-provider-label').textContent =
+      `${mmf.ticker || 'FDRXX'} · ${(mmf.provider || '').split('(')[0].trim()}`;
+    if (el('mmf-rate-label'))     el('mmf-rate-label').textContent     =
+      `${mmf.annual_rate_pct || 5.25}% annualised`;
+    if (el('mmf-ticker-inline'))  el('mmf-ticker-inline').textContent  = mmf.ticker || 'FDRXX';
+
+    // Sweep badge: green if no balance swept (all in cash), amber if currently in MMF
+    const sweepBadge = el('mmf-sweep-badge');
+    if (sweepBadge) {
+      const inMMF = (mmf.balance || 0) > 0;
+      sweepBadge.textContent       = inMMF ? 'MMF BALANCE IN MARKET' : 'MMF SWEEP ACTIVE (NEXT: 16:15 ET)';
+      sweepBadge.style.color       = inMMF ? '#F59E0B' : '#10B981';
+      sweepBadge.style.background  = inMMF ? 'rgba(245,158,11,.12)' : 'rgba(16,185,129,.12)';
+      sweepBadge.style.borderColor = inMMF ? 'rgba(245,158,11,.3)'  : 'rgba(16,185,129,.3)';
+    }
+
+    // Sweep log
+    const logEl = el('mmf-sweep-log');
+    if (logEl) {
+      const entries = (d.sweep_log || []).slice(0, 5);
+      if (entries.length === 0) {
+        logEl.innerHTML = '<div class="dim-t" style="font-size:10px">No sweeps recorded yet</div>';
+      } else {
+        logEl.innerHTML = entries.map(s => {
+          const isIn   = s.action === 'SWEEP_IN';
+          const color  = isIn ? 'var(--green)' : 'var(--cyan)';
+          const arrow  = isIn ? '↓ IN' : '↑ OUT';
+          const ts     = (s.ts || '').substring(11, 16) + ' UTC';
+          const yld    = s.yield_accrued ? ` +$${s.yield_accrued.toLocaleString(undefined,{maximumFractionDigits:0})} yield` : '';
+          return `<div style="display:flex;gap:8px;align-items:center;font-size:9px">
+            <span style="font-family:var(--font-mono);color:${color};width:38px">${arrow}</span>
+            <span style="color:var(--white);font-family:var(--font-mono)">${fmtM(s.amount||0)}</span>
+            <span class="dim-t">${s.ticker||'FDRXX'}${yld}</span>
+            <span class="dim-t" style="margin-left:auto">${ts}</span>
+          </div>`;
+        }).join('');
+      }
+    }
+
+  } catch(e) {}
+}
+
+// ── PRE-TRADE / POST-TRADE ORCHESTRATOR ────────────────────────────────────
+// _pendingDecisionId / _pendingResolution hold state across the modal flow.
+let _pendingDecisionId = null;
+let _pendingResolution = null;
+
+async function resolveDecision(id, resolution) {
+  // Tier 0 guard — halt blocks all approvals
+  if (state.haltActive && resolution === 'APPROVED') {
+    toast('⛔ SYSTEM HALTED — All execution frozen. Resume system before approving trades.');
+    return;
+  }
+
+  if (resolution === 'REJECTED') {
+    // Rejections skip pre-trade and execute immediately (no position change)
+    try {
+      const r = await fetch(API.resolve(id), {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ resolution: 'REJECTED' }),
+      });
+      const d = await r.json();
+      if (d.status === 'ok') {
+        toast(`✗ Order rejected — no trade executed`);
+        await fetchDecisions();
+        await fetchPortfolio();
+        await fetchGovernance();
+        renderTrading();
+        renderGovernance();
+      }
+    } catch(e) { resolveDecisionLocal(id, 'REJECTED'); }
+    return;
+  }
+
+  // APPROVED → open pre-trade routing modal first
+  _pendingDecisionId = id;
+  _pendingResolution = resolution;
+  openPretradeModal(id);
+}
+
+async function openPretradeModal(id) {
+  const modal = document.getElementById('pretrade-modal');
+  const checksEl = document.getElementById('pretrade-checks');
+  const subtitleEl = document.getElementById('pretrade-subtitle');
+  const execBtn = document.getElementById('pretrade-execute-btn');
+
+  // Show pending skeleton immediately
+  const gateNames = [
+    {gate:'Session Boundary',  layer:'Verana L0'},
+    {gate:'Liquidity Buffer',  layer:'Risk Manager L1B'},
+    {gate:'Drawdown Guard',    layer:'Risk Manager L1B'},
+    {gate:'Position Limit',    layer:'Risk Manager L1B'},
+    {gate:'Doctrine Integrity',layer:'Thifur L3'},
+    {gate:'Systemic Stress',   layer:'Verana L0 / OFR'},
+    {gate:'OFAC Screening',    layer:'Verana L0'},
+  ];
+  checksEl.innerHTML = gateNames.map(g => `
+    <div class="pretrade-check-row">
+      <div class="check-dot PENDING"></div>
+      <div style="flex:1">
+        <div class="check-gate">${g.gate}</div>
+        <div class="check-layer">${g.layer}</div>
+        <div class="check-detail">Running check…</div>
+      </div>
+      <div class="check-badge PENDING">…</div>
+    </div>`).join('');
+  subtitleEl.textContent = 'Running doctrine gate checks…';
+  execBtn.disabled = true;
+  modal.classList.add('active');
+
+  // Fetch real pre-trade results from server
+  let data = null;
+  try {
+    const r = await fetch(API.pretrade(id));
+    data = await r.json();
+  } catch(e) {
+    subtitleEl.textContent = 'Backend offline — using local simulation';
+    // Simulate all PASS if offline
+    data = {
+      overall: 'PASS', settlement: 'T+2',
+      checks: gateNames.map(g => ({ ...g, status:'PASS', detail:'Simulated check — backend offline' }))
+    };
+  }
+
+  // Animate checks appearing one-by-one (80ms each)
+  const checks = data.checks || [];
+  for (let i = 0; i < checks.length; i++) {
+    await new Promise(res => setTimeout(res, 80));
+    const c = checks[i];
+    const dotClass = c.status === 'PASS' ? 'PASS' : c.status === 'WARN' ? 'WARN' : 'FAIL';
+    const rows = checksEl.querySelectorAll('.pretrade-check-row');
+    if (rows[i]) {
+      rows[i].innerHTML = `
+        <div class="check-dot ${dotClass}"></div>
+        <div style="flex:1">
+          <div class="check-gate">${c.gate}</div>
+          <div class="check-layer">${c.layer}</div>
+          <div class="check-detail">${c.detail}</div>
+        </div>
+        <div class="check-badge ${dotClass}">${c.status}</div>`;
+    }
+  }
+
+  // Update subtitle and enable/block execute button based on overall status
+  const overall = data.overall || 'PASS';
+  const dec = state.decisions.find(d => d.id === id);
+  const symbol = dec ? dec.symbol : '—';
+  const notional = dec ? '$' + (dec.notional||0).toLocaleString() : '';
+
+  if (overall === 'FAIL') {
+    subtitleEl.textContent = `⛔ Pre-trade check FAILED — execution blocked`;
+    execBtn.disabled = true;
+    execBtn.textContent = 'BLOCKED';
+  } else if (overall === 'WARN') {
+    subtitleEl.textContent = `⚠ Warnings present — review before executing ${symbol} ${notional}`;
+    execBtn.disabled = false;
+    execBtn.textContent = 'EXECUTE ORDER';
+  } else {
+    subtitleEl.textContent = `All gates PASSED · ${symbol} ${notional} · Settlement ${data.settlement || 'T+2'}`;
+    execBtn.disabled = false;
+    execBtn.textContent = 'EXECUTE ORDER';
+  }
+
+  // Store settlement for post-trade report
+  execBtn.dataset.settlement = data.settlement || 'T+2';
+}
+
+function closePretradeModal() {
+  document.getElementById('pretrade-modal').classList.remove('active');
+  _pendingDecisionId = null;
+  _pendingResolution = null;
+}
+
+async function confirmExecute() {
+  const id = _pendingDecisionId;
+  if (!id) return;
+
+  const execBtn = document.getElementById('pretrade-execute-btn');
+  const settlement = execBtn.dataset.settlement || 'T+2';
+  execBtn.disabled = true;
+  execBtn.textContent = 'ROUTING…';
+
+  try {
+    const r = await fetch(API.resolve(id), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ resolution: 'APPROVED' }),
+    });
+    const d = await r.json();
+
+    // Close pre-trade modal
+    document.getElementById('pretrade-modal').classList.remove('active');
+
+    if (d.status === 'ok') {
+      // Refresh state from server
+      await fetchDecisions();
+      await fetchPortfolio();
+      await fetchGovernance();
+      renderTrading();
+      renderGovernance();
+
+      // Show post-trade confirmation
+      const dec = state.decisions.find(x => x.id === id) ||
+                  { action:'BUY', symbol:'—', shares:0, price:0, notional:0, asset_class:'—' };
+      showPosttradeModal(dec, d, settlement);
+    } else {
+      toast('⚠ Execution error — check server logs');
+    }
+  } catch(e) {
+    document.getElementById('pretrade-modal').classList.remove('active');
+    resolveDecisionLocal(id, 'APPROVED');
+  }
+  _pendingDecisionId = null;
+  _pendingResolution = null;
+}
+
+function showPosttradeModal(dec, serverResp, settlement) {
+  const now      = new Date();
+  const tsStr    = now.toISOString().replace('T', ' ').slice(0, 23) + ' UTC';
+  const price    = (state.prices || {})[dec.symbol] || dec.price || 0;
+  const hash     = serverResp.hash || Math.random().toString(16).slice(2,18).toUpperCase();
+  const decId    = serverResp.decision_id || dec.id || '—';
+  const reportId = serverResp.report_id || null;
+
+  document.getElementById('posttrade-content').innerHTML = `
+    <div class="posttrade-row">
+      <span class="posttrade-label">Status</span>
+      <span class="posttrade-value green">✓ EXECUTED</span>
+    </div>
+    <div class="posttrade-row">
+      <span class="posttrade-label">Order</span>
+      <span class="posttrade-value">${dec.action} ${dec.symbol}</span>
+    </div>
+    <div class="posttrade-row">
+      <span class="posttrade-label">Asset Class</span>
+      <span class="posttrade-value">${(dec.asset_class || '—').replace('_',' ').toUpperCase()}</span>
+    </div>
+    <div class="posttrade-row">
+      <span class="posttrade-label">Quantity</span>
+      <span class="posttrade-value">${(dec.shares||0).toLocaleString()} shares</span>
+    </div>
+    <div class="posttrade-row">
+      <span class="posttrade-label">Executed Price</span>
+      <span class="posttrade-value">$${price.toFixed(2)}</span>
+    </div>
+    <div class="posttrade-row">
+      <span class="posttrade-label">Notional</span>
+      <span class="posttrade-value green">$${(dec.notional||0).toLocaleString()}</span>
+    </div>
+    <div class="posttrade-row">
+      <span class="posttrade-label">Settlement</span>
+      <span class="posttrade-value"><span class="settlement-badge">${settlement}</span></span>
+    </div>
+    <div class="posttrade-row">
+      <span class="posttrade-label">Execution Time</span>
+      <span class="posttrade-value" style="font-size:11px">${tsStr}</span>
+    </div>
+    <div class="posttrade-row">
+      <span class="posttrade-label">Decision ID</span>
+      <span class="posttrade-value hash">${decId}</span>
+    </div>
+    <div class="posttrade-row">
+      <span class="posttrade-label">Compliance Report</span>
+      <span class="posttrade-value" style="color:var(--cyan)">${reportId || 'Generating…'}</span>
+    </div>
+    <div class="posttrade-row">
+      <span class="posttrade-label">Authority Hash</span>
+      <span class="posttrade-value hash">${hash}</span>
+    </div>
+    <div class="posttrade-row">
+      <span class="posttrade-label">Executed By</span>
+      <span class="posttrade-value" style="color:var(--orange)">THIFUR_H · Human-Approved</span>
+    </div>`;
+
+  // Wire PDF link if report_id came back from server
+  const pdfLink = document.getElementById('posttrade-pdf-link');
+  if (pdfLink) {
+    if (reportId) {
+      pdfLink.href    = API.tradeReportPdf(reportId);
+      pdfLink.style.display = 'inline-block';
+    } else {
+      pdfLink.style.display = 'none';
+    }
+  }
+
+  document.getElementById('posttrade-modal').classList.add('active');
+}
+
+function closePosttradeModal() {
+  document.getElementById('posttrade-modal').classList.remove('active');
+}
+
+// Simulated fallback when backend is offline
+function tickSimulated() {
+  for (const sym in prices) {
+    const vol = ['BTC','ETH','SOL'].includes(sym) ? 0.008 :
+                sym.includes('/') ? 0.0005 : 0.002;
+    prices[sym] *= (1 + (Math.random() - 0.5) * vol);
+  }
+  state.cycleCount++;
+}
+
+function resolveDecisionLocal(id, resolution) {
+  const dec = state.decisions.find(d => d.id === id);
+  if (!dec) return;
+  state.decisions = state.decisions.filter(d => d.id !== id);
+  state.authorityLog.unshift({
+    ts: new Date().toISOString(), tier: 'Tier 1',
+    type: `Trade ${resolution}: ${dec.action} ${dec.symbol}`,
+    authority: 'br@ravelobizdev.com', outcome: resolution,
+    hash: Math.random().toString(16).slice(2,18).toUpperCase(),
+  });
+  if (resolution === 'APPROVED') {
+    const price = prices[dec.symbol] || dec.price;
+    state.positions.push({ symbol: dec.symbol, asset_class: dec.asset_class,
+      shares: dec.shares, cost: price, agent: 'THIFUR_H' });
+    state.trades.unshift({ ts: new Date().toISOString(), action: dec.action,
+      symbol: dec.symbol, asset_class: dec.asset_class,
+      notional: dec.notional, agent: 'THIFUR_H', human_approved: true,
+      hash: Math.random().toString(16).slice(2,18).toUpperCase() });
+  }
+  toast(resolution === 'APPROVED' ? `✓ ${dec.action} ${dec.symbol} executed` : `✗ ${dec.action} ${dec.symbol} rejected`);
+  renderTrading();
+  renderGovernance();
+  document.getElementById('gov-overrides').textContent = state.authorityLog.length;
+}
+
+// ── L0 GOVERNANCE — HALT CONTROLS ────────────────────────────────────────────
+
+function openHaltModal() {
+  if (state.haltActive) { resumeFromHalt(); return; }
+  const modal = document.getElementById('halt-modal');
+  const input = document.getElementById('halt-reason-input');
+  if (input) input.value = '';
+  if (modal) modal.classList.add('active');
+}
+
+function closeHaltModal() {
+  const modal = document.getElementById('halt-modal');
+  if (modal) modal.classList.remove('active');
+}
+
+async function confirmHalt() {
+  const reason = (document.getElementById('halt-reason-input')?.value || '').trim();
+  if (!reason) { toast('⚠ Please enter a halt reason before confirming.'); return; }
+
+  try {
+    const r = await fetch(API.halt, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason, authority: 'bill@billravelo.com' }),
+    });
+    const d = await r.json();
+    if (d.status === 'halted' || d.status === 'ok') {
+      state.haltActive    = true;
+      state.haltReason    = reason;
+      state.haltAuthority = 'bill@billravelo.com';
+      closeHaltModal();
+      await fetchGovernance();
+      renderGovernance();
+      toast('⛔ EMERGENCY HALT ACTIVATED — All Thifur execution frozen.');
+    } else {
+      toast('⚠ Halt failed — check server logs');
+    }
+  } catch(e) {
+    // Offline fallback: activate halt locally
+    state.haltActive    = true;
+    state.haltReason    = reason;
+    state.haltAuthority = 'bill@billravelo.com (offline)';
+    closeHaltModal();
+    const banner = document.getElementById('halt-banner');
+    const bannerReason = document.getElementById('halt-banner-reason');
+    if (banner)       banner.classList.add('active');
+    if (bannerReason) bannerReason.textContent = `Reason: ${reason}`;
+    const haltBtn = document.getElementById('halt-header-btn');
+    if (haltBtn) { haltBtn.textContent = '✓ SYSTEM HALTED'; }
+    toast('⛔ HALT ACTIVATED (offline mode)');
+  }
+}
+
+async function resumeFromHalt() {
+  try {
+    const r = await fetch(API.haltResume, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ authority: 'bill@billravelo.com' }),
+    });
+    const d = await r.json();
+    if (d.status === 'resumed' || d.status === 'ok') {
+      state.haltActive = false;
+      await fetchGovernance();
+      renderGovernance();
+      toast('✓ System resumed — Thifur execution restored.');
+    } else {
+      toast('⚠ Resume failed — check server logs');
+    }
+  } catch(e) {
+    // Offline fallback
+    state.haltActive = false;
+    const banner = document.getElementById('halt-banner');
+    if (banner) banner.classList.remove('active');
+    const haltBtn = document.getElementById('halt-header-btn');
+    if (haltBtn) { haltBtn.textContent = '⛔ EMERGENCY HALT'; }
+    toast('✓ System resumed (offline mode)');
+  }
+}
+
+// ── INTEGRATION MODE INDICATOR ────────────────────────────────────────────────
+// Aureon operates in two modes:
+//   standalone  — no OMS connected; Aureon drives execution directly
+//   oms-overlay — Aureon governs above an existing OMS (Bloomberg AIM, Charles
+//                 River, Flextrade, etc.); FIX payloads are handed off via
+//                 fix_adapter.py rather than executed directly.
+//
+// The mode is surfaced in the header as a small, tasteful indicator pill.
+// It is read from the server config at init (future) or set manually below.
+
+function setIntegrationMode(mode) {
+  // mode: 'standalone' | 'oms-overlay'
+  state.integrationMode = mode;
+  const pill = document.getElementById('integration-mode-pill');
+  const label = document.getElementById('integration-mode-label');
+  if (!pill || !label) return;
+  pill.classList.remove('standalone', 'oms-overlay');
+  if (mode === 'oms-overlay') {
+    pill.classList.add('oms-overlay');
+    label.textContent = 'OMS Overlay';
+  } else {
+    pill.classList.add('standalone');
+    label.textContent = 'Standalone';
+  }
+}
+
+// Initialise on page load — default is standalone until OMS handshake confirmed
+function initIntegrationMode() {
+  setIntegrationMode(state.integrationMode);
+}
+
+// ── L0 GOVERNANCE — DOCTRINE PROPOSAL CONTROLS ───────────────────────────────
+
+function toggleProposeForm() {
+  const form = document.getElementById('propose-form');
+  if (!form) return;
+  const isVisible = form.style.display === 'block';
+  form.style.display = isVisible ? 'none' : 'block';
+  if (!isVisible) {
+    document.getElementById('propose-reason')?.focus();
+  }
+}
+
+async function submitDoctrineProposal() {
+  const title    = (document.getElementById('propose-title')?.value   || '').trim();
+  const trigger  = document.getElementById('propose-trigger')?.value  || 'HUMAN_AUTHORITY';
+  const urgency  = document.getElementById('propose-urgency')?.value  || 'ROUTINE';
+  const reason   = (document.getElementById('propose-reason')?.value  || '').trim();
+  const fwBoxes  = document.querySelectorAll('.fw-check:checked');
+  const frameworks = Array.from(fwBoxes).map(b => b.value);
+
+  if (!title)  { toast('⚠ Please enter a title for the doctrine update.'); return; }
+  if (!reason) { toast('⚠ Please enter a rationale for the doctrine update.'); return; }
+
+  // Hide propose form, show evaluation progress
+  document.getElementById('propose-form').style.display = 'none';
+  const prog = document.getElementById('doctrine-eval-progress');
+  prog.style.display = 'block';
+
+  // ── Step 1: Verana L0 ─────────────────────────────────────────
+  const l0 = document.getElementById('eval-step-l0');
+  const l0s = document.getElementById('eval-l0-status');
+  l0.style.opacity = '1';
+  l0s.textContent = 'EVALUATING…';
+  l0s.style.color = 'var(--cyan)';
+  await new Promise(r => setTimeout(r, 1400));
+  l0s.textContent = 'COMPLETE ✓';
+  l0s.style.color = 'var(--green)';
+
+  // ── Step 2: Mentat L1 ─────────────────────────────────────────
+  const l1 = document.getElementById('eval-step-l1');
+  const l1s = document.getElementById('eval-l1-status');
+  l1.style.opacity = '1';
+  l1s.textContent = 'EVALUATING…';
+  l1s.style.color = 'var(--cyan)';
+  await new Promise(r => setTimeout(r, 1800));
+  l1s.textContent = 'COMPLETE ✓';
+  l1s.style.color = 'var(--green)';
+
+  // ── Step 3: Surface to Tier 1 ────────────────────────────────
+  const t1 = document.getElementById('eval-step-t1');
+  const t1s = document.getElementById('eval-t1-status');
+  t1.style.opacity = '1';
+  t1s.textContent = 'AWAITING APPROVAL';
+  t1s.style.color = 'var(--yellow)';
+  await new Promise(r => setTimeout(r, 600));
+
+  // ── Submit to backend ─────────────────────────────────────────
+  try {
+    const res = await fetch(API.doctrinePropose, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, trigger, urgency, reason, frameworks,
+                             authority: 'br@ravelobizdev.com' }),
+    });
+    const d = await res.json();
+
+    // Reset form and evaluation display
+    await new Promise(r => setTimeout(r, 800));
+    prog.style.display = 'none';
+    ['l0','l1'].forEach(id => {
+      document.getElementById(`eval-step-${id}`).style.opacity = '.4';
+      document.getElementById(`eval-${id}-status`).textContent = 'QUEUED';
+      document.getElementById(`eval-${id}-status`).style.color = 'var(--muted)';
+    });
+    t1.style.opacity = '.4';
+    t1s.textContent = 'PENDING'; t1s.style.color = 'var(--muted)';
+
+    // Clear inputs
+    ['propose-title','propose-reason'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    document.querySelectorAll('.fw-check').forEach(cb => cb.checked = false);
+
+    if (d.update_id) {
+      await fetchGovernance();
+      renderGovernance();
+      toast(`✓ ${title} (${d.update_id}) — surfaced to Tier 1 for approval.`);
+    } else {
+      toast('⚠ Proposal submission failed — check server logs');
+    }
+  } catch(e) {
+    prog.style.display = 'none';
+    toast('⚠ Proposal submitted (backend offline — will sync on reconnect)');
+  }
+}
+
+async function approveDoctrineUpdate(id) {
+  try {
+    const r = await fetch(API.doctrineApprove(id), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'APPROVE', authority: 'bill@billravelo.com' }),
+    });
+    const d = await r.json();
+    if (d.status === 'ok' || d.status === 'approved') {
+      await fetchGovernance();
+      renderGovernance();
+      toast(`✓ Doctrine update ${id} approved — version log updated.`);
+    } else {
+      toast(`⚠ Approval failed for ${id}`);
+    }
+  } catch(e) {
+    toast(`⚠ Approval failed (backend offline)`);
+  }
+}
+
+async function rejectDoctrineUpdate(id) {
+  try {
+    const r = await fetch(API.doctrineApprove(id), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'REJECT', authority: 'bill@billravelo.com' }),
+    });
+    const d = await r.json();
+    await fetchGovernance();
+    renderGovernance();
+    toast(`✗ Doctrine update ${id} rejected.`);
+  } catch(e) {
+    toast(`⚠ Rejection failed (backend offline)`);
+  }
+}
+
+// ── L0 GOVERNANCE — RENDER HELPERS ───────────────────────────────────────────
+
+function renderDoctrineVersionLog() {
+  const el = document.getElementById('doctrine-version-log');
+  if (!el) return;
+  const log = state.doctrineVersionLog;
+  if (!log || log.length === 0) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px 0">No version log available.</div>';
+    return;
+  }
+  // Newest first
+  const sorted = [...log].sort((a, b) => b.version.localeCompare(a.version, undefined, { numeric: true }));
+  el.innerHTML = sorted.map((entry, i) => {
+    const isCurrent = i === 0;
+    const hash = (entry.hash || '').slice(0, 16).toUpperCase();
+    const ts   = (entry.ts   || entry.timestamp || '').slice(0, 10);
+    return `
+    <div class="doctrine-version-row" style="${isCurrent ? 'border-color:rgba(0,212,255,0.3);background:rgba(0,212,255,0.04)' : ''}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span class="layer-tag tag-cyan" style="font-size:9px;${isCurrent ? '' : 'opacity:.6'}">v${entry.version}</span>
+        ${isCurrent ? '<span style="font-size:9px;color:var(--cyan);letter-spacing:.06em">CURRENT</span>' : ''}
+        <span style="font-size:10px;color:var(--muted);margin-left:auto">${ts}</span>
+      </div>
+      <div style="font-size:11px;color:var(--white);margin-bottom:3px">${entry.summary || entry.reason || '—'}</div>
+      <div style="font-size:9px;color:var(--muted)">
+        Trigger: ${entry.trigger || '—'} &nbsp;·&nbsp; Authority: ${entry.authority || '—'}
+      </div>
+      <div class="hash" style="font-size:9px;margin-top:3px">${hash}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderPendingDoctrineUpdates() {
+  const el = document.getElementById('pending-doctrine-updates');
+  if (!el) return;
+  const updates = state.pendingDoctrineUpdates;
+  if (!updates || updates.length === 0) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:11px">No pending updates.</div>';
+    return;
+  }
+  const triggerTag = {
+    'REGULATORY':'tag-blue', 'OPERATIONAL':'tag-cyan',
+    'HUMAN_AUTHORITY':'tag-yellow', 'TELEMETRY':'tag-green',
+  };
+  const urgencyColor = { CRITICAL:'var(--red)', URGENT:'var(--orange)', ROUTINE:'var(--muted)' };
+  el.innerHTML = updates.map(u => {
+    const fwTags = (u.frameworks || []).map(fw =>
+      `<span class="layer-tag tag-cyan" style="font-size:8px;padding:1px 5px">${fw}</span>`
+    ).join('');
+    const urgColor = urgencyColor[u.urgency] || 'var(--muted)';
+    return `
+    <div class="pending-update-row" style="border-left:2px solid var(--yellow)">
+      <!-- Header row -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+        <span class="layer-tag ${triggerTag[u.trigger]||'tag-cyan'}" style="font-size:9px">
+          ${u.trigger||'—'}</span>
+        ${u.urgency ? `<span style="font-size:9px;color:${urgColor};font-weight:700;
+                              letter-spacing:.06em">${u.urgency}</span>` : ''}
+        <span style="font-size:9px;color:var(--yellow);margin-left:auto;letter-spacing:.06em">
+          ⏳ AWAITING TIER 1 APPROVAL</span>
+      </div>
+      <!-- Title -->
+      <div style="font-size:12px;font-weight:600;color:var(--white);margin-bottom:4px">
+        ${u.title || u.reason || '—'}</div>
+      <!-- Version change -->
+      <div style="font-size:10px;color:var(--muted);margin-bottom:6px">
+        v${u.current_version||'?'} → v${u.proposed_version||'?'}
+        &nbsp;·&nbsp; ${(u.ts||'').slice(0,10)}
+        &nbsp;·&nbsp; ${u.proposed_by||u.authority||'—'}
+      </div>
+      <!-- Rationale -->
+      <div style="font-size:10px;color:var(--dim);margin-bottom:8px;
+                  padding:6px 8px;background:rgba(255,255,255,0.03);border-radius:4px;
+                  border-left:2px solid rgba(0,212,255,0.2);line-height:1.6">
+        ${u.reason||'—'}</div>
+      <!-- Affected frameworks -->
+      ${fwTags ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">
+        ${fwTags}</div>` : ''}
+      <!-- L0→L1 evaluation chain (completed) -->
+      <div style="font-size:9px;color:var(--muted);margin-bottom:8px;letter-spacing:.06em">
+        ✓ VERANA L0 EVALUATED &nbsp;·&nbsp; ✓ MENTAT L1 EVALUATED &nbsp;·&nbsp;
+        <span style="color:var(--yellow)">⏳ TIER 1 DECISION REQUIRED</span>
+      </div>
+      <!-- Action buttons -->
+      <div style="display:flex;gap:6px">
+        <button class="btn-doctrine-approve" style="font-size:10px;padding:5px 14px"
+                onclick="approveDoctrineUpdate('${u.id}')">✓ APPROVE</button>
+        <button class="btn-doctrine-reject" style="font-size:10px;padding:5px 14px"
+                onclick="rejectDoctrineUpdate('${u.id}')">✗ REJECT</button>
+        <span style="font-size:9px;color:var(--muted);align-self:center;margin-left:4px">
+          ID: ${u.id||'—'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── OVERVIEW RENDER ───────────────────────────────────
+function renderOverview() {
+  const v  = state.portfolioValue;
+  const p  = state.pnl;
+  const pp = state.pnlPct;
+  const dd = state.drawdown;
+
+  const fmtMoney = n => '$' + Math.abs(n).toLocaleString('en-US', {maximumFractionDigits:0});
+  const fmtPct   = n => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+
+  document.getElementById('kpi-value').textContent = fmtMoney(v);
+  const pnlEl = document.getElementById('kpi-pnl');
+  pnlEl.textContent = (p >= 0 ? '+' : '-') + fmtMoney(p);
+  pnlEl.className = 'card-value ' + (p >= 0 ? 'up' : 'down');
+  const pnlpEl = document.getElementById('kpi-pnlp');
+  pnlpEl.textContent = fmtPct(pp);
+  pnlpEl.className = 'card-sub ' + (pp >= 0 ? 'up' : 'down');
+  document.getElementById('kpi-dd').textContent = dd.toFixed(2) + '%';
+  document.getElementById('kpi-dd').className = 'card-value ' + (dd > 5 ? 'down' : dd > 2 ? 'warn' : '');
+  document.getElementById('kpi-pos').textContent = state.positions.length;
+
+  const macro = state.macroMonitor || {};
+  const macroEl = document.getElementById('macro-monitor');
+  if (macroEl) {
+    const ofr = macro.ofr || {};
+    const ofrColor = ofr.fsi_band === 'severe'
+      ? 'var(--red)'
+      : ofr.fsi_band === 'elevated'
+        ? 'var(--yellow)'
+        : 'var(--green)';
+    const stressColor = macro.stress_level === 'high'
+      ? 'var(--red)'
+      : macro.stress_level === 'elevated'
+        ? 'var(--yellow)'
+        : 'var(--green)';
+    const regime = (macro.macro_regime || 'watchful').toUpperCase();
+    macroEl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span>Regime</span>
+        <span style="color:${stressColor};font-weight:700">${regime}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span>10Y-2Y Curve</span>
+        <span>${macro.curve_spread_bps === undefined ? '—' : macro.curve_spread_bps.toFixed(1) + ' bps'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span>Fed / VIX</span>
+        <span>${macro.fed_funds === undefined ? '—' : macro.fed_funds.toFixed(2) + '%'} · ${macro.vix === undefined ? '—' : macro.vix.toFixed(1)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span>HY OAS</span>
+        <span>${macro.hy_oas === undefined ? '—' : macro.hy_oas.toFixed(2) + '%'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span>OFR FSI</span>
+        <span style="color:${ofrColor}">${ofr.fsi_value === undefined ? '—' : ofr.fsi_value.toFixed(2)} · ${(ofr.fsi_band || 'watch').toUpperCase()}</span>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px">Source: ${(macro.source || 'fallback').toUpperCase()} · ${macro.as_of || '—'}</div>`;
+  }
+
+  // Clock
+  document.getElementById('cycle-clock').textContent =
+    'Cycle ' + (++state.cycleCount) + ' · ' + new Date().toTimeString().slice(0,8);
+
+  // Allocations
+  // The bar track represents 0–60% allocation (MAX_ALLOC).
+  // Bar fill width  = (actualPct  / MAX_ALLOC) * 100% of the track
+  // Target marker   = (targetPct  / MAX_ALLOC) * 100% left position on the track
+  const MAX_ALLOC = 60;
+  const ct = state.classTotals || {};
+  const tv = state.portfolioValue;
+  const allocs = Object.keys(state.allocations).length > 0 ? state.allocations : ALLOCATIONS_DEFAULT;
+  let html = '';
+  for (const [cls, info] of Object.entries(allocs)) {
+    const val        = ct[cls] || 0;
+    const actualPct  = tv > 0 ? (val / tv) * 100 : 0;
+    const targetPct  = info.target * 100;
+    const undeployed = val === 0;
+    const drift      = (actualPct - targetPct).toFixed(1);
+    const driftC     = parseFloat(drift) > 0 ? '#F59E0B' : parseFloat(drift) < -3 ? '#EF4444' : '#10B981';
+    const driftLabel = undeployed
+      ? `<span style="color:var(--muted)">Undeployed</span>`
+      : `<span style="color:${driftC}">${parseFloat(drift) > 0 ? '+' : ''}${drift}% drift</span>`;
+    // Bar fill: actual % mapped onto the 0–60 track, capped at 100% of track width
+    const fillW    = undeployed ? 0 : Math.min(100, (actualPct / MAX_ALLOC) * 100).toFixed(1);
+    // Target marker: target % position on the same 0–60 track
+    const markerL  = Math.min(100, (targetPct / MAX_ALLOC) * 100).toFixed(1);
+    const markerEl = undeployed ? '' :
+      `<div style="position:absolute;top:-2px;bottom:-2px;left:${markerL}%;
+            width:2px;background:rgba(255,255,255,0.25);border-radius:1px"></div>`;
+    html += `
+      <div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:11px;font-weight:600">
+            ${info.label}
+            <span style="color:${undeployed ? 'var(--muted)' : info.color};font-weight:400;margin-left:4px">
+              ${undeployed ? '—' : actualPct.toFixed(1) + '%'}
+            </span>
+          </span>
+          <span style="font-size:11px">
+            <span style="color:#94a3b8">${targetPct.toFixed(0)}% target</span>
+            &nbsp;·&nbsp;
+            ${driftLabel}
+          </span>
+        </div>
+        <div class="alloc-bar">
+          <div class="alloc-fill" style="width:${fillW}%;background:${info.color}"></div>
+          ${markerEl}
+        </div>
+      </div>`;
+  }
+  document.getElementById('alloc-rows').innerHTML = html;
+
+  // Market ticker — % change vs previous tick (not vs hardcoded base)
+  const benchmarks = ['SPY','BTC','EUR/USD','GLD','TLT'];
+  const changes = benchmarks.map(s => {
+    const prev = prevPrices[s] || BASE_PRICES[s];
+    const cur  = prices[s] || prev;
+    const chg  = ((cur / prev) - 1) * 100;
+    const c    = chg >= 0 ? '#10B981' : '#EF4444';
+    return `<div style="display:flex;justify-content:space-between">
+      <span style="color:#94a3b8">${s}</span>
+      <span style="color:${c}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>
+    </div>`;
+  });
+  document.getElementById('market-ticker').innerHTML = changes.join('');
+}
+
+function renderTrading() {
+  // Positions
+  if (state.positions.length === 0) return;
+  let rows = '';
+  for (const pos of state.positions) {
+    const price = pos.price || prices[pos.symbol] || pos.cost;
+    const mv    = pos.shares * price;
+    const pnl   = ((price / pos.cost) - 1) * 100;
+    const c     = pnl >= 0 ? '#10B981' : '#EF4444';
+    const cls   = pos.asset_class || pos.class || '—';
+    const agent = pos.agent || 'THIFUR_J';
+    rows += `<tr>
+      <td style="font-weight:600">${pos.symbol}</td>
+      <td class="dim-t">${cls}</td>
+      <td>${pos.shares.toLocaleString()}</td>
+      <td class="dim-t">$${pos.cost.toFixed(2)}</td>
+      <td>$${price.toFixed(2)}</td>
+      <td>$${mv.toLocaleString('en-US',{maximumFractionDigits:0})}</td>
+      <td style="color:${c}">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%</td>
+      <td><span class="layer-tag ${agent==='THIFUR_R'?'tag-green':agent==='THIFUR_H'?'tag-orange':'tag-blue'}"
+           style="font-size:9px">${agent.replace('THIFUR_','')}</span></td>
+    </tr>`;
+  }
+  document.getElementById('positions-body').innerHTML = rows;
+
+  // Decision cards
+  const dc = document.getElementById('decision-cards');
+  if (state.decisions.length === 0) {
+    dc.innerHTML = '<div style="color:var(--green);padding:16px;font-size:12px">✓ No pending decisions.</div>';
+    document.getElementById('pending-count').textContent = '0 pending';
+    return;
+  }
+  document.getElementById('pending-count').textContent = state.decisions.length + ' pending';
+  dc.innerHTML = state.decisions.map(d => `
+    <div class="decision-card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <span class="layer-tag ${d.action==='BUY'?'tag-green':'tag-red'}"
+              style="font-size:13px;padding:4px 12px">${d.action}</span>
+        <span style="font-family:var(--font-display);font-size:22px;font-weight:700">${d.symbol}</span>
+        <span style="font-size:18px;font-weight:600">$${(d.notional||0).toLocaleString()}</span>
+        ${d.signal_type === 'REBALANCE'
+          ? `<span style="font-size:9px;font-family:var(--font-mono);letter-spacing:.08em;
+               background:rgba(249,115,22,.15);color:var(--orange);
+               border:1px solid rgba(249,115,22,.4);padding:2px 8px;border-radius:3px">
+               ⚖ REBALANCE</span>`
+          : `<span style="font-size:9px;font-family:var(--font-mono);letter-spacing:.08em;
+               background:rgba(0,212,255,.08);color:var(--cyan);
+               border:1px solid rgba(0,212,255,.2);padding:2px 8px;border-radius:3px">
+               ◈ OPPORTUNISTIC</span>`}
+        <span class="dim-t" style="font-size:11px;margin-left:auto">${d.id}</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;
+                  border-left:2px solid ${d.signal_type==='REBALANCE'?'var(--orange)':'rgba(0,212,255,0.5)'};
+                  padding-left:12px">
+        <strong style="color:var(--white)">Thifur-H:</strong> ${d.rationale}
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-approve" onclick="resolveDecision('${d.id}','APPROVED')">✓ Approve</button>
+        <button class="btn btn-reject"  onclick="resolveDecision('${d.id}','REJECTED')">✗ Reject</button>
+        <button class="btn btn-modify"  onclick="toast('Modify flow — use VS Code to extend')">Modify</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderGovernance() {
+  const macro = state.macroMonitor || {};
+  const ofr = macro.ofr || {};
+
+  // Authority log
+  if (state.authorityLog.length > 0) {
+    const rows = state.authorityLog.map(e => `
+      <tr>
+        <td class="dim-t">${(e.ts||e.time||'').slice(11,19)}</td>
+        <td><span class="layer-tag tag-cyan" style="font-size:9px">${e.tier || 'Tier 1'}</span></td>
+        <td>${e.type}</td>
+        <td style="color:var(--muted)">${e.authority}</td>
+        <td><span class="layer-tag ${e.outcome==='APPROVED'?'tag-green':'tag-red'}"
+             style="font-size:9px">${e.outcome}</span></td>
+        <td class="hash">${(e.hash||'').slice(0,16).toUpperCase()}</td>
+      </tr>`).join('');
+    document.getElementById('authority-log').innerHTML = rows;
+  }
+
+  // Doctrine version log and pending updates
+  renderDoctrineVersionLog();
+  renderPendingDoctrineUpdates();
+
+  // Sync KPI counts
+  document.getElementById('gov-overrides').textContent     = state.authorityLog.length;
+  document.getElementById('gov-pending-updates').textContent = state.pendingDoctrineUpdates.length;
+  document.getElementById('gov-doctrine-version').textContent = state.doctrineVersion;
+
+  if (!state.haltActive) {
+    const statusEl  = document.getElementById('gov-system-status');
+    const statusSub = document.getElementById('gov-halt-sub');
+    if (ofr.fsi_band === 'severe') {
+      statusEl.textContent = 'STRESS WATCH';
+      statusEl.style.color = 'var(--red)';
+      statusSub.textContent = `OFR systemic stress severe · FSI ${ofr.fsi_value?.toFixed ? ofr.fsi_value.toFixed(2) : '—'}`;
+      statusSub.style.color = 'var(--red)';
+    } else if (ofr.fsi_band === 'elevated') {
+      statusEl.textContent = 'ACTIVE';
+      statusEl.style.color = 'var(--yellow)';
+      statusSub.textContent = `OFR systemic stress elevated · FSI ${ofr.fsi_value?.toFixed ? ofr.fsi_value.toFixed(2) : '—'}`;
+      statusSub.style.color = 'var(--yellow)';
+    } else {
+      statusEl.textContent = 'ACTIVE';
+      statusEl.style.color = 'var(--green)';
+      statusSub.textContent = 'All layers operational';
+      statusSub.style.color = '';
+    }
+  }
+}
+
+function renderSystemicStressOverlay() {
+  const el = document.getElementById('systemic-stress-overlay');
+  if (!el) return;
+  const macro = state.macroMonitor || {};
+  const ofr = macro.ofr || {};
+  const band = (ofr.fsi_band || 'watch').toLowerCase();
+  const color = band === 'severe'
+    ? 'var(--red)'
+    : band === 'elevated'
+      ? 'var(--yellow)'
+      : 'var(--green)';
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+      <span>OFR Financial Stress Index</span>
+      <span style="color:${color};font-weight:700">${ofr.fsi_value === undefined ? '—' : ofr.fsi_value.toFixed(2)} · ${(ofr.fsi_band || 'watch').toUpperCase()}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+      <span>Macro Regime</span>
+      <span>${(macro.macro_regime || 'watchful').toUpperCase()}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+      <span>VIX / HY OAS</span>
+      <span>${macro.vix === undefined ? '—' : macro.vix.toFixed(1)} · ${macro.hy_oas === undefined ? '—' : macro.hy_oas.toFixed(2) + '%'}</span>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">${ofr.summary || 'Systemic stress overlay unavailable.'}</div>
+  `;
+}
+
+function renderReports() {
+  const today = new Date();
+  document.getElementById('report-week').textContent =
+    today.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+
+  const fmtM   = n => (n >= 0 ? '+$' : '-$') + Math.abs(n).toLocaleString('en-US',{maximumFractionDigits:0});
+  const fmtPct = n => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+
+  document.getElementById('rpt-value').textContent =
+    '$' + state.portfolioValue.toLocaleString('en-US',{maximumFractionDigits:0});
+  const pnlStr = fmtM(state.pnl) + ' (' + fmtPct(state.pnlPct) + ')';
+  document.getElementById('rpt-wpnl').textContent = pnlStr;
+  document.getElementById('rpt-tpnl').textContent = pnlStr;
+  document.getElementById('rpt-wpnl').className = state.pnl >= 0 ? 'up' : 'down';
+  document.getElementById('rpt-tpnl').className = state.pnl >= 0 ? 'up' : 'down';
+  document.getElementById('weekly-pnl').textContent = fmtM(state.pnl);
+
+  const ct    = state.classTotals || {};
+  const tv    = state.portfolioValue;
+  const allocs = Object.keys(state.allocations).length > 0 ? state.allocations : ALLOCATIONS_DEFAULT;
+  let html = '';
+  for (const [cls, info] of Object.entries(allocs)) {
+    const val        = ct[cls] || 0;
+    const undeployed = val === 0;
+    const pct        = tv > 0 && !undeployed ? (val/tv*100).toFixed(1) : null;
+    const drift      = tv > 0 && !undeployed ? ((val/tv - info.target)*100).toFixed(1) : null;
+    const dc         = drift !== null && parseFloat(drift) >= 0 ? 'var(--green)' : 'var(--red)';
+    html += `<div style="display:flex;justify-content:space-between;padding:8px 0;
+              border-bottom:1px solid var(--border2);font-size:12px">
+      <span style="color:${info.color};font-weight:600">${info.label}</span>
+      <span>${undeployed ? '<span style="color:var(--muted)">—</span>' : '$' + val.toLocaleString('en-US',{maximumFractionDigits:0})}</span>
+      <span>${undeployed ? '<span style="color:var(--muted)">—</span>' : pct + '% of portfolio'}</span>
+      <span>${undeployed ? '<span style="color:var(--muted)">Undeployed</span>' : '<span style="color:' + dc + '">' + (parseFloat(drift)>=0?'+':'') + drift + '% vs target</span>'}</span>
+    </div>`;
+  }
+  document.getElementById('class-performance').innerHTML = html;
+
+  const hash    = (state.auditHash || '').slice(0,40).toUpperCase() || '—';
+  const cycleId = 'AUREON-CYCLE-' + today.toISOString().slice(0,10).replace(/-/g,'');
+  document.getElementById('audit-hash').textContent     = hash;
+  document.getElementById('audit-cycle-id').textContent = cycleId;
+  document.getElementById('audit-ts').textContent       = today.toISOString().slice(0,19) + ' UTC';
+}
+
+// ── TAB SWITCHING ─────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function showReport(name) {
+  ['weekly','compliance','audit','replay'].forEach(n => {
+    const el = document.getElementById('report-' + n);
+    if (el) el.style.display = n === name ? 'block' : 'none';
+  });
+  if (name === 'compliance' || name === 'replay') fetchTradeReports();
+}
+
+// ── TOAST ─────────────────────────────────────────────
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+function loadSampleThesis() {
+  const el = document.getElementById('thesis-memo-input');
+  if (!el) return;
+  el.value = `U.S. large-cap quality technology remains attractive over the next 12 months as enterprise AI demand expands and balance sheets stay strong. We are bullish MSFT and NVDA relative to the broader market, but the thesis depends on rates stabilizing, inflation continuing to moderate, and credit conditions remaining supportive. Primary risks include higher-for-longer Fed policy, multiple compression, supply chain disruption tied to China and Taiwan, and a stronger U.S. dollar reducing international earnings translation. Position sizing should remain disciplined because liquidity can deteriorate quickly in a macro shock.`;
+}
+
+function renderThesisAnalysis() {
+  const el = document.getElementById('thesis-analysis-output');
+  const badge = document.getElementById('thesis-ready-badge');
+  const data = state.thesisAnalysis;
+  if (!el || !badge || !data) return;
+
+  const status = (data.governance_status || '').toLowerCase();
+  const statusColor = status === 'governance ready'
+    ? 'var(--green)'
+    : status === 'outside mandate'
+      ? 'var(--red)'
+      : 'var(--yellow)';
+  badge.textContent = data.governance_status || 'Needs more detail';
+  badge.style.color = statusColor;
+  badge.style.background = status === 'governance ready'
+    ? 'rgba(16,185,129,.12)'
+    : status === 'outside mandate'
+      ? 'rgba(239,68,68,.12)'
+      : 'rgba(245,158,11,.12)';
+  badge.style.borderColor = status === 'governance ready'
+    ? 'rgba(16,185,129,.28)'
+    : status === 'outside mandate'
+      ? 'rgba(239,68,68,.28)'
+      : 'rgba(245,158,11,.28)';
+
+  const factors = (data.factors || []).length
+    ? data.factors.map(f => `<div style="padding:8px 0;border-bottom:1px solid var(--border2)">
+        <div style="display:flex;justify-content:space-between;gap:10px">
+          <span style="color:var(--white);font-weight:600">${f.factor}</span>
+          <span style="color:var(--cyan);font-family:var(--font-mono)">score ${f.score}/5</span>
+        </div>
+        <div style="color:var(--muted);margin-top:4px">${f.question}</div>
+        <div style="color:var(--muted);font-size:10px;margin-top:4px">Matched: ${(f.matched_terms || []).join(', ')}</div>
+      </div>`).join('')
+    : '<div style="color:var(--muted)">No factor exposures were extracted from the memo.</div>';
+
+  const scenarios = (data.scenarios || []).length
+    ? data.scenarios.map(s => `<div style="padding:6px 0">
+        <span style="color:var(--green);font-weight:600">${s.name}</span>
+        <span style="color:var(--muted)"> — ${s.prompt}</span>
+      </div>`).join('')
+    : '<div style="color:var(--muted)">No scenario prompts generated yet.</div>';
+
+  const notes = (data.governance_notes || []).map(n => `<li>${n}</li>`).join('');
+  const blockers = (data.blockers || []).length
+    ? `<ul style="margin:0;padding-left:18px;color:var(--red)">${data.blockers.map(b => `<li>${b}</li>`).join('')}</ul>`
+    : '<div style="color:var(--muted)">No hard blockers detected.</div>';
+  const reviewFlags = (data.review_flags || []).length
+    ? `<ul style="margin:0;padding-left:18px;color:var(--yellow)">${data.review_flags.map(f => `<li>${f}</li>`).join('')}</ul>`
+    : '<div style="color:var(--muted)">No conditional review flags detected.</div>';
+  const symbols = (data.symbols || []).length ? data.symbols.join(' · ') : 'No explicit instruments detected';
+  const risk = data.risk_review || {};
+  const inferred = data.inferred_risk || {};
+  const fmtVal = (v, suffix='') => v === null || v === undefined ? '—' : `${v}${suffix}`;
+  const fmtSource = s => !s || s === 'not stated' ? '' : ` <span style="color:var(--muted);font-size:10px;text-transform:uppercase">(${s})</span>`;
+  const marketMetrics = (inferred.market_metrics || []).length
+    ? inferred.market_metrics.map(m => `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border2)">
+        <span style="color:var(--white)">${m.symbol}</span>
+        <span style="color:var(--muted)">vol ${fmtVal(m.realized_vol_pct, '%')} · beta ${fmtVal(m.beta)} · dd ${fmtVal(m.drawdown_pct, '%')}</span>
+      </div>`).join('')
+    : '<div style="color:var(--muted)">No instrument market metrics derived yet.</div>';
+
+  el.innerHTML = `
+    <div style="margin-bottom:12px">
+      <div style="font-size:13px;color:var(--white);font-weight:700">${data.title || 'Untitled Thesis Memo'}</div>
+      <div style="margin-top:4px">${data.summary || ''}</div>
+    </div>
+    <div class="grid g3" style="margin-bottom:14px">
+      <div>
+        <div class="card-label">Stance</div>
+        <div style="font-size:18px;color:var(--cyan);font-weight:700;text-transform:uppercase">${data.stance || 'undetermined'}</div>
+      </div>
+      <div>
+        <div class="card-label">Conviction Score</div>
+        <div style="font-size:18px;color:${(data.conviction_score || 0) >= 70 ? 'var(--green)' : 'var(--yellow)'};font-weight:700">${data.conviction_score || 0}</div>
+      </div>
+      <div>
+        <div class="card-label">Factor Drivers</div>
+        <div style="font-size:18px;color:var(--white);font-weight:700">${(data.factors || []).length}</div>
+      </div>
+    </div>
+    <div class="grid g3" style="margin-bottom:14px">
+      <div>
+        <div class="card-label">Mandate Status</div>
+        <div style="font-size:16px;color:${statusColor};font-weight:700;text-transform:uppercase">${data.governance_status || '—'}</div>
+      </div>
+      <div>
+        <div class="card-label">Risk Classification</div>
+        <div style="font-size:16px;color:${statusColor};font-weight:700;text-transform:uppercase">${data.risk_classification || '—'}</div>
+      </div>
+      <div>
+        <div class="card-label">Risk Budget / Leverage</div>
+        <div style="font-size:16px;color:var(--white);font-weight:700">${fmtVal(risk.portfolio_risk_budget_pct, '%')}${fmtSource(risk.portfolio_risk_budget_source)} · ${fmtVal(risk.leverage_multiple, 'x')}${fmtSource(risk.leverage_source)}</div>
+      </div>
+    </div>
+    <div class="grid g3" style="margin-bottom:14px">
+      <div>
+        <div class="card-label">Tail Loss Estimate</div>
+        <div style="font-size:16px;color:${(risk.tail_downside_pct || 0) >= 20 ? 'var(--red)' : 'var(--yellow)'};font-weight:700">${fmtVal(risk.tail_downside_pct, '%')}${fmtSource(risk.tail_downside_source)}</div>
+      </div>
+      <div>
+        <div class="card-label">Market / Macro Score</div>
+        <div style="font-size:16px;color:var(--white);font-weight:700">${fmtVal(inferred.market_risk_score)} · ${fmtVal(inferred.macro_regime_score)}</div>
+      </div>
+      <div>
+        <div class="card-label">Systemic / Liquidity Score</div>
+        <div style="font-size:16px;color:var(--white);font-weight:700">${fmtVal(inferred.systemic_stress_score)} · ${fmtVal(inferred.liquidity_risk_score)}</div>
+      </div>
+    </div>
+    <div style="margin-bottom:14px">
+      <div class="card-label" style="margin-bottom:8px">Detected Instruments</div>
+      <div style="color:var(--muted)">${symbols}</div>
+    </div>
+    ${data.document_id ? `<div style="margin-bottom:14px">
+      <div class="card-label" style="margin-bottom:8px">Linked Source Document</div>
+      <div style="color:var(--cyan);font-family:var(--font-mono)">${data.document_id}</div>
+    </div>` : ''}
+    <div style="margin-bottom:14px">
+      <div class="card-label" style="margin-bottom:8px">Derived Market Metrics</div>
+      ${marketMetrics}
+      <div style="color:var(--muted);font-size:10px;margin-top:6px">Source: ${(inferred.market_data_source || 'fallback').replace(/_/g, ' ')}</div>
+    </div>
+    <div style="margin-bottom:14px">
+      <div class="card-label" style="margin-bottom:8px">Primary Factor Map</div>
+      ${factors}
+    </div>
+    <div style="margin-bottom:14px">
+      <div class="card-label" style="margin-bottom:8px">Scenario Prompts</div>
+      ${scenarios}
+    </div>
+    <div style="margin-bottom:14px">
+      <div class="card-label" style="margin-bottom:8px">Institutional Risk Blockers</div>
+      ${blockers}
+    </div>
+    <div style="margin-bottom:14px">
+      <div class="card-label" style="margin-bottom:8px">Conditional Review Flags</div>
+      ${reviewFlags}
+    </div>
+    <div>
+      <div class="card-label" style="margin-bottom:8px">Governance Notes</div>
+      <ul style="margin:0;padding-left:18px;color:var(--muted)">${notes}</ul>
+    </div>`;
+}
+
+function renderSourceRegistry() {
+  const el = document.getElementById('source-document-registry');
+  const countEl = document.getElementById('source-doc-count');
+  const docs = state.sourceDocuments || [];
+  if (countEl) countEl.textContent = `${docs.length} document${docs.length !== 1 ? 's' : ''}`;
+  if (!el) return;
+  if (!docs.length) {
+    el.innerHTML = 'No source documents registered yet.';
+    return;
+  }
+  el.innerHTML = docs.map(doc => `
+    <div style="padding:12px 0;border-bottom:1px solid var(--border2)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:10px;color:var(--cyan);font-family:var(--font-mono)">${doc.document_id || '—'}</span>
+        <span class="layer-tag ${doc.source_type === 'upload' ? 'tag-cyan' : 'tag-blue'}" style="font-size:9px">${(doc.source_type || 'memo').toUpperCase()}</span>
+        <span style="margin-left:auto;font-size:10px;color:var(--muted)">${(doc.created_ts || '').slice(0,19).replace('T',' ')}</span>
+      </div>
+      <div style="font-size:12px;color:var(--white);font-weight:600;margin-bottom:4px">${doc.title || doc.source_name || 'Untitled Source Document'}</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:6px">${doc.preview || 'No preview available.'}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:10px;color:var(--muted)">
+        <span>Status: <span style="color:var(--white)">${(doc.governance_status || 'recorded').toUpperCase()}</span></span>
+        <span>Risk: <span style="color:var(--white)">${(doc.risk_classification || '—').toUpperCase()}</span></span>
+        <span>Factors: <span style="color:var(--white)">${doc.factor_count ?? 0}</span></span>
+        <span>Hash: <span class="hash">${doc.content_hash || '—'}</span></span>
+      </div>
+    </div>`).join('');
+}
+
+async function analyzeThesisMemo() {
+  const input = document.getElementById('thesis-memo-input');
+  if (!input) return;
+  const memo = input.value.trim();
+  if (!memo) {
+    toast('Paste a thesis memo first.');
+    return;
+  }
+  try {
+    const r = await fetch(API.thesisAnalyze, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memo }),
+    });
+    if (!r.ok) {
+      toast('Thesis analysis unavailable.');
+      return;
+    }
+    state.thesisAnalysis = await r.json();
+    renderThesisAnalysis();
+  } catch(e) {
+    toast('Thesis analysis failed.');
+  }
+}
+
+async function registerCurrentMemo() {
+  const input = document.getElementById('thesis-memo-input');
+  if (!input) return;
+  const memo = input.value.trim();
+  if (!memo) {
+    toast('Paste a thesis memo first.');
+    return;
+  }
+  try {
+    const firstLine = memo.split('\n').map(s => s.trim()).find(Boolean) || 'Pasted Investment Thesis';
+    const r = await fetch(API.thesisRegister, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memo, title: firstLine }),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      toast(data.error || 'Unable to register memo.');
+      return;
+    }
+    state.thesisAnalysis = data.analysis || null;
+    await fetchSourceRegistry();
+    renderThesisAnalysis();
+    renderSourceRegistry();
+    toast(`Registered ${data.document.document_id}`);
+  } catch(e) {
+    toast('Memo registration failed.');
+  }
+}
+
+async function uploadThesisFile(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const r = await fetch(API.thesisUpload, { method: 'POST', body: form });
+    const data = await r.json();
+    if (!r.ok) {
+      toast(data.error || 'Upload failed.');
+      return;
+    }
+    const input = document.getElementById('thesis-memo-input');
+    if (input) input.value = data.extracted_text || '';
+    state.thesisAnalysis = data.analysis || null;
+    await fetchSourceRegistry();
+    renderThesisAnalysis();
+    renderSourceRegistry();
+    toast(`Loaded ${data.filename}`);
+  } catch(e) {
+    toast('Document upload failed.');
+  } finally {
+    event.target.value = '';
+  }
+}
+
+// ── MAIN LOOP — live API ──────────────────────────────
+async function tick() {
+  await fetchPortfolio();
+  await fetchDecisions();
+  await fetchSourceRegistry();
+  renderOverview();
+  renderSourceRegistry();
+  renderTrading();
+  renderReports();
+  document.getElementById('cycle-clock').textContent =
+    'Cycle ' + state.cycleCount + ' · ' + new Date().toTimeString().slice(0,8) +
+    (state.liveMode ? ' · LIVE' : ' · SIM');
+}
+
+async function slowTick() {
+  await fetchCompliance();
+  await fetchGovernance();   // also updates halt banner + header button
+  await fetchTreasury();
+  await fetchMacro();
+  renderGovernance();
+
+  // Compliance tab
+  const alertCount = state.alerts.filter(a => !a.resolved).length;
+  document.getElementById('cmp-active').textContent = alertCount || '0';
+  document.getElementById('cmp-dd').textContent = state.drawdown.toFixed(2) + '%';
+  const risk = state.riskManager || {};
+  const macro = state.macroMonitor || {};
+  const ofr = macro.ofr || {};
+  document.getElementById('cmp-var').textContent = '~' + ((risk.var_estimate_pct ?? (state.drawdown * 0.4))).toFixed(2) + '%';
+  const riskEl = document.getElementById('cmp-risk');
+  const concEl = document.getElementById('cmp-conc');
+  if (riskEl) {
+    const largest = risk.largest_position_pct || 0;
+    const warn = risk.position_warn_pct || 10;
+    const fail = risk.position_fail_pct || 15;
+    let label = 'ACTIVE';
+    let color = 'var(--green)';
+    if (ofr.fsi_band === 'severe') {
+      label = 'STRESS';
+      color = 'var(--red)';
+    } else if (ofr.fsi_band === 'elevated') {
+      label = 'ELEVATED';
+      color = 'var(--yellow)';
+    } else if (largest > fail) {
+      label = 'BREACH';
+      color = 'var(--red)';
+    } else if (largest > warn) {
+      label = 'WATCH';
+      color = 'var(--yellow)';
+    }
+    riskEl.textContent = label;
+    riskEl.style.color = color;
+  }
+  if (concEl) {
+    const sym = risk.largest_position_symbol || '—';
+    const pct = (risk.largest_position_pct ?? 0).toFixed(1);
+    const fail = risk.position_fail_pct || 15;
+    concEl.textContent = `Largest position ${sym} · ${pct}% of NAV · ${fail}% hard cap`;
+  }
+  renderSystemicStressOverlay();
+
+  if (state.alerts.length > 0) {
+    const html = state.alerts.filter(a => !a.resolved).map(a => `
+      <div class="alert-row">
+        <div class="alert-icon" style="background:${
+          a.severity==='CRITICAL'?'var(--red)':
+          a.severity==='WARNING'?'var(--yellow)':'var(--blue)'}"></div>
+        <div>
+          <div style="font-weight:600;margin-bottom:2px">${a.title}</div>
+          <div class="dim-t">${a.detail}</div>
+        </div>
+        <span class="layer-tag ${a.severity==='CRITICAL'?'tag-red':'tag-yellow'}"
+              style="margin-left:auto;flex-shrink:0">${a.severity}</span>
+      </div>`).join('');
+    document.getElementById('active-alerts').innerHTML = html || '<div style="color:var(--green);padding:16px;font-size:12px">✓ No active alerts.</div>';
+  }
+}
+
+// ── INIT ──────────────────────────────────────────────
+initIntegrationMode();   // render integration mode pill on load
+tick();
+setInterval(tick,      5000);
+setInterval(slowTick, 15000);
+slowTick();
+</script>
+</body>
+</html>
