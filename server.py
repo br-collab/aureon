@@ -4221,8 +4221,7 @@ def _start_background_threads():
     threading.Thread(target=email_scheduler, daemon=True).start()
     print("[AUREON] Background threads started")
 
-_start_background_threads()
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", os.environ.get("AUREON_PORT", "5001")))
+    _start_background_threads()
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
