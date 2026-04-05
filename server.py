@@ -3546,6 +3546,105 @@ def api_pretrade_check(decision_id):
     return jsonify(payload)
 
 
+@app.route("/api/decisions/<decision_id>/approve", methods=["POST"])
+def api_approve_decision(decision_id):
+    """
+    Approve or reject a pending trade decision via the /approve sub-resource.
+
+    This endpoint mirrors POST /api/decisions/<decision_id> and exists so
+    that dashboard clients targeting the /approve URL path are handled
+    correctly.  Both routes share identical logic and return the same
+    response shape.
+
+    Request body (JSON):
+        resolution    : "APPROVED" or "REJECTED"  (required)
+        approval_role : e.g. "TRADER"             (optional, defaults to "TRADER")
+
+    Responses:
+        200  — decision resolved (status: ok | pending | rejected)
+        400  — missing / invalid resolution value
+        404  — decision_id not found in pending queue
+        423  — system halt is active; execution frozen
+        409  — trade could not be applied (e.g. insufficient shares for SELL)
+    """
+    data          = request.get_json() or {}
+    resolution    = data.get("resolution", "").upper()
+    approval_role = (data.get("approval_role") or "TRADER").upper()
+
+    if resolution not in ("APPROVED", "REJECTED"):
+        return jsonify({"error": "resolution must be APPROVED or REJECTED"}), 400
+
+    try:
+        result = resolve_pending_decision(
+            state=aureon_state,
+            lock=_lock,
+            decision_id=decision_id,
+            resolution=resolution,
+            approval_role=approval_role,
+            build_trade_report=_build_trade_report,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except LookupError:
+        return jsonify({"error": "decision not found"}), 404
+    except RuntimeError as exc:
+        message = str(exc)
+        status  = 423 if "SYSTEM HALTED" in message else 409
+        payload = {"error": message}
+        with _lock:
+            if status == 423:
+                payload["halt_reason"] = aureon_state["halt_reason"]
+                payload["halt_ts"]     = aureon_state["halt_ts"]
+        return jsonify(payload), status
+
+    authority_hash = result["hash"]
+    decision       = result["decision"]
+
+    if resolution == "APPROVED" and result["status"] == "ok":
+        print(f"[AUREON] APPROVED (/approve): {decision['action']} {decision['symbol']} "
+              f"${decision['notional']:,} — hash {authority_hash}")
+
+        release_packet = release_to_oms(
+            decision,
+            authority_hash=authority_hash,
+            oms_send=oms_send,
+        )
+        if decision.get("release_target") == "EMS":
+            release_packet = build_execution_release(decision, authority_hash)
+        with _lock:
+            aureon_state.setdefault("integration_handoffs", []).insert(0, release_packet)
+
+        trade_report = result["trade_report"]
+        if trade_report:
+            threading.Thread(
+                target=_send_trade_confirmation_email,
+                args=(trade_report,),
+                daemon=True,
+            ).start()
+        print(f"[AUREON] RELEASED (/approve): {decision['symbol']} — governed release complete")
+    elif resolution == "APPROVED":
+        print(
+            f"[AUREON] PARTIAL APPROVAL (/approve): {decision['action']} {decision['symbol']} "
+            f"— role {approval_role} — awaiting remaining approvals"
+        )
+    else:
+        print(f"[AUREON] REJECTED (/approve): {decision['action']} {decision['symbol']} — hash {authority_hash}")
+
+    # Persist state after every HITL decision (non-blocking)
+    threading.Thread(target=_save_state, daemon=True).start()
+
+    return jsonify({
+        "status":             result["status"],
+        "resolution":         result["resolution"],
+        "decision_id":        result["decision_id"],
+        "hash":               authority_hash,
+        "report_id":          result["report_id"],
+        "approval_role":      approval_role,
+        "current_approvals":  decision.get("current_approvals", []),
+        "required_approvals": decision.get("required_approvals", []),
+    })
+
+
 # ─────────────────────────────────────────────────────────────────
 # 7c. L0 GOVERNANCE — EMERGENCY HALT + DOCTRINE MODIFICATION
 # ─────────────────────────────────────────────────────────────────
