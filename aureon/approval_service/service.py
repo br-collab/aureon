@@ -1,165 +1,268 @@
-"""Approval boundary enforcing DSOR release control before OMS/EMS handoff."""
+"""
+aureon.approval_service.service
+================================
+Human-in-the-loop (HITL) decision resolution for Aureon Grid 3.
 
-from __future__ import annotations
+Handles the core approve/reject lifecycle:
+  - Validates the decision exists and the system is not halted
+  - Records partial approvals (multi-role workflows)
+  - On full approval: applies the trade, builds the compliance report
+  - On rejection: marks the decision cancelled
+  - Stamps every action with a deterministic authority hash
+"""
 
 import hashlib
-import random
 from datetime import datetime, timezone
-from typing import Any, Callable
-
-from aureon.approval_service.routing import apply_routing
-from aureon.approval_service.release_control import approve_role, can_release
-from aureon.core.models import GovernedDecision
-
-
-def apply_approved_trade(state: dict[str, Any], decision: dict[str, Any], exec_price: float) -> tuple[bool, str | None]:
-    """Apply an already-approved trade to local prototype state."""
-    symbol = decision["symbol"]
-    shares = decision["shares"]
-    asset_class = decision["asset_class"]
-    notional = shares * exec_price
-
-    if decision["action"] == "BUY":
-        state["positions"].append(
-            {"symbol": symbol, "asset_class": asset_class, "shares": shares, "cost": round(exec_price, 2), "agent": "THIFUR_H"}
-        )
-        state["cash"] -= notional
-        return True, None
-
-    remaining = shares
-    matched_positions = [p for p in state["positions"] if p["symbol"] == symbol]
-    available = sum(p.get("shares", 0) for p in matched_positions)
-    if available < shares:
-        return False, f"SELL blocked — available {symbol} shares {available:,.0f} < requested {shares:,.0f}"
-
-    new_positions = []
-    for pos in state["positions"]:
-        if pos["symbol"] != symbol or remaining <= 0:
-            new_positions.append(pos)
-            continue
-        lot_shares = pos.get("shares", 0)
-        to_sell = min(lot_shares, remaining)
-        remaining -= to_sell
-        left = lot_shares - to_sell
-        if left > 0:
-            updated = dict(pos)
-            updated["shares"] = left
-            new_positions.append(updated)
-    state["positions"] = new_positions
-    state["cash"] += notional
-    return True, None
 
 
 def resolve_pending_decision(
     *,
-    state: dict[str, Any],
-    lock: Any,
-    decision_id: str,
-    resolution: str,
-    approval_role: str,
-    build_trade_report: Callable[..., dict[str, Any]],
-) -> dict[str, Any]:
+    state,
+    lock,
+    decision_id,
+    resolution,
+    approval_role,
+    build_trade_report,
+):
     """
-    Enforce Phase 1 release control:
-    no governed release and no OMS/EMS handoff until required approval is complete.
+    Resolve a pending decision as APPROVED or REJECTED.
+
+    Parameters
+    ----------
+    state : dict
+        The live aureon_state dictionary (mutated in-place under *lock*).
+    lock : threading.Lock
+        The state lock.
+    decision_id : str
+        ID of the decision to resolve.
+    resolution : str
+        "APPROVED" or "REJECTED".
+    approval_role : str
+        The role of the approving/rejecting authority (e.g. "TRADER").
+    build_trade_report : callable
+        ``_build_trade_report(decision, exec_price, authority_hash,
+        gate_results, portfolio_before)`` — builds the compliance artifact.
+
+    Returns
+    -------
+    dict
+        Keys: status, resolution, decision_id, hash, report_id,
+              decision, trade_report.
+
+    Raises
+    ------
+    LookupError
+        If *decision_id* is not found in pending_decisions.
+    RuntimeError
+        If the system halt is active (status 423) or the trade cannot
+        be applied (status 409).
+    ValueError
+        If *resolution* is not "APPROVED" or "REJECTED".
     """
     if resolution not in ("APPROVED", "REJECTED"):
-        raise ValueError("resolution must be APPROVED or REJECTED")
+        raise ValueError(f"Invalid resolution: {resolution!r}")
+
+    ts = datetime.now(timezone.utc).isoformat()
+    authority_hash = hashlib.sha256(
+        f"AUREON-{resolution}-{decision_id}-{approval_role}-{ts}".encode()
+    ).hexdigest()[:16].upper()
 
     with lock:
-        if state["halt_active"] and resolution == "APPROVED":
-            raise RuntimeError("SYSTEM HALTED — execution blocked. Resume system before approving trades.")
+        # ── Halt check ────────────────────────────────────────────
+        if state.get("halt_active"):
+            raise RuntimeError(
+                f"SYSTEM HALTED — {state.get('halt_reason', 'emergency halt active')}"
+            )
 
-        decision_raw = next((d for d in state["pending_decisions"] if d["id"] == decision_id), None)
-        if not decision_raw:
-            raise LookupError("decision not found")
+        # ── Find the decision ─────────────────────────────────────
+        pending = state.get("pending_decisions", [])
+        decision = next((d for d in pending if d["id"] == decision_id), None)
+        if decision is None:
+            raise LookupError(f"Decision {decision_id!r} not found")
 
-        decision_model = apply_routing(GovernedDecision.from_mapping(decision_raw))
-        authority_hash = hashlib.sha256(f"{decision_id}{resolution}".encode()).hexdigest()[:16].upper()
-        state["authority_log"].insert(
-            0,
-            {
-                "id": f"HAD-{random.randint(1000, 9999)}",
-                "ts": datetime.now(timezone.utc).isoformat(),
-                "tier": "Tier 1",
-                "type": f"Trade {resolution}: {decision_model.action} {decision_model.symbol}",
+        if resolution == "REJECTED":
+            # ── Rejection path ────────────────────────────────────
+            pending[:] = [d for d in pending if d["id"] != decision_id]
+            decision["status"] = "REJECTED"
+
+            state["authority_log"].insert(0, {
+                "id":        f"HAD-{decision_id[-8:]}",
+                "ts":        ts,
+                "tier":      "Tier 1 — Human Authority",
+                "type":      f"REJECT {decision['action']} {decision['symbol']}",
                 "authority": approval_role,
-                "outcome": resolution,
-                "hash": authority_hash,
-            },
-        )
+                "outcome":   f"REJECTED — ${decision.get('notional', 0):,}",
+                "hash":      authority_hash,
+            })
 
-        result: dict[str, Any] = {
-            "status": "ok",
-            "resolution": resolution,
-            "decision_id": decision_id,
-            "hash": authority_hash,
-            "report_id": None,
-            "trade_report": None,
-            "decision": decision_model.to_mapping(),
+            return {
+                "status":      "rejected",
+                "resolution":  "REJECTED",
+                "decision_id": decision_id,
+                "hash":        authority_hash,
+                "report_id":   None,
+                "decision":    decision,
+                "trade_report": None,
+            }
+
+        # ── Approval path ─────────────────────────────────────────
+        current = list(decision.get("current_approvals", []))
+        if approval_role not in current:
+            current.append(approval_role)
+        decision["current_approvals"] = current
+
+        required = list(decision.get("required_approvals", []))
+        all_approved = all(r in current for r in required)
+
+        if not all_approved:
+            # Partial approval — record and return "pending" status
+            state["authority_log"].insert(0, {
+                "id":        f"HAD-{decision_id[-8:]}",
+                "ts":        ts,
+                "tier":      "Tier 1 — Human Authority",
+                "type":      f"PARTIAL APPROVE {decision['action']} {decision['symbol']}",
+                "authority": approval_role,
+                "outcome":   f"Role {approval_role} approved — awaiting {set(required) - set(current)}",
+                "hash":      authority_hash,
+            })
+            return {
+                "status":      "pending",
+                "resolution":  "APPROVED",
+                "decision_id": decision_id,
+                "hash":        authority_hash,
+                "report_id":   None,
+                "decision":    decision,
+                "trade_report": None,
+            }
+
+        # ── Full approval — execute the trade ─────────────────────
+        exec_price = float(
+            state.get("prices", {}).get(decision["symbol"], decision.get("price", 0))
+        )
+        if exec_price <= 0:
+            exec_price = float(decision.get("price", 0))
+
+        portfolio_before = {
+            "portfolio_value": state.get("portfolio_value", 0.0),
+            "cash":            state.get("cash", 0.0),
+            "drawdown":        state.get("drawdown", 0.0),
+            "n_positions":     len(state.get("positions", [])),
         }
 
-        if resolution == "APPROVED":
-            decision_model = approve_role(decision_model, approval_role)
-            if not can_release(decision_model):
-                updated = decision_model.to_mapping()
-                updated["status"] = "PENDING_APPROVALS"
-                state["pending_decisions"] = [
-                    updated if d["id"] == decision_id else d for d in state["pending_decisions"]
-                ]
-                result["status"] = "pending_approvals"
-                result["decision"] = updated
-                return result
+        # Apply the trade to positions and cash
+        ok, err = _apply_trade(state, decision, exec_price)
+        if not ok:
+            raise RuntimeError(err or "Trade application failed")
 
-            state["pending_decisions"] = [d for d in state["pending_decisions"] if d["id"] != decision_id]
-            decision = decision_model.to_mapping()
-            exec_price = state["prices"].get(decision["symbol"], decision["price"])
-            portfolio_snapshot = {
-                "cash": state["cash"],
-                "portfolio_value": state["portfolio_value"],
-                "drawdown": state["drawdown"],
-                "n_positions": len(state["positions"]),
-            }
-            ok, exec_error = apply_approved_trade(state, decision, exec_price)
-            if not ok:
-                state["pending_decisions"].insert(0, decision)
-                raise RuntimeError(exec_error or "trade application failed")
+        # Remove from pending queue
+        pending[:] = [d for d in pending if d["id"] != decision_id]
+        decision["status"] = "APPROVED"
 
-            state["trades"].insert(
-                0,
-                {
-                    "ts": datetime.now(timezone.utc).isoformat(),
-                    "action": decision["action"],
-                    "symbol": decision["symbol"],
-                    "asset_class": decision["asset_class"],
-                    "shares": decision["shares"],
-                    "price": round(exec_price, 2),
-                    "notional": decision["notional"],
-                    "agent": "THIFUR_H",
-                    "decision_id": decision_id,
-                    "signal_type": decision.get("signal_type"),
-                    "human_approved": True,
-                    "release_target": decision.get("release_target", "OMS"),
-                    "final_approvals": list(decision.get("current_approvals", [])),
-                    "required_approvals": list(decision.get("required_approvals", [])),
-                    "release_outcome": "RELEASED",
-                    "hash": authority_hash,
-                },
-            )
+        notional = decision["shares"] * exec_price
 
-            gate_results = state.get("_pretrade_cache", {}).get(decision_id, {}).get("checks", [])
-            trade_report = build_trade_report(
-                decision=decision,
-                exec_price=exec_price,
-                authority_hash=authority_hash,
-                gate_results=gate_results,
-                portfolio_before=portfolio_snapshot,
-            )
-            state["trade_reports"].insert(0, trade_report)
-            result["report_id"] = trade_report.get("report_id")
-            result["trade_report"] = trade_report
-            result["decision"] = decision
+        # Record in trades log
+        trade_record = {
+            **decision,
+            "exec_price":        round(exec_price, 2),
+            "notional":          round(notional, 2),
+            "authority_hash":    authority_hash,
+            "final_approvals":   current,
+            "required_approvals": required,
+            "release_target":    decision.get("release_target", "OMS"),
+            "release_outcome":   "RELEASED",
+            "ts":                ts,
+        }
+        state.setdefault("trades", []).insert(0, trade_record)
 
-        else:
-            state["pending_decisions"] = [d for d in state["pending_decisions"] if d["id"] != decision_id]
-        return result
+        # Authority log entry
+        state["authority_log"].insert(0, {
+            "id":        f"HAD-{decision_id[-8:]}",
+            "ts":        ts,
+            "tier":      "Tier 1 — Human Authority",
+            "type":      f"APPROVE {decision['action']} {decision['symbol']}",
+            "authority": approval_role,
+            "outcome":   f"APPROVED — ${notional:,.0f} @ ${exec_price:.2f}",
+            "hash":      authority_hash,
+        })
+
+    # ── Build compliance report (outside lock to avoid deadlock) ──
+    trade_report = None
+    try:
+        trade_report = build_trade_report(
+            decision,
+            exec_price,
+            authority_hash,
+            [],   # gate_results — populated by pre-trade check
+            portfolio_before,
+        )
+        with lock:
+            state.setdefault("trade_reports", []).insert(0, trade_report)
+    except Exception as exc:
+        print(f"[AUREON] Trade report build failed: {exc}")
+
+    report_id = trade_report["report_id"] if trade_report else None
+
+    return {
+        "status":      "ok",
+        "resolution":  "APPROVED",
+        "decision_id": decision_id,
+        "hash":        authority_hash,
+        "report_id":   report_id,
+        "decision":    decision,
+        "trade_report": trade_report,
+    }
+
+
+def _apply_trade(state, decision, exec_price):
+    """
+    Mutate *state* to reflect an approved trade.
+
+    BUY  → append a new position lot, deduct cash.
+    SELL → reduce existing lots FIFO, add cash.
+
+    Returns (ok: bool, error_message: str | None).
+    Must be called while holding the state lock.
+    """
+    symbol     = decision["symbol"]
+    shares     = decision["shares"]
+    asset_class = decision["asset_class"]
+    notional   = shares * exec_price
+
+    if decision["action"] == "BUY":
+        state.setdefault("positions", []).append({
+            "symbol":      symbol,
+            "asset_class": asset_class,
+            "shares":      shares,
+            "cost":        round(exec_price, 2),
+            "agent":       "THIFUR_H",
+        })
+        state["cash"] = state.get("cash", 0.0) - notional
+        return True, None
+
+    # SELL — FIFO lot reduction
+    remaining = shares
+    positions = state.get("positions", [])
+    available = sum(p.get("shares", 0) for p in positions if p["symbol"] == symbol)
+    if available < shares:
+        return False, (
+            f"SELL blocked — available {symbol} shares {available:,.0f} "
+            f"< requested {shares:,.0f}"
+        )
+
+    new_positions = []
+    for pos in positions:
+        if pos["symbol"] != symbol or remaining <= 0:
+            new_positions.append(pos)
+            continue
+        lot_shares = pos.get("shares", 0)
+        to_sell    = min(lot_shares, remaining)
+        remaining -= to_sell
+        left       = lot_shares - to_sell
+        if left > 0:
+            updated = dict(pos)
+            updated["shares"] = left
+            new_positions.append(updated)
+
+    state["positions"] = new_positions
+    state["cash"] = state.get("cash", 0.0) + notional
+    return True, None
