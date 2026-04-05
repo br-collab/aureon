@@ -826,19 +826,62 @@ def _apply_approved_trade(decision: dict, exec_price: float):
     return True, None
 
 
-def _market_is_open():
+def _is_instrument_tradeable(symbol: str, asset_class: str) -> tuple:
     """
-    Returns True if US equity markets are currently open.
-    NYSE/NASDAQ hours: Monday–Friday, 9:30am–4:00pm Eastern Time.
-    Does not account for market holidays.
+    Returns (is_tradeable: bool, reason: str).
+    Instrument-aware session boundary check for 24x5 readiness.
     """
     ET = zoneinfo.ZoneInfo("America/New_York")
+    MX = zoneinfo.ZoneInfo("America/Mexico_City")
     now_et = datetime.now(ET)
-    if now_et.weekday() >= 5:          # Saturday=5, Sunday=6
-        return False
-    market_open  = dt_time(9, 30)
-    market_close = dt_time(16, 0)
-    return market_open <= now_et.time() < market_close
+    now_mx = datetime.now(MX)
+    weekday = now_et.weekday()  # 0=Monday, 6=Sunday
+
+    CRYPTO_SYMBOLS  = {"BTC", "ETH", "SOL"}
+    FX_SYMBOLS      = {"EUR/USD", "GBP/USD", "USD/JPY"}
+    BMV_SIC_SYMBOLS = set()  # populated in Phase 2
+
+    # Crypto — 24/7 always
+    if symbol in CRYPTO_SYMBOLS or asset_class == "crypto":
+        return True, "Crypto — 24/7"
+
+    # FX — 24/5 Sunday 5PM ET to Friday 5PM ET
+    if symbol in FX_SYMBOLS or asset_class == "fx":
+        if weekday == 5:  # Saturday
+            return False, "FX market closed — Saturday"
+        if weekday == 6 and now_et.hour < 17:  # Sunday before 5PM ET
+            return False, "FX market closed — Sunday pre-open"
+        if weekday == 4 and now_et.hour >= 17:  # Friday after 5PM ET
+            return False, "FX market closed — weekend"
+        return True, "FX — 24/5"
+
+    # BMV SIC — Monday-Friday 8:30am-3:00pm Mexico City
+    if symbol in BMV_SIC_SYMBOLS:
+        if weekday >= 5:
+            return False, "BMV SIC closed — weekend"
+        bmv_open  = dt_time(8, 30)
+        bmv_close = dt_time(15, 0)
+        if bmv_open <= now_mx.time() < bmv_close:
+            return True, "BMV SIC open"
+        return False, "BMV SIC closed — hours 08:30-15:00 MX"
+
+    # Equities and everything else — NYSE hours Monday-Friday
+    if weekday >= 5:
+        return False, "Market closed — weekend"
+    nyse_open  = dt_time(9, 30)
+    nyse_close = dt_time(16, 0)
+    if nyse_open <= now_et.time() < nyse_close:
+        return True, "NYSE open"
+    return False, "Market closed — NYSE hours 09:30-16:00 ET"
+
+
+def _market_is_open():
+    """
+    Backward-compatible wrapper — checks NYSE hours via _is_instrument_tradeable.
+    Use _is_instrument_tradeable(symbol, asset_class) for instrument-specific checks.
+    """
+    tradeable, _ = _is_instrument_tradeable("SPY", "equities")
+    return tradeable
 
 
 def _build_email_html():
@@ -2726,8 +2769,9 @@ def _generate_signal():
         signal_type = "OPPORTUNISTIC"
 
     # ── Step 4: Session boundary (Verana L0) ──────────────────────────────────
-    if not _market_is_open() and symbol not in CRYPTO_SYMBOLS:
-        return   # FX/equity signals suppressed outside market hours
+    tradeable, _session_reason = _is_instrument_tradeable(symbol, asset_class)
+    if not tradeable:
+        return   # signal suppressed outside instrument's session window
 
     notional = int(shares * price)
     if notional < 400_000:
@@ -3448,6 +3492,34 @@ def api_resolve_decision(decision_id):
 
     if resolution not in ("APPROVED", "REJECTED"):
         return jsonify({"error": "resolution must be APPROVED or REJECTED"}), 400
+
+    # ── Session boundary check for APPROVED trades ────────────────────────────
+    # Record the approval regardless of market hours; defer execution if the
+    # instrument's session is closed. Approval is never lost.
+    if resolution == "APPROVED":
+        with _lock:
+            pending = aureon_state["pending_decisions"]
+            decision_obj = next((d for d in pending if d.get("id") == decision_id), None)
+        if decision_obj is not None:
+            sym = decision_obj.get("symbol", "SPY")
+            acls = decision_obj.get("asset_class", "equities")
+            tradeable, session_reason = _is_instrument_tradeable(sym, acls)
+            if not tradeable:
+                ts = datetime.now(timezone.utc).isoformat()
+                with _lock:
+                    decision_obj["status"]      = "APPROVED_PENDING_SESSION"
+                    decision_obj["approved_at"] = ts
+                    decision_obj["session_reason"] = session_reason
+                threading.Thread(target=_save_state, daemon=True).start()
+                print(f"[AUREON] APPROVED_PENDING_SESSION: {decision_obj.get('action')} "
+                      f"{sym} — {session_reason}")
+                return jsonify({
+                    "status":      "APPROVED_PENDING_SESSION",
+                    "message":     "Approval recorded. Execution deferred to next session open.",
+                    "reason":      session_reason,
+                    "decision_id": decision_id,
+                    "approved_at": ts,
+                })
 
     try:
         result = resolve_pending_decision(
