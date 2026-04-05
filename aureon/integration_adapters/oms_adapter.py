@@ -1,30 +1,44 @@
-"""OMS handoff boundary for governed parent-order release."""
+"""
+aureon.integration_adapters.oms_adapter
+========================================
+Order Management System (OMS) adapter for Aureon Grid 3.
 
-from __future__ import annotations
+In production this would connect to the prime broker's FIX gateway or
+REST OMS API.  In the current prototype it logs the release packet and
+returns a simulated acknowledgement.
+"""
 
-from datetime import datetime, timezone
-from typing import Any
 
+def send(packet: dict) -> dict:
+    """
+    Dispatch a governed release packet to the OMS.
 
-def build_parent_order_handoff(decision: dict[str, Any], authority_hash: str) -> dict[str, Any]:
-    """Build the governed OMS handoff packet for a Phase 1 parent-order release."""
+    Parameters
+    ----------
+    packet : dict
+        The release packet built by release_control.release_to_oms().
+
+    Returns
+    -------
+    dict
+        Simulated OMS acknowledgement with status and order reference.
+    """
+    decision_id = packet.get("decision_id", "UNKNOWN")
+    symbol      = packet.get("symbol", "UNKNOWN")
+    action      = packet.get("action", "UNKNOWN")
+    notional    = packet.get("notional", 0)
+
+    print(
+        f"[OMS] Release received — {action} {symbol} "
+        f"${notional:,.0f} | decision: {decision_id}"
+    )
+
+    # Simulated OMS acknowledgement
     return {
-        "handoff_type": "OMS_PARENT_ORDER",
-        "decision_id": decision["id"],
-        "symbol": decision["symbol"],
-        "action": decision["action"],
-        "shares": decision["shares"],
-        "notional": decision["notional"],
-        "authority_hash": authority_hash,
-        "release_ts": datetime.now(timezone.utc).isoformat(),
-        "governed_release": True,
+        "oms_status":   "ACCEPTED",
+        "order_ref":    f"OMS-{decision_id[-8:]}",
+        "decision_id":  decision_id,
+        "symbol":       symbol,
+        "action":       action,
+        "notional":     notional,
     }
-
-
-def send(decision: dict[str, Any], authority_hash: str) -> dict[str, Any]:
-    """
-    Prototype OMS send boundary.
-    In Phase 1 this returns the governed parent-order handoff payload that
-    would be transmitted to the OMS adapter layer.
-    """
-    return build_parent_order_handoff(decision, authority_hash)
