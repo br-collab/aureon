@@ -94,7 +94,8 @@ EMAIL_TO       = "br@ravelobizdev.com"                                     # rep
 EMAIL_PASSWORD = os.environ.get("AUREON_EMAIL_PW", "")
 SMTP_HOST      = "smtp.gmail.com"
 SMTP_PORT      = 587
-FRED_API_KEY   = os.environ.get("FRED_API_KEY", "")
+FRED_API_KEY          = os.environ.get("FRED_API_KEY", "")
+TWELVE_DATA_API_KEY   = os.environ.get("TWELVE_DATA_API_KEY", "")
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -1526,6 +1527,53 @@ def _fetch_yahoo_prices():
         return {}
 
 
+def _fetch_twelve_data_prices():
+    """
+    Fetch real-time prices from Twelve Data API.
+    Covers all 19 Aureon symbols in one batch request.
+    Returns dict of {symbol: price} or empty dict on failure.
+    """
+    if not TWELVE_DATA_API_KEY:
+        return {}
+
+    # Twelve Data symbol mapping — FX pairs use different format
+    TWELVE_DATA_MAP = {
+        "SPY": "SPY", "AAPL": "AAPL", "NVDA": "NVDA", "MSFT": "MSFT",
+        "GOOGL": "GOOGL", "AMZN": "AMZN", "EEM": "EEM", "TLT": "TLT",
+        "HYG": "HYG", "AGG": "AGG", "GLD": "GLD", "USO": "USO",
+        "DBC": "DBC", "BTC": "BTC/USD", "ETH": "ETH/USD", "SOL": "SOL/USD",
+        "EUR/USD": "EUR/USD", "GBP/USD": "GBP/USD", "USD/JPY": "USD/JPY",
+    }
+
+    # Batch all symbols in one request (Twelve Data supports comma-separated)
+    symbols_param = ",".join(TWELVE_DATA_MAP.values())
+    url = (
+        f"https://api.twelvedata.com/price"
+        f"?symbol={symbols_param}"
+        f"&apikey={TWELVE_DATA_API_KEY}"
+    )
+
+    try:
+        with urllib.request.urlopen(url, timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        prices = {}
+        reverse_map = {v: k for k, v in TWELVE_DATA_MAP.items()}
+
+        for td_symbol, result in data.items():
+            aureon_symbol = reverse_map.get(td_symbol, td_symbol)
+            if isinstance(result, dict) and "price" in result:
+                try:
+                    prices[aureon_symbol] = float(result["price"])
+                except (ValueError, TypeError):
+                    pass
+
+        return prices
+    except Exception as exc:
+        print(f"[TWELVE_DATA] Fetch failed: {exc}")
+        return {}
+
+
 def _simulated_prices():
     """
     Return the next tick of prices.
@@ -1557,8 +1605,14 @@ def _simulated_prices():
             prices[symbol] = last * (1 + (random.random() - 0.5) * nudge)
         return prices
 
-    # ── Step 2: cache is stale — try Yahoo Finance ───────────────────────────
-    fresh = _fetch_yahoo_prices()
+    # ── Step 2: cache is stale — try Twelve Data (primary) then Yahoo Finance (fallback) ──
+    fresh = _fetch_twelve_data_prices()
+    source = "Twelve Data"
+
+    if not fresh and _YFINANCE_AVAILABLE:
+        fresh = _fetch_yahoo_prices()
+        source = "Yahoo Finance"
+
     if fresh:
         # Merge: real prices for symbols we got, last-known for the rest
         for symbol, base in BASE_PRICES.items():
@@ -1568,7 +1622,7 @@ def _simulated_prices():
                 prices[symbol] = aureon_state["prices"].get(symbol, base)
         _price_cache    = dict(prices)
         _price_cache_ts = now
-        print(f"[AUREON] Real prices loaded from Yahoo Finance ({len(fresh)} symbols)")
+        print(f"[AUREON] Real prices loaded from {source} ({len(fresh)} symbols)")
         return prices
 
     # ── Step 3: fallback — full random-walk simulation ───────────────────────
