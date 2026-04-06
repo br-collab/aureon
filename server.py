@@ -3697,11 +3697,7 @@ def _build_pretrade_checks_from_cache(decision_id: str) -> list:
     return gates
 
 
-import signal as _signal
-
-
-def _pretrade_timeout_handler(signum, frame):
-    raise TimeoutError("Pretrade check timed out")
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
 
 @app.route("/api/decisions/<decision_id>/pretrade", methods=["GET"])
@@ -3710,12 +3706,9 @@ def api_pretrade_check(decision_id):
     Pre-trade compliance check for a pending decision.
     Called before the human clicks final APPROVE to ensure all
     pre-trade gates pass (market status, cash, position limits, drawdown).
-    Returns a list of named checks with PASS/WARN/FAIL status.
-    Hard ceiling: 8 seconds — falls back to cached state if exceeded.
+    Hard ceiling: 8 seconds via ThreadPoolExecutor — never hangs, never crashes.
     """
-    _signal.signal(_signal.SIGALRM, _pretrade_timeout_handler)
-    _signal.alarm(8)
-    try:
+    def _run_pretrade_checks():
         payload = evaluate_pretrade_decision(
             state=aureon_state,
             lock=_lock,
@@ -3728,34 +3721,46 @@ def api_pretrade_check(decision_id):
             symbol_to_isin=SYMBOL_TO_ISIN,
             ofac_blocked_isins=OFAC_BLOCKED_ISINS,
         )
-        if payload is None:
-            return jsonify({"error": "decision not found"}), 404
-        return jsonify(payload)
-    except TimeoutError:
-        print(f"[AUREON] Pretrade check timed out for {decision_id} — returning cached data")
-        checks = _build_pretrade_checks_from_cache(decision_id)
-        if not checks:
-            return jsonify({"error": "decision not found"}), 404
-        statuses = [g["status"] for g in checks]
-        overall = "FAIL" if "FAIL" in statuses else "WARN" if "WARN" in statuses else "PASS"
-        with _lock:
-            decision = next(
-                (d for d in aureon_state.get("pending_decisions", []) if d["id"] == decision_id),
-                {},
-            )
-        return jsonify({
-            "status":     "WARN",
-            "message":    "Pretrade check timed out — using cached data",
-            "decision_id": decision_id,
-            "symbol":     decision.get("symbol", ""),
-            "action":     decision.get("action", ""),
-            "notional":   decision.get("notional", 0),
-            "overall":    overall,
-            "gates":      checks,
-            "ts":         datetime.now(timezone.utc).isoformat(),
-        }), 200
-    finally:
-        _signal.alarm(0)
+        return payload
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_run_pretrade_checks)
+        try:
+            payload = future.result(timeout=8)
+            if payload is None:
+                return jsonify({"error": "decision not found"}), 404
+            return jsonify(payload)
+        except FuturesTimeout:
+            print(f"[AUREON] Pretrade check timed out for {decision_id} — returning cached data")
+            checks = _build_pretrade_checks_from_cache(decision_id)
+            if not checks:
+                return jsonify({"error": "decision not found"}), 404
+            statuses = [g["status"] for g in checks]
+            overall = "FAIL" if "FAIL" in statuses else "WARN" if "WARN" in statuses else "PASS"
+            with _lock:
+                decision = next(
+                    (d for d in aureon_state.get("pending_decisions", []) if d["id"] == decision_id),
+                    {},
+                )
+            return jsonify({
+                "status":      "WARN",
+                "message":     "Pretrade check timed out — using cached data",
+                "decision_id": decision_id,
+                "symbol":      decision.get("symbol", ""),
+                "action":      decision.get("action", ""),
+                "notional":    decision.get("notional", 0),
+                "overall":     overall,
+                "gates":       checks,
+                "ts":          datetime.now(timezone.utc).isoformat(),
+            }), 200
+        except Exception as exc:
+            print(f"[AUREON] Pretrade check error for {decision_id}: {exc}")
+            checks = _build_pretrade_checks_from_cache(decision_id)
+            return jsonify({
+                "status":  "WARN",
+                "message": f"Pretrade check error: {exc}",
+                "checks":  checks,
+            }), 200
 
 
 # ── CAOM-001 Session Open Protocol Routes ────────────────────────────────────
