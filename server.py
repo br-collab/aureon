@@ -238,6 +238,7 @@ aureon_state = {
     "compliance_alerts":  [],
     "alert_history":      [],
     "authority_log":      [],
+    "operational_journal": [],   # DA-1594 equivalent — DTG-stamped operational record
     "prices":             {},
     "class_totals":       {},
 
@@ -2651,6 +2652,48 @@ def _add_alert(severity, title, detail):
             aureon_state["alert_history"].insert(0, alert)
 
 
+_JOURNAL_MAX = 500   # rolling cap — oldest entries dropped when exceeded
+
+def _journal(
+    event_type: str,
+    source: str,
+    subject: str,
+    detail: str,
+    authority: str = "SYSTEM",
+    outcome: str = "",
+    ref_id: str = "",
+):
+    """
+    Append a DTG-stamped entry to the operational journal (DA-1594 equivalent).
+
+    event_type : SIGNAL_GENERATED | SIGNAL_SUPPRESSED | DECISION_APPROVED |
+                 DECISION_REJECTED | DECISION_DEFERRED | HALT_ACTIVATED |
+                 HALT_RESUMED | SESSION_OPEN | DOCTRINE_OBSERVATION
+    source     : originating agent or component (THIFUR-H, OPERATOR, VERANA-L0 …)
+    subject    : symbol, decision ID, or system component
+    detail     : what happened and why
+    authority  : who acted
+    outcome    : final state of the event
+    ref_id     : linked decision/hash ID for cross-reference
+    """
+    ts = datetime.now(timezone.utc).isoformat()
+    entry = {
+        "dtg":        ts,
+        "event_type": event_type,
+        "source":     source,
+        "subject":    subject,
+        "detail":     detail,
+        "authority":  authority,
+        "outcome":    outcome,
+        "ref_id":     ref_id,
+    }
+    with _lock:
+        journal = aureon_state.setdefault("operational_journal", [])
+        journal.insert(0, entry)
+        if len(journal) > _JOURNAL_MAX:
+            del journal[_JOURNAL_MAX:]
+
+
 def _generate_signal():
     """
     Thifur-H signal engine — drift-aware rebalancing first, opportunistic second.
@@ -2677,8 +2720,10 @@ def _generate_signal():
 
     if halt:
         print("[AUREON] Signal suppressed — system HALTED")
+        _journal("SIGNAL_SUPPRESSED", "THIFUR-H", "ALL", "Signal suppressed — system HALT active", outcome="SUPPRESSED")
         return
     if queue_len >= 4:
+        _journal("SIGNAL_SUPPRESSED", "THIFUR-H", "ALL", "Signal suppressed — pending queue at capacity (4)", outcome="SUPPRESSED")
         return   # queue full — don't pile on
 
     # ── Step 2: Find the most off-target asset class ──────────────────────────
@@ -2768,10 +2813,16 @@ def _generate_signal():
     # ── Step 4: Session boundary (Verana L0) ──────────────────────────────────
     tradeable, _session_reason = _is_instrument_tradeable(symbol, asset_class)
     if not tradeable:
+        _journal("SIGNAL_SUPPRESSED", "VERANA-L0", symbol,
+                 f"Signal suppressed — session boundary: {_session_reason}",
+                 outcome="SUPPRESSED")
         return   # signal suppressed outside instrument's session window
 
     notional = int(shares * price)
     if notional < 400_000:
+        _journal("SIGNAL_SUPPRESSED", "KALADAN-L2", symbol,
+                 f"Signal suppressed — below materiality threshold ($400K). Notional: ${notional:,}",
+                 outcome="SUPPRESSED")
         return   # below materiality threshold
 
     # ── Cash floor guard (Mentat L1) ──────────────────────────────
@@ -2786,6 +2837,11 @@ def _generate_signal():
         if _cash - notional < _floor:
             print(f"[MENTAT-L1] BUY {symbol} suppressed — would breach cash floor "
                   f"(${_floor:,.0f} required; effective cash after trade: ${_cash - notional:,.0f})")
+            _journal("SIGNAL_SUPPRESSED", "MENTAT-L1", symbol,
+                     f"BUY {symbol} suppressed — cash floor breach. "
+                     f"Available: ${_cash:,.0f} | Notional: ${notional:,.0f} | "
+                     f"Floor: ${_floor:,.0f} | Post-trade cash would be: ${_cash - notional:,.0f}",
+                     outcome="SUPPRESSED")
             return
 
     decision = {
@@ -2818,6 +2874,9 @@ def _generate_signal():
         if len(aureon_state["pending_decisions"]) < 4:
             aureon_state["pending_decisions"].append(decision)
 
+    _journal("SIGNAL_GENERATED", "THIFUR-H", symbol,
+             f"{signal_type} signal: {action} {symbol} ${notional:,}. {rationale}",
+             outcome="PENDING_DECISION", ref_id=decision["id"])
     print(f"[THIFUR-H] {signal_type} signal: {action} {symbol} "
           f"${notional:,} — human decision required")
 
@@ -2854,6 +2913,7 @@ def _save_state():
                 "mmf_yield_accrued":  aureon_state.get("mmf_yield_accrued", 0.0),
                 "mmf_provider":       _resolve_mmf_provider(aureon_state.get("mmf_provider")),
                 "sweep_log":          list(aureon_state.get("sweep_log", [])),
+                "operational_journal": list(aureon_state.get("operational_journal", [])),
                 "saved_at":           datetime.now(timezone.utc).isoformat(),
             }
         tmp_file = STATE_FILE + ".tmp"
@@ -3237,10 +3297,11 @@ def run_doctrine_stack():
             aureon_state["compliance_alerts"] = saved.get("compliance_alerts", [])
             aureon_state["alert_history"]     = saved.get("alert_history",     [])
             # ── MMF / Cash management fields ──────────────────────
-            aureon_state["mmf_balance"]       = saved.get("mmf_balance",       0.0)
-            aureon_state["mmf_yield_accrued"] = saved.get("mmf_yield_accrued", 0.0)
-            aureon_state["mmf_provider"]      = _resolve_mmf_provider(saved.get("mmf_provider"))
-            aureon_state["sweep_log"]         = saved.get("sweep_log",         [])
+            aureon_state["mmf_balance"]         = saved.get("mmf_balance",         0.0)
+            aureon_state["mmf_yield_accrued"]   = saved.get("mmf_yield_accrued",   0.0)
+            aureon_state["mmf_provider"]        = _resolve_mmf_provider(saved.get("mmf_provider"))
+            aureon_state["sweep_log"]           = saved.get("sweep_log",           [])
+            aureon_state["operational_journal"] = saved.get("operational_journal", [])
         else:
             # ── First-ever launch — seed from INITIAL_POSITIONS ───
             aureon_state["positions"] = [dict(p) for p in INITIAL_POSITIONS]
@@ -3517,6 +3578,11 @@ def api_resolve_decision(decision_id):
                     decision_obj["approved_at"] = ts
                     decision_obj["session_reason"] = session_reason
                 threading.Thread(target=_save_state, daemon=True).start()
+                _journal("DECISION_DEFERRED", "VERANA-L0", sym,
+                         f"{decision_obj.get('action')} {sym} approved but deferred — "
+                         f"session boundary: {session_reason}",
+                         authority=approval_role, outcome="APPROVED_PENDING_SESSION",
+                         ref_id=decision_id)
                 print(f"[AUREON] APPROVED_PENDING_SESSION: {decision_obj.get('action')} "
                       f"{sym} — {session_reason}")
                 return jsonify({
@@ -3555,6 +3621,10 @@ def api_resolve_decision(decision_id):
     if resolution == "APPROVED" and result["status"] == "ok":
         print(f"[AUREON] APPROVED: {decision['action']} {decision['symbol']} "
               f"${decision['notional']:,} — hash {authority_hash}")
+        _journal("DECISION_APPROVED", "OPERATOR", decision["symbol"],
+                 f"{decision['action']} {decision['symbol']} "
+                 f"${decision.get('notional',0):,.0f} — {decision.get('rationale','')}",
+                 authority=approval_role, outcome="RELEASED", ref_id=authority_hash)
 
         release_packet = release_to_oms(
             decision,
@@ -3581,8 +3651,17 @@ def api_resolve_decision(decision_id):
             f"[AUREON] APPROVAL RECORDED: {decision['action']} {decision['symbol']} "
             f"— role {approval_role} — awaiting remaining approvals"
         )
+        _journal("DECISION_APPROVED", "OPERATOR", decision["symbol"],
+                 f"Partial approval recorded — role {approval_role}. "
+                 f"Awaiting: {set(decision.get('required_approvals',[])) - set(decision.get('current_approvals',[]))}",
+                 authority=approval_role, outcome="PARTIAL", ref_id=authority_hash)
     else:
         print(f"[AUREON] REJECTED: {decision['action']} {decision['symbol']} — hash {authority_hash}")
+        _journal("DECISION_REJECTED", "OPERATOR", decision["symbol"],
+                 f"{decision['action']} {decision['symbol']} "
+                 f"${decision.get('notional',0):,.0f} rejected by {approval_role}. "
+                 f"Rationale: {decision.get('rationale','')}",
+                 authority=approval_role, outcome="REJECTED", ref_id=authority_hash)
 
     # ── Persist state after every HITL decision (non-blocking) ───
     threading.Thread(target=_save_state, daemon=True).start()
@@ -3763,6 +3842,40 @@ def api_pretrade_check(decision_id):
             }), 200
 
 
+# ── Operational Journal (DA-1594) ────────────────────────────────────────────
+
+@app.route("/api/journal", methods=["GET"])
+def api_journal():
+    """
+    Operational journal — DTG-stamped record of all system events.
+    DA-1594 equivalent: signals, decisions, suppressions, halts, doctrine observations.
+
+    Query params:
+      ?limit=50          — max entries to return (default 100)
+      ?type=SIGNAL_SUPPRESSED  — filter by event_type
+      ?source=THIFUR-H   — filter by source
+    """
+    limit       = min(int(request.args.get("limit", 100)), 500)
+    filter_type = request.args.get("type", "").upper()
+    filter_src  = request.args.get("source", "").upper()
+
+    with _lock:
+        journal = list(aureon_state.get("operational_journal", []))
+
+    if filter_type:
+        journal = [e for e in journal if e.get("event_type", "").upper() == filter_type]
+    if filter_src:
+        journal = [e for e in journal if e.get("source", "").upper() == filter_src]
+
+    journal = journal[:limit]
+
+    return jsonify({
+        "count":   len(journal),
+        "entries": journal,
+        "ts":      datetime.now(timezone.utc).isoformat(),
+    })
+
+
 # ── CAOM-001 Session Open Protocol Routes ────────────────────────────────────
 
 @app.route("/api/session/status", methods=["GET"])
@@ -3875,6 +3988,9 @@ def api_halt_activate():
             "hash":      halt_hash,
         })
 
+    _journal("HALT_ACTIVATED", "OPERATOR", "SYSTEM",
+             f"Emergency halt activated. Reason: {reason}",
+             authority=authority, outcome="HALTED", ref_id=halt_hash)
     print(f"[AUREON] ⛔ EMERGENCY HALT — {reason} — authority {authority} — {halt_hash}")
     return jsonify({
         "status":    "halted",
@@ -3916,6 +4032,9 @@ def api_halt_resume():
             "hash":      resume_hash,
         })
 
+    _journal("HALT_RESUMED", "OPERATOR", "SYSTEM",
+             f"System resumed from emergency halt by {authority}",
+             authority=authority, outcome="RESUMED", ref_id=resume_hash)
     print(f"[AUREON] ✓ System resumed by {authority} — {resume_hash}")
     return jsonify({
         "status":    "resumed",
@@ -4585,6 +4704,15 @@ def _start_background_threads():
     )
     _session_protocol.run_step_5_stress_review()
     _session_protocol.run_step_6_open_session()
+    _journal("SESSION_OPEN", "CAOM-001", "SYSTEM",
+             "CAOM-001 session opened at startup. All six protocol steps completed. "
+             "Operator GR-001 holds Tier 1/2/3. Execution gates active.",
+             authority="GR-001", outcome="OPEN")
+    _journal("DOCTRINE_OBSERVATION", "THIFUR-H", "SIGNAL_ENGINE",
+             "Known guardrail gap: signal notional computed from seed price in candidate pool, "
+             "not live market price. Cash floor check may pass at signal time but fail at execution "
+             "if prices have moved. Fix: resolve notional from aureon_state['prices'] at signal time.",
+             authority="SYSTEM", outcome="OPEN_FINDING")
     threading.Thread(target=market_loop, daemon=True).start()
     threading.Thread(target=email_scheduler, daemon=True).start()
     print("[AUREON] Background threads started — CAOM-001 session OPEN")
