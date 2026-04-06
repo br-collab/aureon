@@ -4296,6 +4296,27 @@ def api_email_test():
     })
 
 
+@app.route("/api/test/email", methods=["POST"])
+def api_test_email():
+    """Send a test email to confirm SMTP credentials and routing."""
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        sender    = os.environ.get("AUREON_EMAIL", "")
+        password  = os.environ.get("AUREON_EMAIL_PW", "")
+        recipient = os.environ.get("AUREON_EMAIL_RECIPIENT", "br@ravelobizdev.com")
+        msg = MIMEText("Aureon email test — SMTP credentials and routing confirmed.")
+        msg["Subject"] = "[AUREON] Email Test"
+        msg["From"]    = sender
+        msg["To"]      = recipient
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(sender, password)
+            smtp.sendmail(sender, recipient, msg.as_string())
+        return jsonify({"status": "sent", "to": recipient}), 200
+    except Exception as exc:
+        return jsonify({"status": "error", "detail": str(exc)}), 500
+
+
 @app.route("/api/snapshot")
 def api_snapshot():
     """Lightweight health check — key numbers only."""
