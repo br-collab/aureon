@@ -411,52 +411,7 @@ ALLOCATIONS = {
 }
 
 # Two pre-loaded trade decisions waiting for human approval.
-PENDING_DECISIONS_INIT = [
-    {
-        "id":         "DEC-A1B2C3D4",
-        "action":     "BUY",
-        "symbol":     "MSFT",
-        "asset_class":"equities",
-        "shares":     1200,
-        "price":      415.20,
-        "notional":   498240,
-        "product_type": "SINGLE_NAME_EQUITY",
-        "rationale":  "Class underweight (-3.2% vs target). Momentum 0.34. Conviction 0.78. Thifur-H: minimize_slippage.",
-        "created":    datetime.now(timezone.utc).isoformat(),
-        "status":     "PENDING",
-        "required_approvals": ["TRADER"],
-        "current_approvals": [],
-        "release_target": "OMS",
-        "mandate_sensitive": False,
-        "policy_exception": False,
-        "risk_exception": True,
-        "pm_signoff_required": False,
-        "control_exception": False,
-        "financing_relevant": False,
-    },
-    {
-        "id":         "DEC-E5F6G7H8",
-        "action":     "BUY",
-        "symbol":     "SOL",
-        "asset_class":"crypto",
-        "shares":     3500,
-        "price":      142,
-        "notional":   497000,
-        "product_type": "OUT_OF_SCOPE",
-        "rationale":  "Strong momentum (0.41). Crypto at 9.8% vs 10% target. Within hard cap. Thifur-H: optimize_execution.",
-        "created":    datetime.now(timezone.utc).isoformat(),
-        "status":     "PENDING",
-        "required_approvals": ["TRADER"],
-        "current_approvals": [],
-        "release_target": "OMS",
-        "mandate_sensitive": False,
-        "policy_exception": True,
-        "risk_exception": True,
-        "pm_signoff_required": False,
-        "control_exception": False,
-        "financing_relevant": False,
-    },
-]
+PENDING_DECISIONS_INIT = []  # Queue starts empty — Thifur-H generates live signals
 
 
 # ─────────────────────────────────────────────────────────────────
