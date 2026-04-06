@@ -16,7 +16,7 @@ WHAT THIS FILE DOES (plain English):
   - Starts a tiny web server on port 5001
   - Serves index.html as the dashboard
   - Exposes /api/* endpoints that the dashboard calls every few seconds
-  - Simulates a live $50M paper portfolio with price drift
+  - Simulates a live $100M endowment portfolio (Endowment Series I — Operation Red Wings)
   - Runs the Aureon four-layer doctrine stack (Verana→Mentat→Kaladan→Thifur)
   - Handles human authority decisions (approve / reject trades)
 
@@ -225,8 +225,8 @@ aureon_state = {
     "nodes_operational": 15,
 
     # ── Live portfolio ───────────────────────────────────────────
-    "portfolio_value":   50_000_000,       # starts at $50M
-    "cash":              50_000_000,       # shrinks as positions are taken
+    "portfolio_value":   100_000_000,      # Endowment Series I — $100M AUM
+    "cash":              100_000_000,      # shrinks as positions are taken
     "pnl":               0.0,
     "pnl_pct":           0.0,
     "drawdown":          0.0,
@@ -356,36 +356,29 @@ app._aureon_agents = {
 # They get loaded into aureon_state["positions"] once the stack runs.
 
 INITIAL_POSITIONS = [
-    # Positions sized to approximate doctrine-mandated target allocations at inception.
-    # Drift shown on the dashboard reflects actual market price movement, not structural gaps.
-    # Targets: Equities 40% · Fixed Income 25% · FX 15% · Commodities 10% · Crypto 10%
+    # ENDOWMENT SERIES I — Operation Red Wings · $100M paper AUM
+    # UPMIFA-governed · 5% spending rate · Tobin intergenerational equity principle
+    # Targets: Equities 45% · Fixed Income 20% · Real Assets 10% · Absolute Return 8%
 
-    # ── EQUITIES (target 40% = ~$20M · actual at cost ~$18.7M / 37.3%) ────────
-    {"symbol":"SPY",     "asset_class":"equities",     "shares":28000,   "cost":535.10, "agent":"THIFUR_J"},
-    {"symbol":"AAPL",    "asset_class":"equities",     "shares":2200,    "cost":219.50, "agent":"THIFUR_H"},
-    {"symbol":"NVDA",    "asset_class":"equities",     "shares":800,     "cost":875.30, "agent":"THIFUR_H"},
-    {"symbol":"MSFT",    "asset_class":"equities",     "shares":2500,    "cost":415.20, "agent":"THIFUR_J"},
-    {"symbol":"EEM",     "asset_class":"equities",     "shares":25000,   "cost":43.20,  "agent":"THIFUR_J"},
-    {"symbol":"AMZN",    "asset_class":"equities",     "shares":2000,    "cost":185.30, "agent":"THIFUR_H"},
+    # ── EQUITIES (target 45% = ~$45M · US broad + international) ────────────
+    {"symbol":"SPY",  "asset_class":"equities",        "shares":33000,  "cost":535.10, "agent":"THIFUR_J"},
+    {"symbol":"VTI",  "asset_class":"equities",        "shares":60000,  "cost":245.20, "agent":"THIFUR_J"},
+    {"symbol":"QQQ",  "asset_class":"equities",        "shares":10000,  "cost":445.30, "agent":"THIFUR_H"},
+    {"symbol":"EFA",  "asset_class":"equities",        "shares":130000, "cost":77.40,  "agent":"THIFUR_J"},
+    {"symbol":"EEM",  "asset_class":"equities",        "shares":60000,  "cost":43.20,  "agent":"THIFUR_J"},
 
-    # ── FIXED INCOME (target 25% = ~$12.5M · actual at cost $12.5M / 25.0%) ───
-    {"symbol":"TLT",     "asset_class":"fixed_income", "shares":60000,   "cost":91.50,  "agent":"THIFUR_R"},
-    {"symbol":"HYG",     "asset_class":"fixed_income", "shares":40000,   "cost":78.20,  "agent":"THIFUR_R"},
-    {"symbol":"AGG",     "asset_class":"fixed_income", "shares":40000,   "cost":97.40,  "agent":"THIFUR_R"},
+    # ── FIXED INCOME (target 20% = ~$20M · core + credit) ───────────────────
+    {"symbol":"AGG",  "asset_class":"fixed_income",    "shares":100000, "cost":97.40,  "agent":"THIFUR_R"},
+    {"symbol":"TLT",  "asset_class":"fixed_income",    "shares":60000,  "cost":91.50,  "agent":"THIFUR_R"},
+    {"symbol":"HYG",  "asset_class":"fixed_income",    "shares":38000,  "cost":78.20,  "agent":"THIFUR_R"},
 
-    # ── FX (target 15% = ~$7.5M · actual at cost ~$7.0M / 13.9%) ───────────────
-    # FX "shares" = notional base currency units. cost = exchange rate at inception.
-    {"symbol":"EUR/USD", "asset_class":"fx",           "shares":3500000, "cost":1.0842, "agent":"THIFUR_J"},
-    {"symbol":"GBP/USD", "asset_class":"fx",           "shares":2500000, "cost":1.2651, "agent":"THIFUR_J"},
+    # ── REAL ASSETS (target 10% = ~$10M · REITs + gold) ─────────────────────
+    {"symbol":"VNQ",  "asset_class":"real_assets",     "shares":85000,  "cost":82.30,  "agent":"THIFUR_J"},
+    {"symbol":"GLD",  "asset_class":"real_assets",     "shares":25000,  "cost":213.40, "agent":"THIFUR_J"},
 
-    # ── COMMODITIES (target 10% = ~$5M · actual at cost ~$5.0M / 10.0%) ────────
-    {"symbol":"GLD",     "asset_class":"commodities",  "shares":16000,   "cost":213.40, "agent":"THIFUR_J"},
-    {"symbol":"USO",     "asset_class":"commodities",  "shares":22000,   "cost":72.10,  "agent":"THIFUR_J"},
-
-    # ── CRYPTO (target 10% = ~$5M · actual at cost ~$4.8M / 9.6%) ───────────────
-    {"symbol":"BTC",     "asset_class":"crypto",       "shares":38,      "cost":67420,  "agent":"THIFUR_H"},
-    {"symbol":"ETH",     "asset_class":"crypto",       "shares":480,     "cost":3510,   "agent":"THIFUR_H"},
-    {"symbol":"SOL",     "asset_class":"crypto",       "shares":4000,    "cost":142,    "agent":"THIFUR_H"},
+    # ── ABSOLUTE RETURN (target 8% = ~$8M · market-neutral + trend) ─────────
+    {"symbol":"BTAL", "asset_class":"absolute_return", "shares":280000, "cost":20.10,  "agent":"THIFUR_H"},
+    {"symbol":"CTA",  "asset_class":"absolute_return", "shares":130000, "cost":24.80,  "agent":"THIFUR_H"},
 ]
 
 # Base prices for every tradeable instrument.
@@ -393,21 +386,24 @@ INITIAL_POSITIONS = [
 # FX is tight (0.05% swing per tick).
 # Equities/commodities in between (0.2% per tick).
 BASE_PRICES = {
-    "SPY":535.10, "AAPL":219.50, "NVDA":875.30, "EEM":43.20,
-    "MSFT":415.20,"GOOGL":175.40,"AMZN":185.30,
-    "TLT":91.50,  "HYG":78.20,   "AGG":97.40,
+    # Endowment Series I holdings
+    "SPY":535.10, "VTI":245.20,  "QQQ":445.30,  "EFA":77.40,   "EEM":43.20,
+    "AGG":97.40,  "TLT":91.50,   "HYG":78.20,
+    "VNQ":82.30,  "GLD":213.40,
+    "BTAL":20.10, "CTA":24.80,
+    # Additional tradeable instruments
+    "AAPL":219.50,"NVDA":875.30, "MSFT":415.20, "GOOGL":175.40,"AMZN":185.30,
     "EUR/USD":1.0842,"GBP/USD":1.2651,"USD/JPY":149.32,
     "BTC":67420,  "ETH":3510,    "SOL":142,
-    "GLD":213.40, "USO":72.10,   "DBC":21.80,
+    "USO":72.10,  "DBC":21.80,
 }
 
 # Target allocations by asset class (must sum to 1.0)
 ALLOCATIONS = {
-    "equities":     {"target": 0.40, "label": "Equities",     "color": "#3B82F6"},
-    "fixed_income": {"target": 0.25, "label": "Fixed Income", "color": "#10B981"},
-    "fx":           {"target": 0.15, "label": "FX",           "color": "#F59E0B"},
-    "crypto":       {"target": 0.10, "label": "Crypto",       "color": "#F97316"},
-    "commodities":  {"target": 0.10, "label": "Commodities",  "color": "#8B5CF6"},
+    "equities":        {"target": 0.45, "label": "Equity (US + Intl)",   "color": "#3B82F6"},
+    "fixed_income":    {"target": 0.20, "label": "Fixed Income",          "color": "#10B981"},
+    "real_assets":     {"target": 0.10, "label": "Real Assets",           "color": "#F59E0B"},
+    "absolute_return": {"target": 0.08, "label": "Absolute Return",       "color": "#8B5CF6"},
 }
 
 # Two pre-loaded trade decisions waiting for human approval.
@@ -1642,7 +1638,7 @@ def _simulated_prices():
 def _calc_portfolio(prices):
     """
     Walk through every open position, multiply shares × price,
-    sum them up, and compute P&L vs the $50M starting value.
+    sum them up, and compute P&L vs the $100M starting value.
     Returns: (total_value, pnl_dollars, pnl_pct, drawdown, class_totals)
     """
     if not aureon_state["positions"]:
@@ -1658,8 +1654,8 @@ def _calc_portfolio(prices):
         class_totals[cls] = class_totals.get(cls, 0) + mv
 
     total    = aureon_state["cash"] + market_val
-    pnl      = total - 50_000_000
-    pnl_pct  = (pnl / 50_000_000) * 100
+    pnl      = total - 100_000_000
+    pnl_pct  = (pnl / 100_000_000) * 100
     drawdown = abs(pnl_pct) if pnl < 0 else 0.0
 
     return total, pnl, pnl_pct, drawdown, class_totals
@@ -3232,7 +3228,7 @@ def run_doctrine_stack():
 
     # Calculate the cash left after all initial positions are taken
     invested_cash  = sum(p["shares"] * p["cost"] for p in INITIAL_POSITIONS)
-    remaining_cash = 50_000_000 - invested_cash
+    remaining_cash = 100_000_000 - invested_cash
 
     # ── Try to restore from disk before acquiring the lock ────────
     # _load_state() must run OUTSIDE _lock to avoid a deadlock.
