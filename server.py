@@ -93,8 +93,8 @@ except Exception:
     pass  # dotenv not installed — fall back to environment variables
 
 # ── EMAIL CONFIG ──────────────────────────────────────────────────
-EMAIL_FROM     = os.environ.get("AUREON_EMAIL", "aureonfsos@gmail.com")   # Gmail sender
-EMAIL_TO       = "br@ravelobizdev.com"                                     # report recipient
+EMAIL_FROM     = os.environ.get("AUREON_EMAIL", "aureonfsos@gmail.com")          # Gmail sender
+EMAIL_TO       = os.environ.get("AUREON_EMAIL_RECIPIENT", "br@ravelobizdev.com")  # report recipient
 EMAIL_PASSWORD = os.environ.get("AUREON_EMAIL_PW", "")
 SMTP_HOST      = "smtp.gmail.com"
 SMTP_PORT      = 587
