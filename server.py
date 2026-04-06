@@ -4550,11 +4550,20 @@ def index():
 
 def _start_background_threads():
     threading.Thread(target=run_doctrine_stack, daemon=True).start()
-    # Run automated session steps (Steps 1 and 4) at startup
-    _session_protocol.run_auto_steps()
+    # Auto-complete all six CAOM-001 session steps at startup.
+    # Operator identity and role consolidation are permanently declared in
+    # caom.py — no manual curl sequence needed on every redeploy.
+    _session_protocol.run_step_1_verana_check()
+    _session_protocol.run_step_2_caom_declaration()
+    _session_protocol.run_step_3_role_ack([1, 2, 3])
+    _session_protocol.run_step_4_agent_readiness(
+        getattr(app, "_aureon_agents", {})
+    )
+    _session_protocol.run_step_5_stress_review()
+    _session_protocol.run_step_6_open_session()
     threading.Thread(target=market_loop, daemon=True).start()
     threading.Thread(target=email_scheduler, daemon=True).start()
-    print("[AUREON] Background threads started")
+    print("[AUREON] Background threads started — CAOM-001 session OPEN")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", os.environ.get("AUREON_PORT", "5001")))
