@@ -4549,6 +4549,25 @@ def index():
 # ─────────────────────────────────────────────────────────────────
 
 def _start_background_threads():
+    # ── Volume and state file diagnostics ────────────────────────────────────
+    data_dir = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH", "")
+    if data_dir:
+        print(f"[AUREON] Volume mounted at {data_dir}")
+        try:
+            print(f"[AUREON] Files in volume: {os.listdir(data_dir)}")
+        except Exception as exc:
+            print(f"[AUREON] Could not list volume: {exc}")
+    else:
+        print("[AUREON] WARNING — No Railway Volume mounted. State will reset on "
+              "every redeploy. Set RAILWAY_VOLUME_MOUNT_PATH=/data and attach a "
+              "Volume in the Railway dashboard.")
+    print(f"[AUREON] STATE_FILE path: {STATE_FILE}")
+    print(f"[AUREON] STATE_FILE exists: {os.path.exists(STATE_FILE)}")
+    if not os.path.exists(STATE_FILE):
+        print(f"[AUREON] State initialized fresh — no prior state found at {STATE_FILE}")
+    else:
+        print(f"[AUREON] State loaded from {STATE_FILE}")
+
     threading.Thread(target=run_doctrine_stack, daemon=True).start()
     # Auto-complete all six CAOM-001 session steps at startup.
     # Operator identity and role consolidation are permanently declared in
