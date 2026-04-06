@@ -1,5 +1,6 @@
 flask>=3.0.0
 yfinance>=0.2.40
+twelvedata>=1.2.0
 reportlab>=4.0.0
 python-dotenv>=1.0.0
 gunicorn>=21.2.0
