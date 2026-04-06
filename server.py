@@ -78,6 +78,7 @@ from aureon.approval_service.service import resolve_pending_decision
 from aureon.integration_adapters.oms_adapter import send as oms_send
 from aureon.integration_adapters.ems_adapter import build_execution_release
 from aureon.session.session_protocol import SessionProtocol
+from aureon.data.market_data import get_price, get_prices_batch
 from agent_j import ThifurJ
 from agent_r import ThifurR
 
@@ -1539,50 +1540,30 @@ _sim_fallback_logged = False  # print the simulation fallback message only once
 
 def _fetch_yahoo_prices():
     """
-    Download the latest price for every instrument from Yahoo Finance.
+    Download the latest price for every instrument.
+    Delegates to get_prices_batch() which tries Twelve Data SDK first,
+    then falls back to per-symbol yfinance calls.
     Returns a dict {symbol: price} using our internal symbol names.
-    On any error (network down, bad data, etc.) returns an empty dict —
-    the caller will fall back to simulated drift automatically.
+    On any error returns an empty dict — caller falls back to simulation.
     """
     try:
-        if not _YFINANCE_AVAILABLE:
-            return {}
+        # Use the Twelve Data SDK batch call with yfinance fallback.
+        # Pass Yahoo-mapped symbols so yfinance fallback resolves correctly.
+        internal_symbols = list(BASE_PRICES.keys())
+        yahoo_to_internal = {_YAHOO_MAP.get(s, s): s for s in internal_symbols}
+        yahoo_symbols = [_YAHOO_MAP.get(s, s) for s in internal_symbols]
 
-        # Build the list of Yahoo tickers we need
-        tickers = [_YAHOO_MAP.get(sym, sym) for sym in BASE_PRICES]
-
-        # yf.download with period="1d" and interval="1m" gives us the
-        # most recent 1-minute bar — the last 'Close' is the current price.
-        raw = yf.download(
-            tickers,
-            period="1d",
-            interval="1m",
-            progress=False,
-            auto_adjust=True,
-            threads=True,
-        )
-
-        # yf.download returns a DataFrame with MultiIndex columns when
-        # multiple tickers are requested: (field, ticker).
-        # We only need the 'Close' prices.
-        if raw.empty:
-            return {}
-
-        close = raw["Close"]
+        raw = get_prices_batch(yahoo_symbols)
 
         result = {}
-        for sym in BASE_PRICES:
-            yahoo_ticker = _YAHOO_MAP.get(sym, sym)
-            if yahoo_ticker in close.columns:
-                # .dropna() removes any rows with no data; iloc[-1] = latest bar
-                series = close[yahoo_ticker].dropna()
-                if not series.empty:
-                    result[sym] = float(series.iloc[-1])
+        for yahoo_sym, price in raw.items():
+            internal_sym = yahoo_to_internal.get(yahoo_sym, yahoo_sym)
+            if price is not None:
+                result[internal_sym] = price
         return result
 
     except Exception as exc:
-        # Don't let a network hiccup crash the market loop — just return empty.
-        print(f"[AUREON] yfinance fetch failed ({exc}); falling back to simulation")
+        print(f"[AUREON] get_prices_batch failed ({exc}); falling back to simulation")
         return {}
 
 
@@ -3618,6 +3599,111 @@ def api_resolve_decision(decision_id):
     })
 
 
+def _build_pretrade_checks_from_cache(decision_id: str) -> list:
+    """
+    Build pretrade gate results purely from cached aureon_state.
+    No external API calls — guaranteed to return instantly.
+    Used as the fallback when the full pretrade check times out.
+    """
+    with _lock:
+        decision = next(
+            (d for d in aureon_state.get("pending_decisions", []) if d["id"] == decision_id),
+            None,
+        )
+        if decision is None:
+            return []
+        portfolio_value = aureon_state.get("portfolio_value", 0.0)
+        cash            = aureon_state.get("cash", 0.0)
+        drawdown        = aureon_state.get("drawdown", 0.0)
+        positions       = list(aureon_state.get("positions", []))
+        prices          = dict(aureon_state.get("prices", {}))
+
+    symbol      = decision.get("symbol", "")
+    notional    = float(decision.get("notional", 0))
+    asset_class = decision.get("asset_class", "")
+    is_crypto   = symbol in {"BTC", "ETH", "SOL"}
+
+    # Gate 1 — market status (use cached _market_is_open)
+    market_open = _market_is_open()
+    gates = [{
+        "gate":   "MARKET_STATUS",
+        "layer":  "Verana L0",
+        "status": "PASS",
+        "detail": "24/7 crypto market" if is_crypto else (
+                  "US equity session open" if market_open else
+                  "US equity/FX market closed — execution will queue for next session"),
+    }]
+    if not is_crypto and not market_open:
+        gates[0]["status"] = "WARN"
+
+    # Gate 2 — cash sufficiency
+    cash_floor = portfolio_value * OPERATING_CASH_FLOOR_PCT
+    cash_avail = max(0.0, cash - cash_floor)
+    gates.append({
+        "gate":   "CASH_SUFFICIENCY",
+        "layer":  "Kaladan L2",
+        "status": "PASS" if cash_avail >= notional else "FAIL",
+        "detail": (f"Available: ${cash_avail:,.0f} ≥ Notional: ${notional:,.0f}"
+                   if cash_avail >= notional
+                   else f"Available: ${cash_avail:,.0f} < Notional: ${notional:,.0f} — insufficient cash"),
+    })
+
+    # Gate 3 — position concentration
+    class_value = sum(
+        pos["shares"] * prices.get(pos["symbol"], pos.get("cost", 0))
+        for pos in positions if pos.get("asset_class") == asset_class
+    )
+    class_pct = (class_value / portfolio_value * 100) if portfolio_value > 0 else 0.0
+    warn_pct  = RISK_MANAGER_POLICY.get("position_warn_pct", 10.0)
+    fail_pct  = RISK_MANAGER_POLICY.get("position_fail_pct", 15.0)
+    pos_status = "FAIL" if class_pct >= fail_pct else "WARN" if class_pct >= warn_pct else "PASS"
+    gates.append({
+        "gate":   "POSITION_CONCENTRATION",
+        "layer":  "Mentat L1",
+        "status": pos_status,
+        "detail": f"{asset_class} at {class_pct:.1f}% — {'exceeds hard limit' if pos_status == 'FAIL' else 'approaching limit' if pos_status == 'WARN' else 'within limits'} {fail_pct:.0f}%",
+    })
+
+    # Gate 4 — drawdown limit
+    dd_warn = RISK_MANAGER_POLICY.get("drawdown_warn_pct", 5.0)
+    dd_fail = RISK_MANAGER_POLICY.get("drawdown_fail_pct", 8.0)
+    dd_status = "FAIL" if drawdown >= dd_fail else "WARN" if drawdown >= dd_warn else "PASS"
+    gates.append({
+        "gate":   "DRAWDOWN_LIMIT",
+        "layer":  "Mentat L1",
+        "status": dd_status,
+        "detail": f"Drawdown {drawdown:.2f}% — {'exceeds hard limit' if dd_status == 'FAIL' else 'approaching limit' if dd_status == 'WARN' else 'within policy'} {dd_fail:.0f}%",
+    })
+
+    # Gate 5 — OFAC screening
+    isin = SYMBOL_TO_ISIN.get(symbol)
+    gates.append({
+        "gate":   "OFAC_SDN_SCREEN",
+        "layer":  "Verana L0",
+        "status": "FAIL" if (isin and isin in OFAC_BLOCKED_ISINS) else "PASS",
+        "detail": f"BLOCKED — {OFAC_BLOCKED_ISINS[isin]}" if (isin and isin in OFAC_BLOCKED_ISINS) else "No SDN / sanctions match",
+    })
+
+    # Gate 6 — macro stress (cached values only)
+    ofr_stress = aureon_state.get("ofr_stress_index", 0.0)
+    macro_status = "WARN" if ofr_stress > 0.7 else "PASS"
+    gates.append({
+        "gate":   "MACRO_STRESS_OVERLAY",
+        "layer":  "Verana L0",
+        "status": macro_status,
+        "detail": f"OFR stress score {ofr_stress:.2f} — {'elevated systemic risk' if macro_status == 'WARN' else 'normal'} (cached)",
+    })
+
+    return gates
+
+
+import signal as _signal
+
+
+def _pretrade_timeout_handler(signum, frame):
+    raise TimeoutError("Pretrade check timed out")
+
+
 @app.route("/api/decisions/<decision_id>/pretrade", methods=["GET"])
 def api_pretrade_check(decision_id):
     """
@@ -3625,22 +3711,51 @@ def api_pretrade_check(decision_id):
     Called before the human clicks final APPROVE to ensure all
     pre-trade gates pass (market status, cash, position limits, drawdown).
     Returns a list of named checks with PASS/WARN/FAIL status.
+    Hard ceiling: 8 seconds — falls back to cached state if exceeded.
     """
-    payload = evaluate_pretrade_decision(
-        state=aureon_state,
-        lock=_lock,
-        decision_id=decision_id,
-        market_is_open=_market_is_open,
-        macro_snapshot_fn=_get_fred_macro_snapshot,
-        ofr_snapshot_fn=_get_ofr_stress_snapshot,
-        operating_cash_floor_pct=OPERATING_CASH_FLOOR_PCT,
-        risk_policy=RISK_MANAGER_POLICY,
-        symbol_to_isin=SYMBOL_TO_ISIN,
-        ofac_blocked_isins=OFAC_BLOCKED_ISINS,
-    )
-    if payload is None:
-        return jsonify({"error": "decision not found"}), 404
-    return jsonify(payload)
+    _signal.signal(_signal.SIGALRM, _pretrade_timeout_handler)
+    _signal.alarm(8)
+    try:
+        payload = evaluate_pretrade_decision(
+            state=aureon_state,
+            lock=_lock,
+            decision_id=decision_id,
+            market_is_open=_market_is_open,
+            macro_snapshot_fn=_get_fred_macro_snapshot,
+            ofr_snapshot_fn=_get_ofr_stress_snapshot,
+            operating_cash_floor_pct=OPERATING_CASH_FLOOR_PCT,
+            risk_policy=RISK_MANAGER_POLICY,
+            symbol_to_isin=SYMBOL_TO_ISIN,
+            ofac_blocked_isins=OFAC_BLOCKED_ISINS,
+        )
+        if payload is None:
+            return jsonify({"error": "decision not found"}), 404
+        return jsonify(payload)
+    except TimeoutError:
+        print(f"[AUREON] Pretrade check timed out for {decision_id} — returning cached data")
+        checks = _build_pretrade_checks_from_cache(decision_id)
+        if not checks:
+            return jsonify({"error": "decision not found"}), 404
+        statuses = [g["status"] for g in checks]
+        overall = "FAIL" if "FAIL" in statuses else "WARN" if "WARN" in statuses else "PASS"
+        with _lock:
+            decision = next(
+                (d for d in aureon_state.get("pending_decisions", []) if d["id"] == decision_id),
+                {},
+            )
+        return jsonify({
+            "status":     "WARN",
+            "message":    "Pretrade check timed out — using cached data",
+            "decision_id": decision_id,
+            "symbol":     decision.get("symbol", ""),
+            "action":     decision.get("action", ""),
+            "notional":   decision.get("notional", 0),
+            "overall":    overall,
+            "gates":      checks,
+            "ts":         datetime.now(timezone.utc).isoformat(),
+        }), 200
+    finally:
+        _signal.alarm(0)
 
 
 # ── CAOM-001 Session Open Protocol Routes ────────────────────────────────────
