@@ -2818,10 +2818,14 @@ def _generate_signal():
                  outcome="SUPPRESSED")
         return   # signal suppressed outside instrument's session window
 
-    notional = int(shares * price)
+    # Resolve live price from market loop — seed price is fallback only
+    with _lock:
+        live_price = aureon_state["prices"].get(symbol, price)
+    notional = int(shares * live_price)
     if notional < 400_000:
         _journal("SIGNAL_SUPPRESSED", "KALADAN-L2", symbol,
-                 f"Signal suppressed — below materiality threshold ($400K). Notional: ${notional:,}",
+                 f"Signal suppressed — below materiality threshold ($400K). Notional: ${notional:,} "
+                 f"(live: ${live_price:.2f} × {shares} shares)",
                  outcome="SUPPRESSED")
         return   # below materiality threshold
 
@@ -2850,7 +2854,7 @@ def _generate_signal():
         "symbol":      symbol,
         "asset_class": asset_class,
         "shares":      shares,
-        "price":       price,
+        "price":       live_price,
         "notional":    notional,
         "product_type": "SINGLE_NAME_EQUITY" if asset_class == "equities" else "OUT_OF_SCOPE",
         "rationale":   rationale,
