@@ -333,6 +333,30 @@ aureon_state = {
             "ts":     datetime.now(timezone.utc).isoformat(),
         },
     ],
+
+    # ── Endowment Thesis — Spending Rate Engine ───────────────────
+    # UPMIFA §4 · Tobin intergenerational equity principle
+    # 5% spending rate target · Endowment Series I — Operation Red Wings
+    "endowment_thesis": {
+        "series":              "Endowment Series I — Operation Red Wings",
+        "aum_target":          100_000_000,
+        "spending_rate":       0.05,       # 5% of 12-month trailing AUM
+        "annual_budget":       5_000_000,  # 5% × $100M
+        "quarterly_budget":    1_250_000,  # annual / 4
+        "monthly_budget":      416_666.67, # annual / 12
+        "governance":          "UPMIFA §4",
+        "equity_principle":    "Tobin — intergenerational equity; preserve real purchasing power",
+        "smoothing_rule":      "12-month trailing average AUM (locks in at fiscal year-end)",
+        "allocation_policy": {
+            "equities":        0.45,
+            "fixed_income":    0.20,
+            "real_assets":     0.10,
+            "absolute_return": 0.08,
+            "cash_reserve":    0.17,  # residual — not explicitly targeted
+        },
+        "rebalance_band":      0.03,   # +/- 3% drift triggers rebalance signal
+        "last_updated":        datetime.now(timezone.utc).isoformat(),
+    },
 }
 
 # CAOM-001 — Session protocol instance (one per server lifetime)
@@ -4285,6 +4309,79 @@ def api_snapshot():
             "cycle":           aureon_state["cycle_count"],
             "market_open":     _market_is_open(),
         })
+
+
+@app.route("/api/endowment")
+def api_endowment():
+    """
+    Endowment Thesis — Spending Rate Engine.
+
+    Returns live spending rate math against current AUM,
+    allocation drift vs policy targets, and the endowment thesis record.
+
+    UPMIFA §4 · Tobin intergenerational equity · Endowment Series I
+    """
+    with _lock:
+        thesis     = dict(aureon_state.get("endowment_thesis", {}))
+        pv         = aureon_state["portfolio_value"]
+        ct         = dict(aureon_state.get("class_totals", {}))
+        cash       = aureon_state["cash"]
+        pnl        = aureon_state["pnl"]
+        pnl_pct    = aureon_state["pnl_pct"]
+
+    aum_target      = thesis.get("aum_target", 100_000_000)
+    spending_rate   = thesis.get("spending_rate", 0.05)
+
+    # Live spending budget — computed against current portfolio value
+    live_annual_budget    = round(pv * spending_rate, 2)
+    live_quarterly_budget = round(live_annual_budget / 4, 2)
+    live_monthly_budget   = round(live_annual_budget / 12, 2)
+
+    # AUM vs target
+    aum_gap    = round(pv - aum_target, 2)
+    aum_gap_pct = round((pv / aum_target - 1) * 100, 4) if aum_target else 0.0
+
+    # Allocation drift: actual vs policy
+    alloc_policy = thesis.get("allocation_policy", {})
+    drift = {}
+    for cls, target in alloc_policy.items():
+        if cls == "cash_reserve":
+            actual = (cash / pv) if pv > 0 else 0.0
+        else:
+            actual = (ct.get(cls, 0) / pv) if pv > 0 else 0.0
+        delta  = round(actual - target, 6)
+        drift[cls] = {
+            "target_pct":  round(target * 100, 2),
+            "actual_pct":  round(actual * 100, 2),
+            "delta_pct":   round(delta * 100, 2),
+            "status":      (
+                "ON_TARGET" if abs(delta) <= thesis.get("rebalance_band", 0.03)
+                else ("OVERWEIGHT" if delta > 0 else "UNDERWEIGHT")
+            ),
+        }
+
+    return jsonify({
+        "series":              thesis.get("series"),
+        "governance":          thesis.get("governance"),
+        "equity_principle":    thesis.get("equity_principle"),
+        "smoothing_rule":      thesis.get("smoothing_rule"),
+        "spending_rate":       spending_rate,
+        "aum_target":          aum_target,
+        "portfolio_value":     round(pv, 2),
+        "aum_gap":             aum_gap,
+        "aum_gap_pct":         aum_gap_pct,
+        "pnl":                 round(pnl, 2),
+        "pnl_pct":             round(pnl_pct, 4),
+        "spending_budget": {
+            "annual":          live_annual_budget,
+            "quarterly":       live_quarterly_budget,
+            "monthly":         live_monthly_budget,
+            "basis":           "live AUM",
+        },
+        "rebalance_band":      thesis.get("rebalance_band"),
+        "allocation_drift":    drift,
+        "last_updated":        thesis.get("last_updated"),
+    })
 
 
 # ─────────────────────────────────────────────────────────────────
