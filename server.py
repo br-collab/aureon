@@ -2620,14 +2620,29 @@ def _add_alert(severity, title, detail):
         "ts":       datetime.now(timezone.utc).isoformat(),
         "resolved": False,
     }
+    is_new = False
     with _lock:
         existing_titles = [a["title"] for a in aureon_state["compliance_alerts"]]
         if title not in existing_titles:
             aureon_state["compliance_alerts"].insert(0, alert)
             aureon_state["alert_history"].insert(0, alert)
+            is_new = True
+    if is_new:
+        _journal("COMPLIANCE_ALERT", "VERANA-L0", title,
+                 detail, authority="SYSTEM", outcome=severity,
+                 ref_id=alert["id"])
 
 
 _JOURNAL_MAX = 500   # rolling cap — oldest entries dropped when exceeded
+
+def _dtg_military(dt: datetime) -> str:
+    """
+    Format a datetime as a military DTG string.
+    Example: 061423Z APR 26  (day, HHMM, Z-suffix, MON, YY)
+    Matches DA-1594 / NATO STANAG 2022 format used on operational logs.
+    """
+    return dt.strftime("%d%H%MZ %b %y").upper()
+
 
 def _journal(
     event_type: str,
@@ -2643,17 +2658,24 @@ def _journal(
 
     event_type : SIGNAL_GENERATED | SIGNAL_SUPPRESSED | DECISION_APPROVED |
                  DECISION_REJECTED | DECISION_DEFERRED | HALT_ACTIVATED |
-                 HALT_RESUMED | SESSION_OPEN | DOCTRINE_OBSERVATION
+                 HALT_RESUMED | SESSION_OPEN | DOCTRINE_OBSERVATION |
+                 COMPLIANCE_ALERT | DOCTRINE_VERSION_BUMP
     source     : originating agent or component (THIFUR-H, OPERATOR, VERANA-L0 …)
     subject    : symbol, decision ID, or system component
     detail     : what happened and why
     authority  : who acted
     outcome    : final state of the event
     ref_id     : linked decision/hash ID for cross-reference
+
+    Each entry carries both:
+      dtg     — ISO-8601 UTC (machine-readable, sortable)
+      dtg_mil — Military DTG format per NATO STANAG 2022 / DA-1594 convention
+                e.g. "061423Z APR 26"
     """
-    ts = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
     entry = {
-        "dtg":        ts,
+        "dtg":        now.isoformat(),
+        "dtg_mil":    _dtg_military(now),
         "event_type": event_type,
         "source":     source,
         "subject":    subject,
@@ -4129,6 +4151,10 @@ def api_doctrine_approve(update_id):
             })
 
             print(f"[AUREON] Doctrine v{old_version} → v{new_version} — {doc_hash}")
+            _journal("DOCTRINE_VERSION_BUMP", "OPERATOR", update_id,
+                     f"Doctrine version advanced: v{old_version} → v{new_version}. "
+                     f"Trigger: {update['trigger']}. Reason: {update['reason']}",
+                     authority=authority, outcome="APPROVED", ref_id=doc_hash)
             threading.Thread(target=_save_state, daemon=True).start()
             return jsonify({
                 "status":      "approved",
@@ -4139,6 +4165,10 @@ def api_doctrine_approve(update_id):
             })
         else:
             print(f"[AUREON] Doctrine update {update_id} rejected by {authority}")
+            _journal("DOCTRINE_VERSION_BUMP", "OPERATOR", update_id,
+                     f"Doctrine update {update_id} rejected. "
+                     f"Trigger: {update.get('trigger','—')}. Reason: {update.get('reason','—')}",
+                     authority=authority, outcome="REJECTED", ref_id=update_id)
             threading.Thread(target=_save_state, daemon=True).start()
             return jsonify({"status": "rejected", "update_id": update_id})
 
