@@ -77,6 +77,9 @@ from aureon.approval_service.release_control import can_release, missing_roles, 
 from aureon.approval_service.service import resolve_pending_decision
 from aureon.integration_adapters.oms_adapter import send as oms_send
 from aureon.integration_adapters.ems_adapter import build_execution_release
+from aureon.session.session_protocol import SessionProtocol
+from agent_j import ThifurJ
+from agent_r import ThifurR
 
 # ── LOAD .env FILE ────────────────────────────────────────────────
 # Reads AUREON_EMAIL and AUREON_EMAIL_PW from the .env file in
@@ -328,6 +331,19 @@ aureon_state = {
             "ts":     datetime.now(timezone.utc).isoformat(),
         },
     ],
+}
+
+# CAOM-001 — Session protocol instance (one per server lifetime)
+_session_protocol = SessionProtocol(aureon_state, _lock)
+
+# Instantiate advisory agents (ThifurJ and ThifurR)
+_agent_j = ThifurJ(aureon_state, _lock)
+_agent_r = ThifurR(aureon_state, _lock)
+
+# Expose agents to session protocol for Step 4 readiness check
+app._aureon_agents = {
+    "THIFUR_J": _agent_j,
+    "THIFUR_R": _agent_r,
 }
 
 
@@ -3486,6 +3502,15 @@ def api_resolve_decision(decision_id):
       - APPROVED → trade is executed, logged with your hash
       - REJECTED → trade is cancelled, still logged for audit
     """
+    # CAOM-001 session guard — operator must have opened a session
+    from aureon.config.caom import is_caom_active
+    if is_caom_active() and not _session_protocol.is_session_open():
+        return jsonify({
+            "error": "Session not open. Complete the CAOM-001 session open "
+                     "protocol before approving decisions.",
+            "session_status": _session_protocol.get_status()["session_status"],
+        }), 403
+
     data       = request.get_json() or {}
     resolution = data.get("resolution", "").upper()
     approval_role = (data.get("approval_role") or "TRADER").upper()
@@ -3616,6 +3641,73 @@ def api_pretrade_check(decision_id):
     if payload is None:
         return jsonify({"error": "decision not found"}), 404
     return jsonify(payload)
+
+
+# ── CAOM-001 Session Open Protocol Routes ────────────────────────────────────
+
+@app.route("/api/session/status", methods=["GET"])
+def api_session_status():
+    """Return the current session protocol status."""
+    return jsonify(_session_protocol.get_status())
+
+
+@app.route("/api/session/step/1", methods=["POST"])
+def api_session_step1():
+    """Run Step 1 — Verana session boundary check (automated)."""
+    result = _session_protocol.run_step_1_verana_check()
+    return jsonify(result)
+
+
+@app.route("/api/session/step/2", methods=["POST"])
+def api_session_step2():
+    """Run Step 2 — CAOM-001 mode declaration. Operator confirms."""
+    result = _session_protocol.run_step_2_caom_declaration()
+    return jsonify(result)
+
+
+@app.route("/api/session/step/3", methods=["POST"])
+def api_session_step3():
+    """
+    Run Step 3 — Role consolidation acknowledgment.
+    Body: {"acknowledged_tiers": [1, 2, 3]}
+    All three tiers must be present.
+    """
+    data = request.get_json() or {}
+    acknowledged_tiers = data.get("acknowledged_tiers", [])
+    result = _session_protocol.run_step_3_role_ack(acknowledged_tiers)
+    return jsonify(result)
+
+
+@app.route("/api/session/open", methods=["POST"])
+def api_session_open():
+    """
+    Run Steps 5 and 6 — stress review then session open.
+    Step 4 (agent readiness) is run automatically first if not already done.
+    Body: optional {"stress_override": true} to acknowledge warnings.
+    Returns the session open record on success.
+    """
+    # Step 4 — agent readiness (auto, idempotent)
+    agents = {}
+    if hasattr(app, "_aureon_agents"):
+        agents = app._aureon_agents
+    _session_protocol.run_step_4_agent_readiness(agents)
+
+    # Step 5 — stress review
+    step5 = _session_protocol.run_step_5_stress_review()
+    if step5.get("result") == "BLOCKED":
+        return jsonify({"error": "Session blocked by systemic stress hard stop.",
+                        "detail": step5}), 423
+
+    # Step 6 — open
+    step6 = _session_protocol.run_step_6_open_session()
+    if "error" in step6:
+        return jsonify(step6), 400
+
+    return jsonify({
+        "session_open": True,
+        "session_record": step6,
+        "stress_review": step5,
+    })
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -4343,6 +4435,8 @@ def index():
 
 def _start_background_threads():
     threading.Thread(target=run_doctrine_stack, daemon=True).start()
+    # Run automated session steps (Steps 1 and 4) at startup
+    _session_protocol.run_auto_steps()
     threading.Thread(target=market_loop, daemon=True).start()
     threading.Thread(target=email_scheduler, daemon=True).start()
     print("[AUREON] Background threads started")
