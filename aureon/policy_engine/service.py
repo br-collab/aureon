@@ -118,25 +118,29 @@ def evaluate_pretrade_decision(
             "detail": f"Available: ${cash_avail:,.0f} < Notional: ${notional:,.0f} — insufficient cash",
         })
 
-    # ── Gate 3: Position concentration limit ──────────────────────
-    asset_class = decision.get("asset_class", "")
-    class_value = sum(
+    # ── Gate 3: Single-position concentration limit ───────────────
+    # Checks the specific symbol being traded, not the whole asset class.
+    # Asset class allocations (e.g. 45% equities) are doctrine-mandated
+    # and should not be flagged here. The relevant risk is a single name
+    # becoming too dominant in the portfolio.
+    symbol = decision.get("symbol", "")
+    pos_value = sum(
         pos["shares"] * prices.get(pos["symbol"], pos.get("cost", 0))
         for pos in positions
-        if pos.get("asset_class") == asset_class
+        if pos.get("symbol") == symbol
     )
-    class_pct = (class_value / portfolio_value * 100) if portfolio_value > 0 else 0.0
-    warn_pct  = risk_policy.get("position_warn_pct", 10.0)
-    fail_pct  = risk_policy.get("position_fail_pct", 15.0)
-    if class_pct >= fail_pct:
+    pos_pct  = (pos_value / portfolio_value * 100) if portfolio_value > 0 else 0.0
+    warn_pct = risk_policy.get("position_warn_pct", 20.0)
+    fail_pct = risk_policy.get("position_fail_pct", 35.0)
+    if pos_pct >= fail_pct:
         pos_status = "FAIL"
-        pos_detail = f"{asset_class} at {class_pct:.1f}% — exceeds hard limit {fail_pct:.0f}%"
-    elif class_pct >= warn_pct:
+        pos_detail = f"{symbol} at {pos_pct:.1f}% of portfolio — exceeds single-position limit {fail_pct:.0f}%"
+    elif pos_pct >= warn_pct:
         pos_status = "WARN"
-        pos_detail = f"{asset_class} at {class_pct:.1f}% — approaching limit {fail_pct:.0f}%"
+        pos_detail = f"{symbol} at {pos_pct:.1f}% of portfolio — approaching limit {fail_pct:.0f}%"
     else:
         pos_status = "PASS"
-        pos_detail = f"{asset_class} at {class_pct:.1f}% — within limits"
+        pos_detail = f"{symbol} at {pos_pct:.1f}% of portfolio — within limits"
     gates.append({
         "gate":   "POSITION_CONCENTRATION",
         "layer":  "Mentat L1",

@@ -164,11 +164,11 @@ def _resolve_mmf_provider(provider=None):
 PORTFOLIO_JURISDICTION = "US"   # configurable per deployment
 
 RISK_MANAGER_POLICY = {
-    "drawdown_warn_pct": 5.0,
-    "drawdown_fail_pct": 8.0,
-    "position_warn_pct": 10.0,
-    "position_fail_pct": 15.0,
-    "var_limit_pct": 2.0,
+    "drawdown_warn_pct":  5.0,
+    "drawdown_fail_pct":  8.0,
+    "position_warn_pct": 20.0,   # single-position concentration warn (% of portfolio)
+    "position_fail_pct": 35.0,   # single-position concentration hard block
+    "var_limit_pct":      2.0,
 }
 
 # ─────────────────────────────────────────────────────────────────
