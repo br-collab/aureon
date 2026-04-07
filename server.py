@@ -230,6 +230,7 @@ aureon_state = {
     "pnl":               0.0,
     "pnl_pct":           0.0,
     "drawdown":          0.0,
+    "live_inception_date": "2026-04-07",   # system of record — date live system initialized
 
     # ── Collections (populated below) ───────────────────────────
     "positions":          [],
@@ -355,6 +356,8 @@ aureon_state = {
             "cash_reserve":    0.17,  # residual — not explicitly targeted
         },
         "rebalance_band":      0.03,   # +/- 3% drift triggers rebalance signal
+        "thesis_date":         "2024-11-01",   # date thesis paper was written
+        "live_inception_date": "2026-04-07",   # date system went live — system of record
         "last_updated":        datetime.now(timezone.utc).isoformat(),
     },
 }
@@ -4334,10 +4337,12 @@ def api_snapshot():
             "positions":       len(aureon_state["positions"]),
             "pending":         len(aureon_state["pending_decisions"]),
             "alerts":          len(aureon_state["compliance_alerts"]),
-            "doctrine":        aureon_state["doctrine_version"],
-            "stack":           aureon_state["stack_status"],
-            "cycle":           aureon_state["cycle_count"],
-            "market_open":     _market_is_open(),
+            "doctrine":              aureon_state["doctrine_version"],
+            "stack":                 aureon_state["stack_status"],
+            "cycle":                 aureon_state["cycle_count"],
+            "market_open":           _market_is_open(),
+            "live_inception_date":   aureon_state.get("live_inception_date", "2026-04-07"),
+            "thesis_date":           "2024-11-01",
         })
 
 
