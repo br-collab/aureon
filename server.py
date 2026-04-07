@@ -3351,7 +3351,7 @@ def market_loop():
                            f"Drawdown {drawdown:.2f}% — monitoring")
 
             # Thifur-H only surfaces signals during US market hours
-            if _market_is_open() and random.random() < 0.008:
+            if _market_is_open() and random.random() < 0.033:
                 _generate_signal()
 
         except Exception as exc:
