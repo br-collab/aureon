@@ -1677,7 +1677,7 @@ def _calc_portfolio(prices):
         cls = pos["asset_class"]
         class_totals[cls] = class_totals.get(cls, 0) + mv
 
-    total    = aureon_state["cash"] + market_val
+    total    = aureon_state["cash"] + aureon_state["mmf_balance"] + market_val
     pnl      = total - 100_000_000
     pnl_pct  = (pnl / 100_000_000) * 100
     drawdown = abs(pnl_pct) if pnl < 0 else 0.0
@@ -4339,6 +4339,48 @@ def api_snapshot():
             "cycle":           aureon_state["cycle_count"],
             "market_open":     _market_is_open(),
         })
+
+
+@app.route("/api/admin/reset-state", methods=["POST"])
+def api_admin_reset_state():
+    """
+    Hard reset — wipes persisted state and reinitialises from INITIAL_POSITIONS.
+    Requires header X-Admin-Key matching env var AUREON_ADMIN_KEY.
+    POST /api/admin/reset-state  (header: X-Admin-Key: <key>)
+    """
+    import os as _os
+    admin_key = _os.environ.get("AUREON_ADMIN_KEY", "")
+    if not admin_key or request.headers.get("X-Admin-Key") != admin_key:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    invested   = sum(p["shares"] * p["cost"] for p in INITIAL_POSITIONS)
+    fresh_cash = 100_000_000 - invested
+
+    with _lock:
+        aureon_state["positions"]         = [dict(p) for p in INITIAL_POSITIONS]
+        aureon_state["cash"]              = fresh_cash
+        aureon_state["pnl"]              = 0.0
+        aureon_state["pnl_pct"]          = 0.0
+        aureon_state["drawdown"]         = 0.0
+        aureon_state["portfolio_value"]  = 100_000_000
+        aureon_state["trades"]           = []
+        aureon_state["trade_reports"]    = []
+        aureon_state["compliance_alerts"] = []
+        aureon_state["alert_history"]    = []
+        aureon_state["pending_decisions"] = [dict(d) for d in PENDING_DECISIONS_INIT]
+        aureon_state["mmf_balance"]      = 0.0
+        aureon_state["mmf_yield_accrued"] = 0.0
+        aureon_state["sweep_log"]        = []
+        aureon_state["operational_journal"] = []
+        aureon_state["cycle_count"]      = 0
+
+    _save_state()
+    return jsonify({
+        "status":    "RESET",
+        "positions": len(aureon_state["positions"]),
+        "cash":      round(fresh_cash, 2),
+        "note":      "State wiped and reseeded from INITIAL_POSITIONS",
+    })
 
 
 @app.route("/api/endowment")
