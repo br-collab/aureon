@@ -99,24 +99,34 @@ def evaluate_pretrade_decision(
             "detail": "US equity/FX market closed — execution will queue for next session",
         })
 
-    # ── Gate 2: Cash sufficiency ───────────────────────────────────
+    # ── Gate 2: Cash sufficiency (BUY only) ───────────────────────
+    # SELL orders generate cash — no cash floor check needed.
     notional    = decision.get("notional", 0)
-    cash_floor  = portfolio_value * operating_cash_floor_pct
-    cash_avail  = max(0.0, cash - cash_floor)
-    if cash_avail >= notional:
+    action      = decision.get("action", "BUY")
+    if action == "SELL":
         gates.append({
             "gate":   "CASH_SUFFICIENCY",
             "layer":  "Kaladan L2",
             "status": "PASS",
-            "detail": f"Available: ${cash_avail:,.0f} ≥ Notional: ${notional:,.0f}",
+            "detail": f"SELL order — generates ${notional:,.0f} cash, no floor check required",
         })
     else:
-        gates.append({
-            "gate":   "CASH_SUFFICIENCY",
-            "layer":  "Kaladan L2",
-            "status": "FAIL",
-            "detail": f"Available: ${cash_avail:,.0f} < Notional: ${notional:,.0f} — insufficient cash",
-        })
+        cash_floor  = portfolio_value * operating_cash_floor_pct
+        cash_avail  = max(0.0, cash - cash_floor)
+        if cash_avail >= notional:
+            gates.append({
+                "gate":   "CASH_SUFFICIENCY",
+                "layer":  "Kaladan L2",
+                "status": "PASS",
+                "detail": f"Available: ${cash_avail:,.0f} ≥ Notional: ${notional:,.0f}",
+            })
+        else:
+            gates.append({
+                "gate":   "CASH_SUFFICIENCY",
+                "layer":  "Kaladan L2",
+                "status": "FAIL",
+                "detail": f"Available: ${cash_avail:,.0f} < Notional: ${notional:,.0f} — insufficient cash",
+            })
 
     # ── Gate 3: Single-position concentration limit ───────────────
     # Checks the specific symbol being traded, not the whole asset class.

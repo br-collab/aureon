@@ -2831,13 +2831,12 @@ async function openPretradeModal(id) {
 
   // Show pending skeleton immediately
   const gateNames = [
-    {gate:'Session Boundary',  layer:'Verana L0'},
-    {gate:'Liquidity Buffer',  layer:'Risk Manager L1B'},
-    {gate:'Drawdown Guard',    layer:'Risk Manager L1B'},
-    {gate:'Position Limit',    layer:'Risk Manager L1B'},
-    {gate:'Doctrine Integrity',layer:'Thifur L3'},
-    {gate:'Systemic Stress',   layer:'Verana L0 / OFR'},
-    {gate:'OFAC Screening',    layer:'Verana L0'},
+    {gate:'Market Status',        layer:'Verana L0'},
+    {gate:'Cash Sufficiency',     layer:'Kaladan L2'},
+    {gate:'Position Concentration',layer:'Mentat L1'},
+    {gate:'Drawdown Limit',       layer:'Mentat L1'},
+    {gate:'OFAC / SDN Screen',    layer:'Verana L0'},
+    {gate:'Macro Stress Overlay', layer:'Verana L0 / OFR'},
   ];
   checksEl.innerHTML = gateNames.map(g => `
     <div class="pretrade-check-row">
