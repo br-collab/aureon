@@ -2868,7 +2868,7 @@ async function openPretradeModal(id) {
   }
 
   // Animate checks appearing one-by-one (80ms each)
-  const checks = data.checks || [];
+  const checks = data.gates || data.checks || [];
   for (let i = 0; i < checks.length; i++) {
     await new Promise(res => setTimeout(res, 80));
     const c = checks[i];
