@@ -1085,7 +1085,7 @@ main {
       <div class="section-header">
         <div class="section-title">Asset Allocation</div>
         <div class="section-line"></div>
-        <div style="font-size:10px;color:var(--muted)">$50M AUM</div>
+        <div style="font-size:10px;color:var(--muted)" id="alloc-aum-label">$100M AUM</div>
       </div>
 
       <div id="alloc-rows"></div>
@@ -2239,6 +2239,9 @@ async function fetchPortfolio() {
     state.trades         = d.trades    || [];
     state.classTotals    = d.class_totals || {};
     state.allocations    = d.allocations  || ALLOCATIONS_DEFAULT;
+    // Update AUM label to reflect live NAV inception baseline ($100M)
+    const aumLabel = document.getElementById('alloc-aum-label');
+    if (aumLabel) aumLabel.textContent = '$100M AUM';
     state.cycleCount     = d.cycle_count  || state.cycleCount + 1;
     state.liveMode       = true;
     // Update market status header pill
