@@ -38,6 +38,7 @@ def save_state(*, state, lock, state_file, resolve_mmf_provider, log_error):
                 "mmf_yield_accrued": state.get("mmf_yield_accrued", 0.0),
                 "mmf_provider":      resolve_mmf_provider(state.get("mmf_provider")),
                 "sweep_log":         list(state.get("sweep_log", [])),
+                "decision_journal":  list(state.get("decision_journal", [])),
                 "saved_at":          datetime.now(timezone.utc).isoformat(),
             }
         tmp_file = state_file + ".tmp"
@@ -114,6 +115,7 @@ def load_state(*, state_file, log_error):
         snapshot.setdefault("mmf_balance", 0.0)
         snapshot.setdefault("mmf_yield_accrued", 0.0)
         snapshot.setdefault("sweep_log", [])
+        snapshot.setdefault("decision_journal", [])
         snapshot["saved_at"] = datetime.now(timezone.utc).isoformat()
 
         if (

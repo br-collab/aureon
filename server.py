@@ -240,6 +240,7 @@ aureon_state = {
     "alert_history":      [],
     "authority_log":      [],
     "operational_journal": [],   # DA-1594 equivalent — DTG-stamped operational record
+    "decision_journal":    [],   # Commander's log — full signal brief + outcome for every HITL decision
     "prices":             {},
     "class_totals":       {},
 
@@ -2848,6 +2849,98 @@ def _generate_signal():
                      outcome="SUPPRESSED")
             return
 
+    # ── Signal Brief — Commander's Intent (generated at signal time) ─────────
+    # Frozen into the decision dict. Persists through approval, rejection,
+    # and the decision journal. Gives the operator full 1st/2nd/3rd order
+    # context before clicking approve.
+    _signal_ts = datetime.now(timezone.utc).isoformat()
+    _target_pct = ALLOCATIONS.get(asset_class, {}).get("target", 0) * 100
+
+    if signal_type == "REBALANCE":
+        _drift_pct  = worst_delta * 100
+        _drift_sign = "+" if _drift_pct > 0 else ""
+        _direction  = "underweight" if worst_delta > 0 else "overweight"
+        _corrective = "BUY to add exposure" if action == "BUY" else "SELL to reduce exposure"
+
+        # 2nd order — which classes become BUY-eligible after this trade frees/consumes cash?
+        _post_cash = pv * OPERATING_CASH_FLOOR_PCT  # conservative floor estimate
+        _freed = notional if action == "SELL" else -notional
+        _second_order_classes = []
+        for _cls, _info in ALLOCATIONS.items():
+            if _cls == asset_class:
+                continue
+            _actual = ct.get(_cls, 0) / pv if pv > 0 else 0
+            _delta  = _info["target"] - _actual
+            if _delta > 0.04:  # underweight by more than DRIFT_THRESHOLD
+                _second_order_classes.append(
+                    f"{_info['label']} ({_delta*100:+.1f}% drift)"
+                )
+
+        _commanders_intent = (
+            f"Endowment Series I — Operation Red Wings. Mandate: preserve intergenerational "
+            f"equity (Tobin principle), 5% spending rate, UPMIFA §4 compliance. "
+            f"{asset_class.replace('_',' ').title()} is {_direction} by "
+            f"{abs(_drift_pct):.1f}% vs the {_target_pct:.0f}% doctrine target. "
+            f"This {_corrective} restores the mandated allocation and reduces rebalance "
+            f"pressure on the portfolio."
+        )
+        _first_order = (
+            f"{action} {shares:,} {symbol} @ ~${live_price:,.2f}. "
+            f"Notional: ${notional:,}. "
+            f"{'Cash generated' if action == 'SELL' else 'Cash deployed'}: ${notional:,}. "
+            f"Drift correction: {abs(_drift_pct):.1f}% of {_target_pct:.0f}% target "
+            f"({'reduces overweight' if action == 'SELL' else 'closes underweight'})."
+        )
+        _second_order = (
+            f"{'Freed cash of ${:,} enables BUY signals for: {}.'.format(notional, ', '.join(_second_order_classes)) if action == 'SELL' and _second_order_classes else 'No immediate BUY cascade — underweight classes require additional capital.' if action == 'SELL' else 'Cash deployment reduces available buffer for further BUY signals until rebalance completes.'}"
+        )
+        _third_order = (
+            f"Sustained rebalancing compresses drift across all asset classes toward doctrine "
+            f"targets, reducing signal frequency and stabilizing compliance posture. "
+            f"At current drift velocity, {asset_class.replace('_',' ')} allocation converges "
+            f"to {_target_pct:.0f}% target within {max(1, int(abs(_drift_pct) / 0.5))} "
+            f"rebalance cycles."
+        )
+        _doctrine_ref = (
+            f"ALLOCATIONS[{asset_class}].target = {_target_pct:.0f}% | "
+            f"DRIFT_THRESHOLD = 4% | Breach: {abs(_drift_pct):.1f}%"
+        )
+    else:
+        _commanders_intent = (
+            f"Endowment Series I — Operation Red Wings. No asset class exceeds the 4% "
+            f"rebalance threshold. Thifur-H surfacing opportunistic alpha within doctrine bounds. "
+            f"Mandate: optimize risk-adjusted return while preserving intergenerational equity."
+        )
+        _first_order = (
+            f"{action} {shares:,} {symbol} @ ~${live_price:,.2f}. "
+            f"Notional: ${notional:,}. Opportunistic position within existing allocation bands."
+        )
+        _second_order = (
+            f"Position adds exposure to {asset_class.replace('_',' ')} within current allocation. "
+            f"No rebalance cascade triggered — all classes within doctrine tolerance."
+        )
+        _third_order = (
+            f"Opportunistic trades accumulate alpha within doctrine bounds without disrupting "
+            f"the rebalance cadence. Signal quality data feeds the Walk phase performance record."
+        )
+        _doctrine_ref = "OPPORTUNISTIC signal — no allocation breach | Within DRIFT_THRESHOLD"
+
+    signal_brief = {
+        "commanders_intent":  _commanders_intent,
+        "first_order":        _first_order,
+        "second_order":       _second_order,
+        "third_order":        _third_order,
+        "doctrine_reference": _doctrine_ref,
+        "signal_timestamp":   _signal_ts,
+        "market_context": {
+            "signal_price":  round(live_price, 2),
+            "signal_type":   signal_type,
+            "asset_class":   asset_class,
+            "drift_pct":     round(worst_delta * 100, 2) if signal_type == "REBALANCE" else 0.0,
+            "target_pct":    round(_target_pct, 1),
+        },
+    }
+
     decision = {
         "id":          f"DEC-{random.randint(0x10000000, 0xFFFFFFFF):X}",
         "action":      action,
@@ -2870,6 +2963,7 @@ def _generate_signal():
         "pm_signoff_required": False,
         "control_exception": False,
         "financing_relevant": False,
+        "signal_brief":       signal_brief,
     }
 
     with _lock:
@@ -3306,6 +3400,7 @@ def run_doctrine_stack():
             aureon_state["mmf_provider"]        = _resolve_mmf_provider(saved.get("mmf_provider"))
             aureon_state["sweep_log"]           = saved.get("sweep_log",           [])
             aureon_state["operational_journal"] = saved.get("operational_journal", [])
+            aureon_state["decision_journal"]    = saved.get("decision_journal",    [])
         else:
             # ── First-ever launch — seed from INITIAL_POSITIONS ───
             aureon_state["positions"] = [dict(p) for p in INITIAL_POSITIONS]
@@ -3667,6 +3762,50 @@ def api_resolve_decision(decision_id):
                  f"Rationale: {decision.get('rationale','')}",
                  authority=approval_role, outcome="REJECTED", ref_id=authority_hash)
 
+    # ── Decision Journal entry — Commander's log ──────────────────
+    # Written for every APPROVED and REJECTED decision.
+    # Captures the full signal brief, gate results, latency, and slippage.
+    _dec_obj   = result["decision"]
+    _signal_ts = _dec_obj.get("created")
+    _now_ts    = datetime.now(timezone.utc).isoformat()
+    try:
+        _latency = round(
+            (datetime.fromisoformat(_now_ts.replace("Z", "+00:00")) -
+             datetime.fromisoformat(_signal_ts.replace("Z", "+00:00"))).total_seconds()
+        ) if _signal_ts else None
+    except Exception:
+        _latency = None
+
+    _exec_price   = result.get("trade_report", {}).get("exec_price") if result.get("trade_report") else None
+    _signal_price = _dec_obj.get("price")
+    _slippage     = round(_exec_price - _signal_price, 4) if (_exec_price and _signal_price and resolution == "APPROVED") else None
+
+    _jrn_entry = {
+        "id":                     f"JRN-{_dec_obj.get('id','')[-8:]}",
+        "decision_id":            result["decision_id"],
+        "ts":                     _now_ts,
+        "resolution":             resolution,
+        "authority_hash":         authority_hash,
+        "approval_role":          approval_role,
+        "action":                 _dec_obj.get("action"),
+        "symbol":                 _dec_obj.get("symbol"),
+        "asset_class":            _dec_obj.get("asset_class"),
+        "notional":               _dec_obj.get("notional"),
+        "signal_type":            _dec_obj.get("signal_type"),
+        "signal_price":           _signal_price,
+        "exec_price":             _exec_price,
+        "price_slippage":         _slippage,
+        "signal_ts":              _signal_ts,
+        "approval_ts":            _now_ts,
+        "approval_latency_sec":   _latency,
+        "signal_brief":           _dec_obj.get("signal_brief"),
+        "pretrade_gates":         _build_pretrade_checks_from_cache(result["decision_id"]),
+    }
+    with _lock:
+        aureon_state["decision_journal"].insert(0, _jrn_entry)
+        if len(aureon_state["decision_journal"]) > 1000:
+            aureon_state["decision_journal"] = aureon_state["decision_journal"][:1000]
+
     # ── Persist state after every HITL decision (non-blocking) ───
     threading.Thread(target=_save_state, daemon=True).start()
 
@@ -3877,6 +4016,125 @@ def api_journal():
         "count":   len(journal),
         "entries": journal,
         "ts":      datetime.now(timezone.utc).isoformat(),
+    })
+
+
+# ── Decision Journal ─────────────────────────────────────────────────────────
+
+@app.route("/api/decision-journal", methods=["GET"])
+def api_decision_journal():
+    """
+    Commander's decision log — every HITL decision with full signal brief,
+    gate results, approval latency, and price slippage.
+
+    Query params:
+      ?limit=100           — max entries (default 100, max 500)
+      ?resolution=APPROVED — filter by APPROVED / REJECTED
+      ?symbol=SPY          — filter by symbol
+    """
+    limit      = min(int(request.args.get("limit", 100)), 500)
+    res_filter = request.args.get("resolution", "").upper()
+    sym_filter = request.args.get("symbol", "").upper()
+
+    with _lock:
+        journal = list(aureon_state.get("decision_journal", []))
+
+    if res_filter:
+        journal = [e for e in journal if e.get("resolution", "").upper() == res_filter]
+    if sym_filter:
+        journal = [e for e in journal if e.get("symbol", "").upper() == sym_filter]
+
+    journal = journal[:limit]
+
+    return jsonify({
+        "count":   len(journal),
+        "entries": journal,
+        "ts":      datetime.now(timezone.utc).isoformat(),
+    })
+
+
+# ── Rebalance Cascade Preview ─────────────────────────────────────────────────
+
+@app.route("/api/cascade-preview/<decision_id>", methods=["GET"])
+def api_cascade_preview(decision_id):
+    """
+    2nd order effects — given an executed or pending SELL decision,
+    compute which asset classes become BUY-eligible with the freed cash.
+    Returns a ranked list of cascade-eligible classes with drift and fundability.
+    """
+    DRIFT_THRESHOLD = 0.04
+
+    with _lock:
+        # Check trades first (executed), then pending
+        decision = next(
+            (d for d in aureon_state.get("trades", []) if d.get("id") == decision_id),
+            None
+        )
+        hypothetical = False
+        if decision is None:
+            decision = next(
+                (d for d in aureon_state.get("pending_decisions", []) if d.get("id") == decision_id),
+                None
+            )
+            hypothetical = True
+
+        if decision is None:
+            return jsonify({"error": "decision not found"}), 404
+
+        pv         = aureon_state["portfolio_value"]
+        cash       = aureon_state["cash"]
+        ct         = dict(aureon_state["class_totals"])
+
+    action   = decision.get("action", "BUY")
+    notional = decision.get("notional", 0)
+
+    if action != "SELL":
+        return jsonify({
+            "decision_id":      decision_id,
+            "action":           action,
+            "freed_cash":       0,
+            "cascade_eligible": [],
+            "note":             "Cascade preview only applies to SELL orders",
+            "hypothetical":     hypothetical,
+            "ts":               datetime.now(timezone.utc).isoformat(),
+        })
+
+    freed_cash     = notional
+    projected_cash = (cash + freed_cash) if hypothetical else cash
+    cash_floor     = pv * OPERATING_CASH_FLOOR_PCT
+
+    cascade = []
+    for cls, info in ALLOCATIONS.items():
+        if cls == decision.get("asset_class"):
+            continue
+        actual_pct      = ct.get(cls, 0) / pv if pv > 0 else 0
+        drift           = info["target"] - actual_pct
+        if drift <= DRIFT_THRESHOLD:
+            continue
+        fundable_notional = drift * pv
+        can_fund          = (projected_cash - fundable_notional) >= cash_floor
+        cascade.append({
+            "asset_class":       cls,
+            "label":             info["label"],
+            "current_pct":       round(actual_pct * 100, 2),
+            "target_pct":        round(info["target"] * 100, 1),
+            "drift_pct":         round(drift * 100, 2),
+            "fundable_notional": round(fundable_notional, 0),
+            "can_fully_fund":    can_fund,
+            "doctrine_reference": f"Allocation target {info['target']*100:.0f}% | Drift {drift*100:.1f}%",
+        })
+
+    cascade.sort(key=lambda x: x["fundable_notional"], reverse=True)
+
+    return jsonify({
+        "decision_id":      decision_id,
+        "symbol":           decision.get("symbol"),
+        "action":           action,
+        "freed_cash":       freed_cash,
+        "projected_cash":   round(projected_cash, 2),
+        "cascade_eligible": cascade,
+        "hypothetical":     hypothetical,
+        "ts":               datetime.now(timezone.utc).isoformat(),
     })
 
 
@@ -4377,6 +4635,7 @@ def api_admin_reset_state():
         aureon_state["mmf_yield_accrued"] = 0.0
         aureon_state["sweep_log"]        = []
         aureon_state["operational_journal"] = []
+        aureon_state["decision_journal"]    = []
         aureon_state["cycle_count"]      = 0
 
     _save_state()
