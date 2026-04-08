@@ -892,6 +892,7 @@ main {
     <div class="modal-title" style="color:var(--green)">✓ Order Executed</div>
     <div class="modal-subtitle">Post-trade confirmation · Doctrine-stamped execution report</div>
     <div id="posttrade-content"></div>
+    <div id="posttrade-cascade" style="display:none;margin-top:16px;padding:12px;border:1px solid rgba(16,185,129,0.2);border-radius:6px;background:rgba(16,185,129,0.04)"></div>
     <div class="modal-actions" style="justify-content:space-between;align-items:center">
       <a id="posttrade-pdf-link" href="#" target="_blank"
          style="font-size:11px;color:var(--cyan);border:1px solid rgba(0,212,255,.3);
@@ -1564,6 +1565,18 @@ main {
     </table>
   </div>
 
+  <!-- DECISION JOURNAL — Commander's log -->
+  <div class="card">
+    <div class="section-header">
+      <div class="section-title">Decision Journal</div>
+      <div class="section-line"></div>
+      <div style="font-size:10px;color:var(--muted)">Full signal brief · 1st/2nd/3rd order · Latency · Slippage</div>
+    </div>
+    <div id="decision-journal-body">
+      <div style="color:var(--muted);font-size:11px;padding:16px;text-align:center">No decisions recorded yet.</div>
+    </div>
+  </div>
+
   <!-- DOCTRINE UPDATE CYCLE (static historical) -->
   <div class="card">
     <div class="section-header">
@@ -2164,6 +2177,8 @@ const API = {
   thesisRegistry:   '/api/thesis/registry',
   thesisUpload:     '/api/thesis/upload',
   macro:            '/api/macro',
+  decisionJournal:  '/api/decision-journal',
+  cascadePreview:   (id) => `/api/cascade-preview/${id}`,
 };
 
 const state = {
@@ -2175,6 +2190,7 @@ const state = {
   positions: [],
   trades: [],
   decisions: [],
+  decisionJournal: [],
   alerts: [],
   authorityLog: [],
   cycleCount: 0,
@@ -2388,6 +2404,74 @@ async function fetchGovernance() {
     renderPendingDoctrineUpdates();
 
   } catch(e) {}
+}
+
+// ── Decision Journal ───────────────────────────────────────────
+
+async function fetchDecisionJournal() {
+  try {
+    const r = await fetch(API.decisionJournal + '?limit=50');
+    if (!r.ok) return;
+    const d = await r.json();
+    state.decisionJournal = d.entries || [];
+  } catch(e) {}
+}
+
+function renderDecisionJournal() {
+  const el = document.getElementById('decision-journal-body');
+  if (!el) return;
+  const entries = state.decisionJournal || [];
+  if (entries.length === 0) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:16px;text-align:center">No decisions recorded yet.</div>';
+    return;
+  }
+  el.innerHTML = entries.map(e => {
+    const resColor = e.resolution === 'APPROVED' ? 'var(--green)' : 'var(--red)';
+    const brief    = e.signal_brief || {};
+    const latency  = e.approval_latency_sec != null ? `${e.approval_latency_sec}s` : '—';
+    const slippage = e.price_slippage != null ? `$${e.price_slippage.toFixed(2)}` : '—';
+    const ts       = e.approval_ts ? new Date(e.approval_ts).toLocaleString() : '—';
+    return `
+    <div style="border:1px solid rgba(255,255,255,0.06);border-radius:6px;margin-bottom:10px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,0.02);cursor:pointer"
+           onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <span class="layer-tag ${e.action==='BUY'?'tag-green':'tag-red'}" style="font-size:9px">${e.action||'—'}</span>
+        <span style="font-weight:700;font-size:13px">${e.symbol||'—'}</span>
+        <span style="font-size:11px;color:var(--muted)">$${(e.notional||0).toLocaleString()}</span>
+        <span class="layer-tag" style="font-size:9px;background:rgba(255,255,255,0.04)">${e.signal_type||'—'}</span>
+        <span style="margin-left:auto;font-size:11px;font-weight:700;color:${resColor}">${e.resolution}</span>
+        <span style="font-size:10px;color:var(--muted)">${ts}</span>
+      </div>
+      <div style="display:none;padding:12px;font-size:11px">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+          <div><div style="color:var(--muted);font-size:10px">Approval Latency</div><div style="font-weight:600">${latency}</div></div>
+          <div><div style="color:var(--muted);font-size:10px">Price Slippage</div><div style="font-weight:600">${slippage}</div></div>
+          <div><div style="color:var(--muted);font-size:10px">Authority Hash</div><div class="hash" style="font-size:10px">${(e.authority_hash||'—').slice(0,16)}</div></div>
+        </div>
+        ${brief.commanders_intent ? `
+        <div style="margin-bottom:8px;padding:8px;background:rgba(0,212,255,0.04);border-radius:4px;border-left:2px solid var(--cyan)">
+          <div style="color:var(--cyan);font-size:10px;font-weight:700;margin-bottom:3px">COMMANDER'S INTENT</div>
+          <div style="color:var(--muted);line-height:1.5">${brief.commanders_intent}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div style="padding:8px;background:rgba(16,185,129,0.04);border-radius:4px;border-left:2px solid #10B981">
+            <div style="color:#10B981;font-size:10px;font-weight:700;margin-bottom:3px">1ST ORDER</div>
+            <div style="color:var(--muted);line-height:1.5">${brief.first_order}</div>
+          </div>
+          <div style="padding:8px;background:rgba(245,158,11,0.04);border-radius:4px;border-left:2px solid #F59E0B">
+            <div style="color:#F59E0B;font-size:10px;font-weight:700;margin-bottom:3px">2ND ORDER</div>
+            <div style="color:var(--muted);line-height:1.5">${brief.second_order}</div>
+          </div>
+        </div>
+        <div style="padding:8px;background:rgba(139,92,246,0.04);border-radius:4px;border-left:2px solid #8B5CF6;margin-bottom:8px">
+          <div style="color:#8B5CF6;font-size:10px;font-weight:700;margin-bottom:3px">3RD ORDER</div>
+          <div style="color:var(--muted);line-height:1.5">${brief.third_order}</div>
+        </div>
+        <div style="font-size:10px;color:var(--muted)">📋 ${brief.doctrine_reference||'—'}</div>
+        ` : '<div style="color:var(--muted)">No signal brief available (pre-dates this feature).</div>'}
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ── Compliance Trade Reports ───────────────────────────────────
@@ -2782,6 +2866,7 @@ async function resolveDecision(id, resolution, approvalRole = 'TRADER') {
         await fetchDecisions();
         await fetchPortfolio();
         await fetchGovernance();
+        await fetchDecisionJournal();
         renderTrading();
         renderGovernance();
       }
@@ -2940,6 +3025,7 @@ async function confirmExecute() {
       await fetchDecisions();
       await fetchPortfolio();
       await fetchGovernance();
+      await fetchDecisionJournal();
       renderTrading();
       renderGovernance();
 
@@ -3026,6 +3112,43 @@ function showPosttradeModal(dec, serverResp, settlement) {
     } else {
       pdfLink.style.display = 'none';
     }
+  }
+
+  // ── 2nd Order Cascade Preview (SELL orders only) ──────────────
+  const cascadeEl = document.getElementById('posttrade-cascade');
+  if (cascadeEl && dec.action === 'SELL') {
+    cascadeEl.innerHTML = '<div style="color:var(--muted);font-size:11px">Loading cascade preview…</div>';
+    cascadeEl.style.display = 'block';
+    fetch(API.cascadePreview(decId))
+      .then(r => r.json())
+      .then(data => {
+        if (!data.cascade_eligible || data.cascade_eligible.length === 0) {
+          cascadeEl.innerHTML = '<div style="color:var(--muted);font-size:11px">No underweight classes eligible for BUY cascade at this time.</div>';
+          return;
+        }
+        cascadeEl.innerHTML = `
+          <div style="font-size:10px;font-weight:700;color:var(--cyan);letter-spacing:0.08em;margin-bottom:8px">
+            2ND ORDER EFFECTS — BUY CASCADE UNLOCKED
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
+            SELL freed $${(data.freed_cash||0).toLocaleString()} — the following classes are now BUY-eligible:
+          </div>
+          ${data.cascade_eligible.map(c => `
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+              <div style="flex:1">
+                <div style="font-size:12px;font-weight:600;color:var(--white)">${c.label}</div>
+                <div style="font-size:10px;color:var(--muted)">${c.doctrine_reference}</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:12px;color:${c.drift_pct > 0 ? 'var(--green)' : 'var(--red)'}">${c.drift_pct > 0 ? '+' : ''}${c.drift_pct.toFixed(1)}% drift</div>
+                <div style="font-size:10px;color:var(--muted)">$${Math.round(c.fundable_notional).toLocaleString()} needed</div>
+              </div>
+              <span class="layer-tag ${c.can_fully_fund ? 'tag-green' : 'tag-yellow'}" style="font-size:9px">${c.can_fully_fund ? 'FUNDABLE' : 'PARTIAL'}</span>
+            </div>`).join('')}`;
+      })
+      .catch(() => { cascadeEl.innerHTML = ''; cascadeEl.style.display = 'none'; });
+  } else if (cascadeEl) {
+    cascadeEl.style.display = 'none';
   }
 
   document.getElementById('posttrade-modal').classList.add('active');
@@ -3624,6 +3747,36 @@ function renderTrading() {
         <div style="font-size:12px;color:var(--muted);margin-bottom:12px;border-left:2px solid rgba(0,212,255,0.5);padding-left:12px">
           <strong style="color:var(--white)">Release Logic:</strong> ${d.blocked_reason || 'Awaiting review'}
         </div>
+        ${d.signal_brief ? `
+        <div style="margin-bottom:12px;border:1px solid rgba(0,212,255,0.12);border-radius:6px;overflow:hidden">
+          <div style="background:rgba(0,212,255,0.06);padding:8px 12px;font-size:10px;font-weight:700;color:var(--cyan);letter-spacing:0.08em;cursor:pointer"
+               onclick="event.stopPropagation();this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+            ▸ COMMANDER'S INTENT — Signal Brief
+          </div>
+          <div style="display:none;padding:12px;font-size:11px;line-height:1.6">
+            <div style="margin-bottom:10px">
+              <div style="color:var(--cyan);font-weight:700;font-size:10px;letter-spacing:0.06em;margin-bottom:4px">COMMANDER'S INTENT</div>
+              <div style="color:var(--muted)">${d.signal_brief.commanders_intent}</div>
+            </div>
+            <div style="margin-bottom:10px">
+              <div style="color:#10B981;font-weight:700;font-size:10px;letter-spacing:0.06em;margin-bottom:4px">1ST ORDER EFFECT</div>
+              <div style="color:var(--muted)">${d.signal_brief.first_order}</div>
+            </div>
+            <div style="margin-bottom:10px">
+              <div style="color:#F59E0B;font-weight:700;font-size:10px;letter-spacing:0.06em;margin-bottom:4px">2ND ORDER EFFECT</div>
+              <div style="color:var(--muted)">${d.signal_brief.second_order}</div>
+            </div>
+            <div style="margin-bottom:10px">
+              <div style="color:#8B5CF6;font-weight:700;font-size:10px;letter-spacing:0.06em;margin-bottom:4px">3RD ORDER EFFECT</div>
+              <div style="color:var(--muted)">${d.signal_brief.third_order}</div>
+            </div>
+            <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:8px;display:flex;gap:16px;flex-wrap:wrap">
+              <span style="color:var(--muted);font-size:10px">📋 ${d.signal_brief.doctrine_reference}</span>
+              <span style="color:var(--muted);font-size:10px">⏱ Signal @ ${new Date(d.signal_brief.signal_timestamp).toLocaleTimeString()}</span>
+              <span style="color:var(--muted);font-size:10px">💰 Signal price: $${(d.signal_brief.market_context?.signal_price||0).toLocaleString()}</span>
+            </div>
+          </div>
+        </div>` : ''}
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${approvalButtons.replaceAll('onclick="', 'onclick="event.stopPropagation();')}
           <button class="btn btn-reject" onclick="event.stopPropagation();resolveDecision('${d.id}','REJECTED','${missing[0] || 'TRADER'}')">Reject</button>
@@ -3698,6 +3851,9 @@ function renderGovernance() {
   // Doctrine version log and pending updates
   renderDoctrineVersionLog();
   renderPendingDoctrineUpdates();
+
+  // Decision Journal
+  renderDecisionJournal();
 
   // Sync KPI counts
   document.getElementById('gov-overrides').textContent     = state.authorityLog.length;
