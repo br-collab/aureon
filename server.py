@@ -5329,8 +5329,8 @@ def api_neptune_status():
 def api_neptune_flow_alerts():
     """Options flow alerts — large premium sweeps and unusual activity."""
     client = get_neptune_client()
-    if client is None:
-        return jsonify({"error": "Neptune pipe not initialized"}), 503
+    if client is None or not client.is_ready:
+        return jsonify({"error": "UW pipe not ready — UW_API_TOKEN not configured", "alerts": []}), 503
     limit       = request.args.get("limit", 50, type=int)
     min_premium = request.args.get("min_premium", 25000, type=int)
     ticker      = request.args.get("ticker", None)
@@ -5352,8 +5352,8 @@ def api_neptune_flow_alerts():
 def api_neptune_darkpool():
     """Market-wide dark pool recent prints."""
     client = get_neptune_client()
-    if client is None:
-        return jsonify({"error": "Neptune pipe not initialized"}), 503
+    if client is None or not client.is_ready:
+        return jsonify({"error": "UW pipe not ready — UW_API_TOKEN not configured", "prints": []}), 503
     limit  = request.args.get("limit", 50, type=int)
     ticker = request.args.get("ticker", None)
     try:
@@ -5377,17 +5377,9 @@ def api_neptune_darkpool():
 def api_neptune_market_tide():
     """Market-wide options sentiment — call/put premium delta."""
     client = get_neptune_client()
-    if client is None:
-        return jsonify({"error": "Neptune pipe not initialized"}), 503
-    try:
-        result = client.get_market_tide()
-    except RuntimeError:
-        return jsonify({
-            "status":  "unavailable",
-            "reason":  "UW_API_TOKEN not configured",
-            "data":    [],
-            "message": "Add UW_API_TOKEN to Railway Variables to enable this feature",
-        }), 200
+    if client is None or not client.is_ready:
+        return jsonify({"error": "UW pipe not ready — UW_API_TOKEN not configured"}), 503
+    result = client.get_market_tide()
     if "error" in result:
         return jsonify(result), 502
     return jsonify(result)
@@ -5408,8 +5400,8 @@ def api_neptune_packet():
       }
     """
     client = get_neptune_client()
-    if client is None:
-        return jsonify({"error": "Neptune pipe not initialized"}), 503
+    if client is None or not client.is_ready:
+        return jsonify({"error": "UW pipe not ready — UW_API_TOKEN not configured"}), 503
     body = request.get_json(silent=True) or {}
     tickers = body.get("tickers", [])
     if not tickers:
@@ -5440,8 +5432,8 @@ def api_tradier_status():
 def api_tradier_quotes():
     """Real-time equity quotes. ?symbols=AAPL,MSFT"""
     client = get_tradier_client()
-    if client is None:
-        return jsonify({"error": "Tradier pipe not initialized"}), 503
+    if client is None or not client.is_ready:
+        return jsonify({"error": "Tradier pipe not ready — TRADIER_API_TOKEN not configured"}), 503
     symbols = request.args.get("symbols", "SPY")
     result  = client.get_quotes([s.strip() for s in symbols.split(",")])
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
@@ -5451,8 +5443,8 @@ def api_tradier_quotes():
 def api_tradier_expirations():
     """Options expiration dates. ?symbol=SPY"""
     client = get_tradier_client()
-    if client is None:
-        return jsonify({"error": "Tradier pipe not initialized"}), 503
+    if client is None or not client.is_ready:
+        return jsonify({"error": "Tradier pipe not ready — TRADIER_API_TOKEN not configured"}), 503
     symbol = request.args.get("symbol", "SPY")
     result = client.get_options_expirations(symbol)
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
@@ -5462,8 +5454,8 @@ def api_tradier_expirations():
 def api_tradier_chain():
     """Full options chain. ?symbol=SPY&expiration=2026-05-16"""
     client = get_tradier_client()
-    if client is None:
-        return jsonify({"error": "Tradier pipe not initialized"}), 503
+    if client is None or not client.is_ready:
+        return jsonify({"error": "Tradier pipe not ready — TRADIER_API_TOKEN not configured"}), 503
     symbol     = request.args.get("symbol", "SPY")
     expiration = request.args.get("expiration")
     if not expiration:
@@ -5476,8 +5468,8 @@ def api_tradier_chain():
 def api_tradier_iv_surface():
     """IV surface across all expirations. ?symbol=SPY"""
     client = get_tradier_client()
-    if client is None:
-        return jsonify({"error": "Tradier pipe not initialized"}), 503
+    if client is None or not client.is_ready:
+        return jsonify({"error": "Tradier pipe not ready — TRADIER_API_TOKEN not configured"}), 503
     symbol = request.args.get("symbol", "SPY")
     result = client.get_iv_surface(symbol)
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
@@ -5490,8 +5482,8 @@ def api_tradier_stress_packet():
     Returns quotes, nearest-expiry chain with greeks, and HV for each symbol.
     """
     client = get_tradier_client()
-    if client is None:
-        return jsonify({"error": "Tradier pipe not initialized"}), 503
+    if client is None or not client.is_ready:
+        return jsonify({"error": "Tradier pipe not ready — TRADIER_API_TOKEN not configured"}), 503
     body    = request.get_json(silent=True) or {}
     symbols = body.get("symbols", [])
     if not symbols:
@@ -5519,8 +5511,8 @@ def api_alpaca_status():
 def api_alpaca_bars():
     """OHLCV price bars. ?symbols=SPY,QQQ&timeframe=1Day&limit=252"""
     client = get_alpaca_client()
-    if client is None:
-        return jsonify({"error": "Alpaca pipe not initialized"}), 503
+    if client is None or not client.is_ready:
+        return jsonify({"error": "Alpaca pipe not ready — ALPACA_API_KEY not configured"}), 503
     symbols   = request.args.get("symbols", "SPY")
     timeframe = request.args.get("timeframe", "1Day")
     limit     = request.args.get("limit", 252, type=int)
@@ -5535,8 +5527,8 @@ def api_alpaca_bars():
 def api_alpaca_snapshots():
     """Latest quote + trade + bar snapshot. ?symbols=AAPL,MSFT"""
     client = get_alpaca_client()
-    if client is None:
-        return jsonify({"error": "Alpaca pipe not initialized"}), 503
+    if client is None or not client.is_ready:
+        return jsonify({"error": "Alpaca pipe not ready — ALPACA_API_KEY not configured"}), 503
     symbols = request.args.get("symbols", "SPY,QQQ")
     try:
         result = client.get_snapshots([s.strip() for s in symbols.split(",")])
@@ -5554,8 +5546,8 @@ def api_alpaca_snapshots():
 def api_alpaca_news():
     """News feed. ?symbols=NVDA,AAPL&limit=20"""
     client = get_alpaca_client()
-    if client is None:
-        return jsonify({"error": "Alpaca pipe not initialized"}), 503
+    if client is None or not client.is_ready:
+        return jsonify({"error": "Alpaca pipe not ready — ALPACA_API_KEY not configured"}), 503
     symbols = request.args.get("symbols", None)
     limit   = request.args.get("limit", 20, type=int)
     sym_list = [s.strip() for s in symbols.split(",")] if symbols else None
@@ -5570,8 +5562,8 @@ def api_alpaca_packet():
     Returns snapshots, 1-year daily bars, and news.
     """
     client = get_alpaca_client()
-    if client is None:
-        return jsonify({"error": "Alpaca pipe not initialized"}), 503
+    if client is None or not client.is_ready:
+        return jsonify({"error": "Alpaca pipe not ready — ALPACA_API_KEY not configured"}), 503
     body    = request.get_json(silent=True) or {}
     symbols = body.get("symbols", [])
     if not symbols:
