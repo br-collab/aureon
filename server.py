@@ -6079,6 +6079,14 @@ def index():
     return send_from_directory(THIS_DIR, "index.html")
 
 
+@app.route("/<path:path>")
+def catch_all(path):
+    """Catch-all route — serves static files if they exist, otherwise index.html for client-side routing."""
+    if path and os.path.exists(os.path.join(THIS_DIR, path)):
+        return send_from_directory(THIS_DIR, path)
+    return send_from_directory(THIS_DIR, "index.html")
+
+
 # ─────────────────────────────────────────────────────────────────
 # 9. START
 # ─────────────────────────────────────────────────────────────────
