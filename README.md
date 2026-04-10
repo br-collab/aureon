@@ -240,7 +240,7 @@ Aureon's governance architecture is mapped against six regulatory frameworks:
 |------|--------------------|-----------------|
 | Asset scope | Equities-first | Program Trading, Delta One, OTC, all asset classes |
 | Primary pilot | Electronic Execution | Broader cross-desk rollout |
-| Neptune Spear | Declared — architectural specification complete | Full activation with live data pipe integration |
+| Neptune Spear | 6 data pipes live (Unusual Whales, Tradier, Alpaca, CBOE, EDGAR, Blockscout) + dashboard tab | Full production activation with trade origination |
 | Thifur-C2 | Declared — coordination architecture specified | Full multi-agent coordination live |
 | Thifur-R | Core settlement determinism active | Full clearing governance, cross-border rails |
 | Thifur-J | Pre-trade structuring, policy checks | Full tokenized asset lifecycle, DeFi convergence |
@@ -261,6 +261,9 @@ Aureon's governance architecture is mapped against six regulatory frameworks:
 - dashboard views for governance, decisions, and downstream status visibility
 - email reporting pipeline for governed trade confirmation
 - live paper trading on Railway production deployment
+- Neptune Spear alpha origination layer with 6 live data pipes (options flow, dark pool, VIX fear gauge, market snapshots, institutional 13F, on-chain intelligence)
+- MCP server (Verana L0) exposing 5 governance resources and 4 compliance tools to external AI agents
+- Neptune Spear dashboard tab with pipe status, fear gauge, flow intelligence, and on-chain data
 
 The current implementation is still technically compressed. The backend is centered in `server.py`, the UI is concentrated in `index.html`, and several concerns remain co-located for prototype speed. That structural compression is a repository limitation, not the target product architecture.
 
@@ -286,6 +289,12 @@ The Grid 3/
     mcp/
       __init__.py
       server.py
+      neptune_client.py
+      tradier_client.py
+      alpaca_client.py
+      cboe_client.py
+      edgar_client.py
+      blockscout_client.py
     session/
       session_protocol.py
     approval_service/
@@ -302,6 +311,12 @@ Current file roles:
 - `aureon/config/neptune_spear.py`: Thifur-Neptune Spear doctrine declaration and knowledge base text
 - `aureon/config/thifur_c2_doctrine.py`: Thifur-C2 Command and Control doctrine declaration
 - `aureon/mcp/server.py`: MCP server — Phase 1 Verana L0 (JSON-RPC 2.0 over HTTP, `POST /mcp`)
+- `aureon/mcp/neptune_client.py`: Neptune data pipe — Unusual Whales options flow, dark pool prints, market sentiment
+- `aureon/mcp/tradier_client.py`: Neptune data pipe — Tradier options chains, Greeks, IV surface, historical volatility
+- `aureon/mcp/alpaca_client.py`: Neptune data pipe — Alpaca price bars, news feed, market snapshots, corporate actions
+- `aureon/mcp/cboe_client.py`: Neptune data pipe — CBOE VIX term structure, put/call ratios, SKEW, fear gauge (no auth)
+- `aureon/mcp/edgar_client.py`: Neptune data pipe — SEC EDGAR 13F institutional holdings, insider Form 4 transactions (no auth)
+- `aureon/mcp/blockscout_client.py`: Neptune data pipe — Blockscout on-chain intelligence, ETH gas/blocks, multi-chain (no auth)
 - `aureon/session/session_protocol.py`: six-step session auto-complete protocol
 - `aureon/approval_service/release_control.py`: governed release control and approval lineage
 - `scripts/`: local startup helpers
@@ -399,7 +414,7 @@ POST /mcp
 
 ### Neptune Spear — External Data Pipe Architecture
 
-Neptune Spear is the highest-intelligence origination agent in the architecture. In Phase 2 activation, Neptune consumes external data sources via MCP clients — giving every data input a structured, auditable provenance trail.
+Neptune Spear is the highest-intelligence origination agent in the architecture. In Phase 1 activation, Neptune consumes external data sources via structured data pipe clients — giving every data input a structured, auditable provenance trail. Six pipes are currently live.
 
 ```
 External Data Sources (MCP Servers)
@@ -511,7 +526,8 @@ TWELVE_DATA_API_KEY=your_key
 ## Current Limitations
 
 - The system is a prototype and does not yet implement production-grade persistence, resiliency, or control architecture
-- Neptune Spear and Thifur-C2 are fully specified at the doctrine level — code implementation is the next phase
+- Neptune Spear data pipes are implemented (6 live pipes: Unusual Whales, Tradier, Alpaca, CBOE, EDGAR, Blockscout); full production activation pending regulatory validation
+- Thifur-C2 is fully specified at the doctrine level — coordination implementation is the next phase
 - The codebase is still structurally compressed and does not yet reflect the target service boundaries
 - FIX support is a translation stub, not a live broker, EMS, or OMS session
 - Thifur-H is declared but not activated pending independent validation
