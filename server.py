@@ -3023,7 +3023,7 @@ def _generate_signal():
 
 NEPTUNE_MAX_RECS = 8          # cap on pending recommendations
 NEPTUNE_SCAN_INTERVAL = 120   # seconds between scans
-_neptune_last_scan = 0.0
+_neptune_last_scan = time.time()  # defer first scan by NEPTUNE_SCAN_INTERVAL after boot
 
 # Symbols Neptune considers for each asset class
 NEPTUNE_WATCHLIST = {
@@ -3060,22 +3060,22 @@ def _neptune_scan():
     if not prices:
         return
 
-    # ── Collect pipe intelligence ──────────────────────────────────
+    # ── Collect pipe intelligence (all guarded — never block) ──────
     fear_data = None
     try:
         cboe = get_cboe_client()
-        if cboe:
+        if cboe and cboe.is_ready:
             fear_data = cboe.get_thifur_fear_packet(lookback_days=30)
-    except Exception:
-        pass
+    except Exception as _e:
+        print(f"[NEPTUNE] CBOE fear packet failed: {_e}")
 
     bs_data = None
     try:
         bs = get_blockscout_client()
-        if bs:
+        if bs and bs.is_ready:
             bs_data = bs.get_network_stats(chain_id="1")
-    except Exception:
-        pass
+    except Exception as _e:
+        print(f"[NEPTUNE] Blockscout stats failed: {_e}")
 
     # ── Derive market regime ───────────────────────────────────────
     fear_level = (fear_data or {}).get("fear_level", "UNKNOWN")
