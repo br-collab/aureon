@@ -167,6 +167,125 @@ nav {
   50%       { opacity: 0.4; transform: scale(0.8); }
 }
 
+/* ── NEPTUNE SPEAR TAB ───────────────────────────────── */
+.neptune-section-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.neptune-section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Pipe status cards */
+.pipe-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 12px 14px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 100px;
+}
+.pipe-card .card-label { margin-bottom: 0; }
+.pipe-card .card-sub   { font-size: 10px; margin-top: auto; }
+
+.pipe-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.pipe-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.pipe-dot.live {
+  background: var(--green);
+  box-shadow: 0 0 6px rgba(16,185,129,.5);
+  animation: pipePulse 2.4s ease-in-out infinite;
+}
+.pipe-dot.offline {
+  background: var(--dim);
+}
+
+@keyframes pipePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: .45; transform: scale(.75); }
+}
+
+.pipe-label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .5px;
+}
+.pipe-label.live    { color: var(--green); }
+.pipe-label.offline { color: var(--dim); }
+
+/* Neptune metric cells */
+.npt-metric {
+  text-align: center;
+  padding: 10px 4px;
+}
+.npt-metric .card-label { margin-bottom: 6px; }
+.npt-metric-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Neptune inner card sections */
+.npt-inner-card {
+  background: var(--deep);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 16px;
+}
+.npt-inner-card + .npt-inner-card { margin-top: 12px; }
+
+/* MCP resource/tool tags */
+.mcp-uri-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--cyan);
+  background: rgba(0,212,255,.06);
+  border: 1px solid rgba(0,212,255,.12);
+  border-radius: 3px;
+  padding: 3px 8px;
+  margin: 3px 4px 3px 0;
+  line-height: 1.4;
+}
+.mcp-tool-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--blue);
+  background: rgba(59,130,246,.06);
+  border: 1px solid rgba(59,130,246,.12);
+  border-radius: 3px;
+  padding: 3px 8px;
+  margin: 3px 4px 3px 0;
+  line-height: 1.4;
+}
+
 /* ── MAIN ────────────────────────────────────────────── */
 main {
   padding: 88px 32px 48px;
@@ -2023,217 +2142,216 @@ main {
 ════════════════════════════════════════════════════════ -->
 <div id="tab-neptune" class="tab">
 
-  <!-- PIPE STATUS ROW -->
-  <div style="margin-bottom:8px">
-    <div class="card-label" style="margin-bottom:12px;font-size:13px;letter-spacing:.12em">NEPTUNE SPEAR — DATA PIPE STATUS</div>
-  </div>
-  <div class="grid g3" style="margin-bottom:12px" id="neptune-pipe-status">
-    <div class="card" style="text-align:center">
+  <!-- ── PIPE STATUS ─────────────────────────────────── -->
+  <div class="neptune-section-label">Data Pipe Status</div>
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px" id="neptune-pipe-status">
+    <div class="pipe-card">
       <div class="card-label">Unusual Whales</div>
-      <div class="card-value" style="font-size:16px" id="pipe-uw-status">--</div>
-      <div class="card-sub">UW-PIPE-001 · Options Flow + Dark Pool</div>
+      <div class="pipe-status-row" id="pipe-uw-status"><span class="pipe-dot"></span><span class="pipe-label">--</span></div>
+      <div class="card-sub">UW-PIPE-001</div>
     </div>
-    <div class="card" style="text-align:center">
+    <div class="pipe-card">
       <div class="card-label">Tradier</div>
-      <div class="card-value" style="font-size:16px" id="pipe-tradier-status">--</div>
-      <div class="card-sub">TRADIER-PIPE-001 · Chains + Greeks + IV</div>
+      <div class="pipe-status-row" id="pipe-tradier-status"><span class="pipe-dot"></span><span class="pipe-label">--</span></div>
+      <div class="card-sub">TRADIER-PIPE-001</div>
     </div>
-    <div class="card" style="text-align:center">
+    <div class="pipe-card">
       <div class="card-label">Alpaca</div>
-      <div class="card-value" style="font-size:16px" id="pipe-alpaca-status">--</div>
-      <div class="card-sub">ALPACA-PIPE-001 · Bars + News + Snapshots</div>
+      <div class="pipe-status-row" id="pipe-alpaca-status"><span class="pipe-dot"></span><span class="pipe-label">--</span></div>
+      <div class="card-sub">ALPACA-PIPE-001</div>
     </div>
-  </div>
-  <div class="grid g3" style="margin-bottom:24px">
-    <div class="card" style="text-align:center">
+    <div class="pipe-card">
       <div class="card-label">CBOE</div>
-      <div class="card-value" style="font-size:16px" id="pipe-cboe-status">--</div>
-      <div class="card-sub">CBOE-PIPE-001 · VIX + Put/Call + SKEW</div>
+      <div class="pipe-status-row" id="pipe-cboe-status"><span class="pipe-dot"></span><span class="pipe-label">--</span></div>
+      <div class="card-sub">CBOE-PIPE-001</div>
     </div>
-    <div class="card" style="text-align:center">
+    <div class="pipe-card">
       <div class="card-label">SEC EDGAR</div>
-      <div class="card-value" style="font-size:16px" id="pipe-edgar-status">--</div>
-      <div class="card-sub">EDGAR-PIPE-001 · 13F + Insider</div>
+      <div class="pipe-status-row" id="pipe-edgar-status"><span class="pipe-dot"></span><span class="pipe-label">--</span></div>
+      <div class="card-sub">EDGAR-PIPE-001</div>
     </div>
-    <div class="card" style="text-align:center">
+    <div class="pipe-card">
       <div class="card-label">Blockscout</div>
-      <div class="card-value" style="font-size:16px" id="pipe-blockscout-status">--</div>
-      <div class="card-sub">BLOCKSCOUT-PIPE-001 · On-Chain Intelligence</div>
+      <div class="pipe-status-row" id="pipe-blockscout-status"><span class="pipe-dot"></span><span class="pipe-label">--</span></div>
+      <div class="card-sub">BLOCKSCOUT-PIPE-001</div>
     </div>
   </div>
 
-  <!-- FEAR GAUGE + MARKET TIDE -->
-  <div class="grid g12" style="margin-bottom:24px">
+  <!-- ── FEAR GAUGE + MARKET TIDE ────────────────────── -->
+  <div class="neptune-section-label">Market Regime</div>
+  <div class="grid g2" style="margin-bottom:20px">
 
-    <!-- CBOE FEAR GAUGE -->
-    <div class="card">
-      <div class="card-label" style="margin-bottom:12px">CBOE Fear Gauge</div>
+    <!-- CBOE Fear Gauge -->
+    <div class="card" style="padding:20px 24px">
+      <div class="card-label" style="margin-bottom:16px">CBOE Fear Gauge</div>
       <div id="neptune-fear-gauge">
-        <div style="text-align:center;padding:20px">
-          <div style="font-size:48px;font-weight:800;font-family:var(--font-display);letter-spacing:2px" id="fear-level-label">--</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px" id="fear-level-sub">VIX term structure + put/call ratios + SKEW + VVIX</div>
+        <div style="text-align:center;padding:12px 0 16px">
+          <div style="font-size:42px;font-weight:800;font-family:var(--font-display);letter-spacing:3px" id="fear-level-label">--</div>
+          <div style="font-size:10px;color:var(--dim);margin-top:6px;letter-spacing:1px" id="fear-level-sub">VIX TERM STRUCTURE + PUT/CALL + SKEW + VVIX</div>
         </div>
-        <div class="grid g4" style="margin-top:12px" id="fear-metrics">
-          <div style="text-align:center">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;border-top:1px solid var(--border2);padding-top:14px" id="fear-metrics">
+          <div class="npt-metric">
             <div class="card-label">VIX Spot</div>
-            <div style="font-size:18px;font-weight:700" id="fear-vix">--</div>
+            <div class="npt-metric-value" style="font-size:20px" id="fear-vix">--</div>
           </div>
-          <div style="text-align:center">
+          <div class="npt-metric">
             <div class="card-label">Term Structure</div>
-            <div style="font-size:14px;font-weight:600" id="fear-term">--</div>
+            <div class="npt-metric-value" style="font-size:13px" id="fear-term">--</div>
           </div>
-          <div style="text-align:center">
+          <div class="npt-metric">
             <div class="card-label">P/C Ratio</div>
-            <div style="font-size:18px;font-weight:700" id="fear-pc">--</div>
+            <div class="npt-metric-value" style="font-size:20px" id="fear-pc">--</div>
           </div>
-          <div style="text-align:center">
+          <div class="npt-metric">
             <div class="card-label">SKEW</div>
-            <div style="font-size:18px;font-weight:700" id="fear-skew">--</div>
+            <div class="npt-metric-value" style="font-size:20px" id="fear-skew">--</div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- MARKET TIDE (Unusual Whales) -->
-    <div class="card">
-      <div class="card-label" style="margin-bottom:12px">Market Tide — Options Sentiment</div>
-      <div id="neptune-market-tide">
-        <div class="grid g3" style="margin-top:8px">
-          <div style="text-align:center">
+    <!-- Market Tide -->
+    <div class="card" style="padding:20px 24px;display:flex;flex-direction:column">
+      <div class="card-label" style="margin-bottom:16px">Market Tide — Options Sentiment</div>
+      <div id="neptune-market-tide" style="flex:1;display:flex;flex-direction:column;justify-content:center">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div class="npt-metric">
             <div class="card-label">Net Premium Delta</div>
-            <div style="font-size:22px;font-weight:800" id="tide-delta">--</div>
+            <div class="npt-metric-value" style="font-size:24px" id="tide-delta">--</div>
           </div>
-          <div style="text-align:center">
+          <div class="npt-metric">
             <div class="card-label">Call Premium</div>
-            <div style="font-size:16px;font-weight:700;color:var(--green)" id="tide-call">--</div>
+            <div class="npt-metric-value" style="font-size:18px;color:var(--green)" id="tide-call">--</div>
           </div>
-          <div style="text-align:center">
+          <div class="npt-metric">
             <div class="card-label">Put Premium</div>
-            <div style="font-size:16px;font-weight:700;color:var(--red)" id="tide-put">--</div>
+            <div class="npt-metric-value" style="font-size:18px;color:var(--red)" id="tide-put">--</div>
           </div>
         </div>
-        <div style="margin-top:16px;font-size:11px;color:var(--muted);text-align:center" id="tide-source">Source: Unusual Whales · UW-PIPE-001</div>
+        <div style="margin-top:auto;padding-top:14px;font-size:10px;color:var(--dim);text-align:center;letter-spacing:.5px" id="tide-source">Source: Unusual Whales · UW-PIPE-001</div>
       </div>
     </div>
   </div>
 
-  <!-- OPTIONS FLOW + DARK POOL -->
-  <div class="grid g12" style="margin-bottom:24px">
-
-    <!-- OPTIONS FLOW ALERTS -->
-    <div class="card">
-      <div class="card-label" style="margin-bottom:12px">Options Flow Alerts</div>
-      <div id="neptune-flow-alerts" style="max-height:360px;overflow-y:auto">
-        <div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">Awaiting pipe data...</div>
+  <!-- ── OPTIONS FLOW + DARK POOL ────────────────────── -->
+  <div class="neptune-section-label">Flow Intelligence</div>
+  <div class="grid g2" style="margin-bottom:20px">
+    <div class="card" style="padding:16px 20px">
+      <div class="card-label" style="margin-bottom:10px">Options Flow Alerts</div>
+      <div id="neptune-flow-alerts" style="max-height:320px;overflow-y:auto">
+        <div style="color:var(--dim);font-size:11px;padding:24px;text-align:center">Awaiting pipe data...</div>
       </div>
     </div>
-
-    <!-- DARK POOL PRINTS -->
-    <div class="card">
-      <div class="card-label" style="margin-bottom:12px">Dark Pool Prints</div>
-      <div id="neptune-darkpool" style="max-height:360px;overflow-y:auto">
-        <div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">Awaiting pipe data...</div>
+    <div class="card" style="padding:16px 20px">
+      <div class="card-label" style="margin-bottom:10px">Dark Pool Prints</div>
+      <div id="neptune-darkpool" style="max-height:320px;overflow-y:auto">
+        <div style="color:var(--dim);font-size:11px;padding:24px;text-align:center">Awaiting pipe data...</div>
       </div>
     </div>
   </div>
 
-  <!-- ALPACA MARKET SNAPSHOTS + EDGAR INSTITUTIONAL -->
-  <div class="grid g12" style="margin-bottom:24px">
-
-    <!-- MARKET SNAPSHOTS -->
-    <div class="card">
-      <div class="card-label" style="margin-bottom:12px">Market Snapshots — Alpaca</div>
-      <div id="neptune-snapshots" style="max-height:360px;overflow-y:auto">
-        <div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">Awaiting pipe data...</div>
+  <!-- ── MARKET SNAPSHOTS + INSTITUTIONAL ────────────── -->
+  <div class="neptune-section-label">Market Data</div>
+  <div class="grid g2" style="margin-bottom:20px">
+    <div class="card" style="padding:16px 20px">
+      <div class="card-label" style="margin-bottom:10px">Market Snapshots — Alpaca</div>
+      <div id="neptune-snapshots" style="max-height:320px;overflow-y:auto">
+        <div style="color:var(--dim);font-size:11px;padding:24px;text-align:center">Awaiting pipe data...</div>
       </div>
     </div>
-
-    <!-- INSTITUTIONAL POSITIONING -->
-    <div class="card">
-      <div class="card-label" style="margin-bottom:12px">Institutional Positioning — SEC EDGAR 13F</div>
-      <div id="neptune-institutional" style="max-height:360px;overflow-y:auto">
-        <div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">Awaiting pipe data...</div>
+    <div class="card" style="padding:16px 20px">
+      <div class="card-label" style="margin-bottom:10px">Institutional Positioning — SEC EDGAR 13F</div>
+      <div id="neptune-institutional" style="max-height:320px;overflow-y:auto">
+        <div style="color:var(--dim);font-size:11px;padding:24px;text-align:center">Awaiting pipe data...</div>
       </div>
     </div>
   </div>
 
-  <!-- ON-CHAIN INTELLIGENCE — Blockscout -->
-  <div class="card" style="margin-bottom:24px">
-    <div class="card-label" style="margin-bottom:12px">On-Chain Intelligence — Blockscout</div>
-    <div class="grid g4" id="blockscout-network-stats" style="margin-bottom:16px">
-      <div style="text-align:center">
-        <div class="card-label">ETH Gas (Gwei)</div>
-        <div style="font-size:22px;font-weight:700" id="bs-gas">--</div>
+  <!-- ── ON-CHAIN INTELLIGENCE ───────────────────────── -->
+  <div class="neptune-section-label">On-Chain Intelligence</div>
+  <div class="card" style="padding:20px 24px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+      <div class="card-label" style="margin-bottom:0">Blockscout — Ethereum Mainnet</div>
+      <span class="mcp-uri-tag" style="font-size:9px;padding:2px 6px" id="bs-chain-tag">Chain 1</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px" id="blockscout-network-stats">
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">ETH Gas (Gwei)</div>
+        <div class="npt-metric-value" style="font-size:26px" id="bs-gas">--</div>
       </div>
-      <div style="text-align:center">
-        <div class="card-label">Block Height</div>
-        <div style="font-size:18px;font-weight:700;color:var(--cyan)" id="bs-block">--</div>
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">Block Height</div>
+        <div class="npt-metric-value" style="font-size:20px;color:var(--cyan)" id="bs-block">--</div>
       </div>
-      <div style="text-align:center">
-        <div class="card-label">Total Addresses</div>
-        <div style="font-size:18px;font-weight:700" id="bs-addresses">--</div>
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">Total Addresses</div>
+        <div class="npt-metric-value" style="font-size:20px" id="bs-addresses">--</div>
       </div>
-      <div style="text-align:center">
-        <div class="card-label">Total Transactions</div>
-        <div style="font-size:18px;font-weight:700" id="bs-txns">--</div>
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">Total Transactions</div>
+        <div class="npt-metric-value" style="font-size:20px" id="bs-txns">--</div>
       </div>
     </div>
-    <div class="grid g3" style="margin-bottom:16px">
-      <div style="text-align:center">
-        <div class="card-label">Avg Block Time</div>
-        <div style="font-size:16px;font-weight:600" id="bs-blocktime">--</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px">
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">Avg Block Time</div>
+        <div class="npt-metric-value" style="font-size:18px" id="bs-blocktime">--</div>
       </div>
-      <div style="text-align:center">
-        <div class="card-label">Network Utilization</div>
-        <div style="font-size:16px;font-weight:600" id="bs-utilization">--</div>
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">Network Utilization</div>
+        <div class="npt-metric-value" style="font-size:18px" id="bs-utilization">--</div>
       </div>
-      <div style="text-align:center">
-        <div class="card-label">Chain</div>
-        <div style="font-size:16px;font-weight:600;color:var(--cyan)" id="bs-chain">Ethereum</div>
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">Chain</div>
+        <div class="npt-metric-value" style="font-size:18px;color:var(--cyan)" id="bs-chain">Ethereum</div>
       </div>
     </div>
-    <div style="font-size:11px;color:var(--muted);border-top:1px solid var(--border);padding-top:10px">
-      Source: Blockscout · BLOCKSCOUT-PIPE-001 · Public API (no auth) · Multi-chain: ETH, Polygon, Base, Arbitrum, OP, Gnosis
+    <div style="font-size:10px;color:var(--dim);border-top:1px solid var(--border2);padding-top:10px;letter-spacing:.3px">
+      BLOCKSCOUT-PIPE-001 · Public API (no auth) · Supported chains: Ethereum, Polygon, Base, Arbitrum, Optimism, Gnosis
     </div>
   </div>
 
-  <!-- MCP SERVER STATUS -->
-  <div class="card" style="margin-bottom:24px">
-    <div class="card-label" style="margin-bottom:12px">Verana L0 — MCP Server</div>
-    <div class="grid g4" id="neptune-mcp-status">
-      <div style="text-align:center">
-        <div class="card-label">Protocol</div>
-        <div style="font-size:13px;font-weight:600" id="mcp-protocol">JSON-RPC 2.0</div>
+  <!-- ── VERANA L0 MCP SERVER ────────────────────────── -->
+  <div class="neptune-section-label">MCP Server</div>
+  <div class="card" style="padding:20px 24px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+      <div class="card-label" style="margin-bottom:0">Verana L0 — Model Context Protocol</div>
+      <span class="mcp-uri-tag" style="font-size:9px;padding:2px 6px">JSON-RPC 2.0</span>
+      <span class="mcp-tool-tag" style="font-size:9px;padding:2px 6px" id="mcp-endpoint">POST /mcp</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">Resources</div>
+        <div class="npt-metric-value" style="font-size:32px;color:var(--cyan)" id="mcp-resources">5</div>
       </div>
-      <div style="text-align:center">
-        <div class="card-label">Resources</div>
-        <div style="font-size:22px;font-weight:700" id="mcp-resources">5</div>
-      </div>
-      <div style="text-align:center">
-        <div class="card-label">Tools</div>
-        <div style="font-size:22px;font-weight:700" id="mcp-tools">4</div>
-      </div>
-      <div style="text-align:center">
-        <div class="card-label">Endpoint</div>
-        <div style="font-size:13px;font-weight:600;color:var(--cyan)" id="mcp-endpoint">POST /mcp</div>
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">Tools</div>
+        <div class="npt-metric-value" style="font-size:32px;color:var(--blue)" id="mcp-tools">4</div>
       </div>
     </div>
-    <div style="margin-top:16px">
+    <div style="margin-bottom:14px">
       <div class="card-label" style="margin-bottom:8px">Registered Resources</div>
-      <div id="mcp-resource-list" style="font-size:11px;color:var(--muted);line-height:2;font-family:var(--font-mono)">
-        aureon://verana/network-registry · aureon://verana/regulatory-frameworks · aureon://verana/ofac-screening-list · aureon://verana/compliance-alerts · aureon://verana/doctrine-status
+      <div id="mcp-resource-list">
+        <span class="mcp-uri-tag">aureon://verana/network-registry</span>
+        <span class="mcp-uri-tag">aureon://verana/regulatory-frameworks</span>
+        <span class="mcp-uri-tag">aureon://verana/ofac-screening-list</span>
+        <span class="mcp-uri-tag">aureon://verana/compliance-alerts</span>
+        <span class="mcp-uri-tag">aureon://verana/doctrine-status</span>
       </div>
     </div>
-    <div style="margin-top:12px">
+    <div>
       <div class="card-label" style="margin-bottom:8px">Registered Tools</div>
-      <div id="mcp-tool-list" style="font-size:11px;color:var(--muted);line-height:2;font-family:var(--font-mono)">
-        verana_screen_ofac · verana_framework_status · verana_node_status · verana_compliance_snapshot
+      <div id="mcp-tool-list">
+        <span class="mcp-tool-tag">verana_screen_ofac</span>
+        <span class="mcp-tool-tag">verana_framework_status</span>
+        <span class="mcp-tool-tag">verana_node_status</span>
+        <span class="mcp-tool-tag">verana_compliance_snapshot</span>
       </div>
     </div>
   </div>
 
-  <!-- NEPTUNE GOVERNANCE FOOTER -->
-  <div style="text-align:center;padding:20px 0;color:var(--muted);font-size:11px;letter-spacing:1.2px;line-height:2">
+  <!-- ── GOVERNANCE FOOTER ───────────────────────────── -->
+  <div style="text-align:center;padding:16px 0 8px;color:var(--dim);font-size:10px;letter-spacing:1.5px;line-height:2.2">
     NEPTUNE SPEAR — ALPHA ORIGINATION LAYER · 50,000 FT<br>
     ADVISORY ONLY — ALL OUTPUTS REQUIRE HUMAN APPROVAL (CAOM-001)<br>
     SIX DATA PIPES · VERANA L0 MCP · DOCTRINE v<span id="neptune-doctrine-ver">1.3</span>
@@ -4531,16 +4649,20 @@ async function fetchNeptune() {
 }
 
 function renderNeptune() {
-  // ── Pipe status cards ──
+  // ── Pipe status cards (dot + label) ──
   const pipeMap = { uw: 'pipe-uw-status', tradier: 'pipe-tradier-status', alpaca: 'pipe-alpaca-status', cboe: 'pipe-cboe-status', edgar: 'pipe-edgar-status', blockscout: 'pipe-blockscout-status' };
   Object.entries(pipeMap).forEach(([key, id]) => {
-    const el = document.getElementById(id);
-    if (!el) return;
+    const row = document.getElementById(id);
+    if (!row) return;
+    const dot = row.querySelector('.pipe-dot');
+    const lbl = row.querySelector('.pipe-label');
+    if (!dot || !lbl) return;
     const p = state.neptunePipes[key];
-    if (!p) { el.textContent = '--'; el.style.color = 'var(--muted)'; return; }
+    if (!p) { dot.className = 'pipe-dot'; lbl.className = 'pipe-label'; lbl.textContent = '--'; return; }
     const live = (p.status === 'live' || p.status === 'ok' || p.operational === true || p.initialized === true);
-    el.textContent = live ? 'LIVE' : 'OFFLINE';
-    el.style.color = live ? 'var(--green)' : 'var(--red)';
+    dot.className = live ? 'pipe-dot live' : 'pipe-dot offline';
+    lbl.className = live ? 'pipe-label live' : 'pipe-label offline';
+    lbl.textContent = live ? 'LIVE' : 'OFFLINE';
   });
 
   // ── Fear Gauge ──
@@ -4712,10 +4834,16 @@ function renderNeptune() {
     document.getElementById('mcp-resources').textContent = resCount;
     document.getElementById('mcp-tools').textContent = toolCount;
     if (mcp.resources) {
-      document.getElementById('mcp-resource-list').textContent = mcp.resources.map(r => r.uri || r.name || r).join(' · ');
+      document.getElementById('mcp-resource-list').innerHTML = mcp.resources.map(r => {
+        const uri = r.uri || r.name || r;
+        return `<span class="mcp-uri-tag">${uri}</span>`;
+      }).join('');
     }
     if (mcp.tools) {
-      document.getElementById('mcp-tool-list').textContent = mcp.tools.map(t => t.name || t).join(' · ');
+      document.getElementById('mcp-tool-list').innerHTML = mcp.tools.map(t => {
+        const name = t.name || t;
+        return `<span class="mcp-tool-tag">${name}</span>`;
+      }).join('');
     }
   }
 
