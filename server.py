@@ -73,6 +73,7 @@ from aureon.config.settings import LOG_FILE, STATE_FILE
 from aureon.config.neptune_spear import get_neptune_source_document_text, get_neptune_declaration
 from aureon.config.thifur_c2_doctrine import get_c2_source_document_text, get_c2_doctrine_declaration
 from aureon.mcp.server import mcp_bp, init_mcp
+from aureon.mcp.neptune_client import init_neptune_pipe, get_client as get_neptune_client, pipe_status as neptune_pipe_status
 from aureon.persistence.store import load_state as persistence_load_state, save_state as persistence_save_state
 from aureon.policy_engine.service import evaluate_pretrade_decision
 from aureon.evidence_service.service import build_trade_report as evidence_build_trade_report
@@ -3509,6 +3510,14 @@ def run_doctrine_stack():
     init_mcp(aureon_state, _lock, OFAC_BLOCKED_ISINS)
     print("[AUREON] MCP server initialized — Phase 1 Verana L0 — POST /mcp")
 
+    # ── Initialize Neptune Spear data pipe ────────────────────────
+    # Unusual Whales REST adapter — requires UW_API_TOKEN env var.
+    # Pipe initializes in degraded mode (no token) and upgrades to
+    # live once the token is present without requiring a restart.
+    init_neptune_pipe()
+    ps = neptune_pipe_status()
+    print(f"[AUREON] Neptune pipe status: {ps['status']} — source: {ps['source']}")
+
 
 def market_loop():
     """
@@ -5014,6 +5023,94 @@ def api_treasury():
         "cash_floor_pct":     round(OPERATING_CASH_FLOOR_PCT * 100, 1),
         "sweep_log":          sweep_log,
     })
+
+
+# ─────────────────────────────────────────────────────────────────
+# NEPTUNE SPEAR — DATA PIPE ENDPOINTS
+# Unusual Whales REST adapter. Requires UW_API_TOKEN env var.
+# All responses carry MCP-style provenance (source_uri, content_hash, ts).
+# ─────────────────────────────────────────────────────────────────
+
+@app.route("/api/neptune/status")
+def api_neptune_status():
+    """Neptune pipe health — token presence, source label, last-checked ts."""
+    return jsonify(neptune_pipe_status())
+
+
+@app.route("/api/neptune/flow-alerts")
+def api_neptune_flow_alerts():
+    """Options flow alerts — large premium sweeps and unusual activity."""
+    client = get_neptune_client()
+    if client is None:
+        return jsonify({"error": "Neptune pipe not initialized"}), 503
+    limit       = request.args.get("limit", 50, type=int)
+    min_premium = request.args.get("min_premium", 25000, type=int)
+    ticker      = request.args.get("ticker", None)
+    result = client.get_flow_alerts(limit=limit, min_premium=min_premium, ticker_symbol=ticker)
+    if "error" in result:
+        return jsonify(result), 502
+    return jsonify(result)
+
+
+@app.route("/api/neptune/darkpool")
+def api_neptune_darkpool():
+    """Market-wide dark pool recent prints."""
+    client = get_neptune_client()
+    if client is None:
+        return jsonify({"error": "Neptune pipe not initialized"}), 503
+    limit  = request.args.get("limit", 50, type=int)
+    ticker = request.args.get("ticker", None)
+    if ticker:
+        result = client.get_darkpool_ticker(ticker)
+    else:
+        result = client.get_darkpool_recent(limit=limit)
+    if "error" in result:
+        return jsonify(result), 502
+    return jsonify(result)
+
+
+@app.route("/api/neptune/market-tide")
+def api_neptune_market_tide():
+    """Market-wide options sentiment — call/put premium delta."""
+    client = get_neptune_client()
+    if client is None:
+        return jsonify({"error": "Neptune pipe not initialized"}), 503
+    result = client.get_market_tide()
+    if "error" in result:
+        return jsonify(result), 502
+    return jsonify(result)
+
+
+@app.route("/api/neptune/packet", methods=["POST"])
+def api_neptune_packet():
+    """
+    Full Neptune ingestion packet — pulls flow, dark pool, and market tide
+    for a list of tickers in one call.
+
+    Body (JSON):
+      {
+        "tickers":          ["AAPL", "NVDA"],   // required
+        "flow_min_premium": 25000,              // optional, default 25000
+        "flow_limit":       50,                 // optional, default 50
+        "darkpool_limit":   50                  // optional, default 50
+      }
+    """
+    client = get_neptune_client()
+    if client is None:
+        return jsonify({"error": "Neptune pipe not initialized"}), 503
+    body = request.get_json(silent=True) or {}
+    tickers = body.get("tickers", [])
+    if not tickers:
+        return jsonify({"error": "tickers list is required"}), 400
+    result = client.get_neptune_ingestion_packet(
+        tickers          = tickers,
+        flow_min_premium = body.get("flow_min_premium", 25000),
+        flow_limit       = body.get("flow_limit", 50),
+        darkpool_limit   = body.get("darkpool_limit", 50),
+    )
+    if "error" in result:
+        return jsonify(result), 502
+    return jsonify(result)
 
 
 @app.route("/framework-brief")
