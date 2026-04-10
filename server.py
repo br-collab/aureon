@@ -77,7 +77,8 @@ from aureon.mcp.neptune_client import init_neptune_pipe, get_client as get_neptu
 from aureon.mcp.tradier_client import init_tradier_pipe, get_client as get_tradier_client, pipe_status as tradier_pipe_status
 from aureon.mcp.alpaca_client  import init_alpaca_pipe,  get_client as get_alpaca_client,  pipe_status as alpaca_pipe_status
 from aureon.mcp.cboe_client    import init_cboe_pipe,    get_client as get_cboe_client,    pipe_status as cboe_pipe_status
-from aureon.mcp.edgar_client   import init_edgar_pipe,   get_client as get_edgar_client,   pipe_status as edgar_pipe_status
+from aureon.mcp.edgar_client       import init_edgar_pipe,       get_client as get_edgar_client,       pipe_status as edgar_pipe_status
+from aureon.mcp.blockscout_client  import init_blockscout_pipe,  get_client as get_blockscout_client,  pipe_status as blockscout_pipe_status
 from aureon.persistence.store import load_state as persistence_load_state, save_state as persistence_save_state
 from aureon.policy_engine.service import evaluate_pretrade_decision
 from aureon.evidence_service.service import build_trade_report as evidence_build_trade_report
@@ -3523,9 +3524,11 @@ def run_doctrine_stack():
     init_alpaca_pipe()
     init_cboe_pipe()
     init_edgar_pipe()
+    init_blockscout_pipe()
     for _ps in (
         neptune_pipe_status(), tradier_pipe_status(),
         alpaca_pipe_status(),  cboe_pipe_status(), edgar_pipe_status(),
+        blockscout_pipe_status(),
     ):
         print(f"[AUREON] Pipe [{_ps['pipe_id']}] {_ps['status'].upper()} — {_ps['source']}")
 
@@ -5428,6 +5431,106 @@ def api_edgar_institutional_packet():
     body         = request.get_json(silent=True) or {}
     institutions = body.get("institutions", None)
     result       = client.get_neptune_institutional_packet(institutions=institutions)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  NEPTUNE SPEAR — Blockscout On-Chain Intelligence Pipe Routes
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/api/neptune/blockscout/status")
+def api_blockscout_status():
+    """Blockscout pipe health — always live (no auth required)."""
+    return jsonify(blockscout_pipe_status())
+
+
+@app.route("/api/neptune/blockscout/stats")
+def api_blockscout_stats():
+    """Ethereum network stats — gas, block time, total addresses, market cap. ?chain=1"""
+    client = get_blockscout_client()
+    if client is None:
+        return jsonify({"error": "Blockscout pipe not initialized"}), 503
+    chain  = request.args.get("chain", "1")
+    result = client.get_network_stats(chain_id=chain)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/blockscout/address")
+def api_blockscout_address():
+    """Address info — balance, tx count, token holdings. ?address=0x...&chain=1"""
+    client = get_blockscout_client()
+    if client is None:
+        return jsonify({"error": "Blockscout pipe not initialized"}), 503
+    address = request.args.get("address")
+    if not address:
+        return jsonify({"error": "address parameter required"}), 400
+    chain   = request.args.get("chain", "1")
+    result  = client.get_address(address, chain_id=chain)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/blockscout/transfers")
+def api_blockscout_transfers():
+    """Token transfers for an address. ?address=0x...&chain=1&limit=20"""
+    client = get_blockscout_client()
+    if client is None:
+        return jsonify({"error": "Blockscout pipe not initialized"}), 503
+    address = request.args.get("address")
+    if not address:
+        return jsonify({"error": "address parameter required"}), 400
+    chain  = request.args.get("chain", "1")
+    limit  = request.args.get("limit", 20, type=int)
+    result = client.get_token_transfers(address, chain_id=chain, limit=limit)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/blockscout/tx")
+def api_blockscout_tx():
+    """Transaction details. ?hash=0x...&chain=1"""
+    client = get_blockscout_client()
+    if client is None:
+        return jsonify({"error": "Blockscout pipe not initialized"}), 503
+    tx_hash = request.args.get("hash")
+    if not tx_hash:
+        return jsonify({"error": "hash parameter required"}), 400
+    chain  = request.args.get("chain", "1")
+    result = client.get_transaction(tx_hash, chain_id=chain)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/blockscout/search")
+def api_blockscout_search():
+    """Search tokens by name or symbol. ?q=USDC&chain=1"""
+    client = get_blockscout_client()
+    if client is None:
+        return jsonify({"error": "Blockscout pipe not initialized"}), 503
+    query = request.args.get("q")
+    if not query:
+        return jsonify({"error": "q parameter required"}), 400
+    chain  = request.args.get("chain", "1")
+    result = client.search_token(query, chain_id=chain)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/blockscout/onchain-packet", methods=["GET", "POST"])
+def api_blockscout_onchain_packet():
+    """
+    Full Neptune on-chain intelligence packet.
+    Network stats + gas + blocks + optional whale watch.
+    GET: ?chain=1
+    POST: {"chain": "1", "watch_addresses": ["0x...", ...]}
+    """
+    client = get_blockscout_client()
+    if client is None:
+        return jsonify({"error": "Blockscout pipe not initialized"}), 503
+    if request.method == "POST":
+        body = request.get_json(silent=True) or {}
+        chain = body.get("chain", "1")
+        addrs = body.get("watch_addresses", [])
+    else:
+        chain = request.args.get("chain", "1")
+        addrs = []
+    result = client.get_onchain_packet(chain_id=chain, watch_addresses=addrs)
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
