@@ -72,6 +72,7 @@ from flask import Flask, Response, jsonify, send_from_directory, request
 from aureon.config.settings import LOG_FILE, STATE_FILE
 from aureon.config.neptune_spear import get_neptune_source_document_text, get_neptune_declaration
 from aureon.config.thifur_c2_doctrine import get_c2_source_document_text, get_c2_doctrine_declaration
+from aureon.mcp.server import mcp_bp, init_mcp
 from aureon.persistence.store import load_state as persistence_load_state, save_state as persistence_save_state
 from aureon.policy_engine.service import evaluate_pretrade_decision
 from aureon.evidence_service.service import build_trade_report as evidence_build_trade_report
@@ -204,6 +205,11 @@ CORS(app, origins=[
     "http://localhost:3000",
     "http://localhost:5001",
 ])
+
+# ── MCP Server (Phase 1 — Verana L0) ─────────────────────────────────────────
+# Register the MCP blueprint. init_mcp() is called after aureon_state is
+# initialized (at the bottom of run_doctrine_stack) to inject live state.
+app.register_blueprint(mcp_bp)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -3496,6 +3502,12 @@ def run_doctrine_stack():
     # Thifur-Neptune Spear and Thifur-C2 doctrine are auto-ingested
     # at every startup so they are always present in source_documents.
     _register_doctrine_documents()
+
+    # ── Initialize MCP server with live state ─────────────────────
+    # Inject aureon_state and OFAC list so MCP resources reflect
+    # real-time system state from this point forward.
+    init_mcp(aureon_state, _lock, OFAC_BLOCKED_ISINS)
+    print("[AUREON] MCP server initialized — Phase 1 Verana L0 — POST /mcp")
 
 
 def market_loop():
