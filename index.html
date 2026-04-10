@@ -286,6 +286,104 @@ nav {
   line-height: 1.4;
 }
 
+/* Neptune recommendation cards */
+.npt-rec {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  background: var(--deep);
+  position: relative;
+}
+.npt-rec:last-child { margin-bottom: 0; }
+.npt-rec.conviction-HIGH   { border-left: 3px solid var(--green); }
+.npt-rec.conviction-MEDIUM { border-left: 3px solid var(--yellow); }
+.npt-rec.conviction-LOW    { border-left: 3px solid var(--muted); }
+
+.npt-rec-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.npt-rec-action {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.npt-rec-action.BUY  { color: var(--green); }
+.npt-rec-action.SELL { color: var(--red); }
+
+.npt-rec-symbol {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--white);
+}
+.npt-rec-notional {
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: auto;
+}
+.npt-rec-conviction {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.npt-rec-conviction.HIGH   { background: rgba(16,185,129,.12); color: var(--green); border: 1px solid rgba(16,185,129,.25); }
+.npt-rec-conviction.MEDIUM { background: rgba(245,158,11,.12); color: var(--yellow); border: 1px solid rgba(245,158,11,.25); }
+.npt-rec-conviction.LOW    { background: rgba(74,85,120,.2); color: var(--muted); border: 1px solid rgba(74,85,120,.3); }
+
+.npt-rec-thesis {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.7;
+  margin-bottom: 10px;
+}
+.npt-rec-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--dim);
+}
+.npt-rec-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.npt-rec-actions button {
+  padding: 4px 14px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .5px;
+  cursor: pointer;
+  border: 1px solid;
+  text-transform: uppercase;
+}
+.btn-promote {
+  background: rgba(16,185,129,.12);
+  border-color: rgba(16,185,129,.35);
+  color: var(--green);
+}
+.btn-promote:hover {
+  background: rgba(16,185,129,.22);
+}
+.btn-dismiss {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--muted);
+}
+.btn-dismiss:hover {
+  border-color: rgba(239,68,68,.3);
+  color: var(--red);
+}
+
 /* ── MAIN ────────────────────────────────────────────── */
 main {
   padding: 88px 32px 48px;
@@ -2177,6 +2275,25 @@ main {
     </div>
   </div>
 
+  <!-- ── TRADE RECOMMENDATIONS ────────────────────────── -->
+  <div class="neptune-section-label">Trade Recommendations</div>
+  <div class="card" style="padding:16px 20px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="card-label" style="margin-bottom:0">Neptune Origination — Awaiting Operator Review</span>
+        <span class="mcp-tool-tag" id="neptune-rec-count" style="font-size:9px;padding:2px 8px">0 active</span>
+      </div>
+      <button onclick="neptuneForceReScan()" style="background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.25);
+              color:var(--cyan);padding:5px 14px;border-radius:4px;font-family:var(--font-mono);
+              font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer">Re-Scan</button>
+    </div>
+    <div id="neptune-recs-container">
+      <div style="color:var(--dim);font-size:11px;padding:24px;text-align:center">
+        Neptune scanning pipe data for trade opportunities...
+      </div>
+    </div>
+  </div>
+
   <!-- ── FEAR GAUGE + MARKET TIDE ────────────────────── -->
   <div class="neptune-section-label">Market Regime</div>
   <div class="grid g2" style="margin-bottom:20px">
@@ -2786,6 +2903,11 @@ const API = {
   neptuneCboeFear:     '/api/neptune/cboe/fear-packet',
   neptuneEdgarStatus:  '/api/neptune/edgar/status',
   neptuneEdgarInst:    '/api/neptune/edgar/institutional-packet',
+  // Neptune recommendations
+  neptuneRecs:         '/api/neptune/recommendations',
+  neptuneRecsScan:     '/api/neptune/recommendations/scan',
+  neptuneRecPromote:   (id) => `/api/neptune/recommendations/${id}/promote`,
+  neptuneRecDismiss:   (id) => `/api/neptune/recommendations/${id}/dismiss`,
   // Blockscout on-chain
   neptuneBsStatus:     '/api/neptune/blockscout/status',
   neptuneBsStats:      '/api/neptune/blockscout/stats',
@@ -2840,6 +2962,7 @@ const state = {
   neptuneDarkpool: [],
   neptuneSnapshots: {},
   neptuneInstitutional: null,
+  neptuneRecs: [],
   neptuneBlockscout: null,
   neptuneMcp: null,
 };
@@ -4581,6 +4704,12 @@ function renderReports() {
 
 // ── NEPTUNE SPEAR — fetch + render ───────────────────
 async function fetchNeptune() {
+  // Neptune recommendations
+  try {
+    const r = await fetch(API.neptuneRecs);
+    if (r.ok) { const d = await r.json(); state.neptuneRecs = d.recommendations || []; }
+  } catch(e) { /* silent */ }
+
   // Pipe statuses — fire all in parallel, catch individually
   const pipes = [
     { key: 'uw',      url: API.neptuneStatus,        label: 'Unusual Whales' },
@@ -4646,6 +4775,90 @@ async function fetchNeptune() {
   } catch(e) { /* silent */ }
 
   renderNeptune();
+}
+
+// ── Neptune recommendation actions ───────────────────
+async function neptunePromote(recId) {
+  try {
+    const r = await fetch(API.neptuneRecPromote(recId), { method: 'POST' });
+    const d = await r.json();
+    if (r.ok) {
+      toast(`Promoted to ${d.decision_id} — ${d.action} ${d.symbol} $${d.notional?.toLocaleString()}`);
+      await fetchNeptune();
+    } else {
+      toast(d.error || 'Promote failed');
+    }
+  } catch(e) { toast('Promote failed'); }
+}
+
+async function neptuneDismiss(recId) {
+  try {
+    const r = await fetch(API.neptuneRecDismiss(recId), { method: 'POST' });
+    if (r.ok) {
+      toast('Recommendation dismissed');
+      await fetchNeptune();
+    }
+  } catch(e) { toast('Dismiss failed'); }
+}
+
+async function neptuneForceReScan() {
+  try {
+    const r = await fetch(API.neptuneRecsScan, { method: 'POST' });
+    const d = await r.json();
+    if (r.ok) {
+      state.neptuneRecs = d.recommendations || [];
+      toast(`Neptune scan complete — ${d.count} recommendation${d.count !== 1 ? 's' : ''}`);
+      renderNeptune();
+    } else {
+      toast(d.error || 'Scan failed');
+    }
+  } catch(e) { toast('Scan failed'); }
+}
+
+function renderNeptuneRecs() {
+  const container = document.getElementById('neptune-recs-container');
+  const countEl = document.getElementById('neptune-rec-count');
+  if (!container) return;
+
+  const recs = state.neptuneRecs || [];
+  if (countEl) countEl.textContent = `${recs.length} active`;
+
+  if (recs.length === 0) {
+    container.innerHTML = '<div style="color:var(--dim);font-size:11px;padding:24px;text-align:center">Neptune scanning pipe data for trade opportunities...</div>';
+    return;
+  }
+
+  container.innerHTML = recs.map(rec => {
+    const brief = rec.signal_brief || {};
+    const sources = (rec.signal_sources || []).join(' · ');
+    const risks = (rec.risk_factors || []).map(r => `<span style="display:inline-block;font-size:9px;color:var(--muted);background:var(--surface);border:1px solid var(--border2);border-radius:3px;padding:1px 6px;margin:2px 3px 2px 0">${r}</span>`).join('');
+    return `
+      <div class="npt-rec conviction-${rec.conviction}">
+        <div class="npt-rec-header">
+          <span class="npt-rec-action ${rec.action}">${rec.action}</span>
+          <span class="npt-rec-symbol">${rec.symbol}</span>
+          <span style="font-size:12px;color:var(--muted)">${rec.shares?.toLocaleString()} shares @ $${rec.price?.toFixed(2)}</span>
+          <span class="npt-rec-notional">$${rec.notional?.toLocaleString()}</span>
+          <span class="npt-rec-conviction ${rec.conviction}">${rec.conviction}</span>
+        </div>
+        <div class="npt-rec-thesis">${rec.thesis}</div>
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;color:var(--dim);margin-bottom:4px;letter-spacing:.5px">RISK FACTORS</div>
+          <div>${risks}</div>
+        </div>
+        <div class="npt-rec-meta">
+          <span>${sources}</span>
+          <span>·</span>
+          <span>${rec.id}</span>
+          <span>·</span>
+          <span>${new Date(rec.created).toLocaleTimeString()}</span>
+          <div class="npt-rec-actions">
+            <button class="btn-dismiss" onclick="neptuneDismiss('${rec.id}')">Dismiss</button>
+            <button class="btn-promote" onclick="neptunePromote('${rec.id}')">Send to Approval</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 function renderNeptune() {
@@ -4846,6 +5059,9 @@ function renderNeptune() {
       }).join('');
     }
   }
+
+  // ── Recommendations ──
+  renderNeptuneRecs();
 
   // Doctrine version footer
   const verEl = document.getElementById('neptune-doctrine-ver');

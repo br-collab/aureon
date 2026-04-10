@@ -255,6 +255,7 @@ aureon_state = {
     "authority_log":      [],
     "operational_journal": [],   # DA-1594 equivalent — DTG-stamped operational record
     "decision_journal":    [],   # Commander's log — full signal brief + outcome for every HITL decision
+    "neptune_recommendations": [],  # Neptune Spear trade recommendations awaiting operator review
     "prices":             {},
     "class_totals":       {},
 
@@ -3010,6 +3011,273 @@ def _generate_signal():
 
 
 # ─────────────────────────────────────────────────────────────────
+# 5a-NEPTUNE. NEPTUNE SPEAR — RECOMMENDATION ENGINE
+# ─────────────────────────────────────────────────────────────────
+# Neptune scans live pipe data (CBOE fear gauge, Blockscout on-chain
+# stats, EDGAR institutional positioning) and generates advisory
+# trade recommendations. These stay in neptune_recommendations until
+# the operator explicitly promotes one to a governed decision.
+#
+# Neptune NEVER self-executes. Neptune originates. Operator decides.
+# ─────────────────────────────────────────────────────────────────
+
+NEPTUNE_MAX_RECS = 8          # cap on pending recommendations
+NEPTUNE_SCAN_INTERVAL = 120   # seconds between scans
+_neptune_last_scan = 0.0
+
+# Symbols Neptune considers for each asset class
+NEPTUNE_WATCHLIST = {
+    "equities": ["SPY", "QQQ", "IWM", "DIA", "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA"],
+}
+
+def _neptune_scan():
+    """
+    Neptune Spear origination scan.
+
+    Reads live pipe data and market state to generate structured trade
+    recommendations. Each recommendation includes a thesis, risk framing,
+    signal provenance, and conviction level.
+
+    Called from market_loop on NEPTUNE_SCAN_INTERVAL cadence.
+    """
+    global _neptune_last_scan
+    now = time.time()
+    if now - _neptune_last_scan < NEPTUNE_SCAN_INTERVAL:
+        return
+    _neptune_last_scan = now
+
+    with _lock:
+        if aureon_state["halt_active"]:
+            return
+        if len(aureon_state["neptune_recommendations"]) >= NEPTUNE_MAX_RECS:
+            return
+        prices    = dict(aureon_state["prices"])
+        positions = list(aureon_state["positions"])
+        pv        = aureon_state["portfolio_value"]
+        cash      = aureon_state["cash"]
+        drawdown  = aureon_state["drawdown"]
+
+    if not prices:
+        return
+
+    # ── Collect pipe intelligence ──────────────────────────────────
+    fear_data = None
+    try:
+        cboe = get_cboe_client()
+        if cboe:
+            fear_data = cboe.get_thifur_fear_packet(lookback_days=30)
+    except Exception:
+        pass
+
+    bs_data = None
+    try:
+        bs = get_blockscout_client()
+        if bs:
+            bs_data = bs.get_network_stats(chain_id="1")
+    except Exception:
+        pass
+
+    # ── Derive market regime ───────────────────────────────────────
+    fear_level = (fear_data or {}).get("fear_level", "UNKNOWN")
+    term_signal = (fear_data or {}).get("structure_signal", "UNKNOWN")
+    gas_price = None
+    if bs_data and bs_data.get("ok"):
+        gas_price = bs_data.get("data", {}).get("gas_prices", {}).get("average")
+
+    # ── Position map for concentration check ───────────────────────
+    held_symbols = {p.get("symbol") for p in positions}
+    held_notional = {}
+    for p in positions:
+        s = p.get("symbol")
+        held_notional[s] = abs(p.get("shares", 0) * p.get("avg_price", 0))
+
+    # ── Build recommendations from signals ─────────────────────────
+    recs = []
+    ts = datetime.now(timezone.utc).isoformat()
+
+    # SIGNAL 1: Fear regime shift — VIX backwardation = hedging opportunity
+    if fear_level == "ELEVATED" and "SPY" not in held_symbols:
+        spy_price = prices.get("SPY", 535.0)
+        shares = max(100, int(250_000 / spy_price / 100) * 100)
+        recs.append(_build_neptune_rec(
+            action="SELL", symbol="SPY", shares=shares, price=spy_price,
+            asset_class="equities",
+            thesis=(
+                f"CBOE fear gauge at ELEVATED — VIX term structure in {term_signal}. "
+                f"Elevated put/call ratios signal institutional hedging. "
+                f"Short SPY as portfolio hedge until regime normalizes."
+            ),
+            conviction="HIGH",
+            signal_sources=["CBOE-PIPE-001"],
+            risk_factors=["VIX mean-reversion risk", "Short squeeze in relief rally", "Timing risk on regime shift"],
+            first_order=f"SELL {shares:,} SPY @ ~${spy_price:,.2f} as tactical hedge. Notional: ${int(shares * spy_price):,}.",
+            second_order="Reduces net equity beta. Frees risk budget for opportunistic longs when fear subsides.",
+            third_order="Establishes Neptune's hedging discipline — sell strength in fear, buy weakness in complacency.",
+            ts=ts,
+        ))
+
+    # SIGNAL 2: Fear complacent + strong market = add risk
+    if fear_level == "COMPLACENT" and term_signal == "CONTANGO":
+        # Look for an equity not held or underweight
+        for sym in ["NVDA", "MSFT", "AAPL", "AMZN", "GOOGL", "META"]:
+            if sym in held_symbols:
+                continue
+            sym_price = prices.get(sym)
+            if not sym_price or sym_price < 10:
+                continue
+            shares = max(10, int(500_000 / sym_price / 10) * 10)
+            notional = int(shares * sym_price)
+            if notional < 200_000:
+                continue
+            recs.append(_build_neptune_rec(
+                action="BUY", symbol=sym, shares=shares, price=sym_price,
+                asset_class="equities",
+                thesis=(
+                    f"Fear regime COMPLACENT with VIX in {term_signal} — market conditions "
+                    f"support risk-on positioning. {sym} not currently held. "
+                    f"Adding exposure while volatility is cheap."
+                ),
+                conviction="MEDIUM",
+                signal_sources=["CBOE-PIPE-001"],
+                risk_factors=["Complacency can precede sharp corrections", "Single-name concentration", "Entry timing"],
+                first_order=f"BUY {shares:,} {sym} @ ~${sym_price:,.2f}. Notional: ${notional:,}.",
+                second_order=f"Increases equity allocation. Positions portfolio for continued risk-on environment.",
+                third_order="Builds alpha during low-vol regime. Position sized within doctrine concentration limits.",
+                ts=ts,
+            ))
+            break  # one recommendation per signal type
+
+    # SIGNAL 3: Drawdown approaching warning — de-risk largest position
+    if drawdown > 3.5 and positions:
+        largest = max(positions, key=lambda p: abs(p.get("shares", 0) * prices.get(p.get("symbol", ""), 0)))
+        sym = largest.get("symbol")
+        if sym and prices.get(sym):
+            sym_price = prices[sym]
+            sym_shares = abs(largest.get("shares", 0))
+            trim_shares = max(10, int(sym_shares * 0.3 / 10) * 10)  # trim 30%
+            if trim_shares > 0 and int(trim_shares * sym_price) >= 200_000:
+                recs.append(_build_neptune_rec(
+                    action="SELL", symbol=sym, shares=trim_shares, price=sym_price,
+                    asset_class="equities",
+                    thesis=(
+                        f"Portfolio drawdown at {drawdown:.2f}% approaching 5% warning band. "
+                        f"Largest position {sym} ({sym_shares:,} shares, ${int(sym_shares * sym_price):,} notional). "
+                        f"Trim 30% to reduce concentration and drawdown exposure."
+                    ),
+                    conviction="HIGH",
+                    signal_sources=["MENTAT-L1", "VERANA-L0"],
+                    risk_factors=["Selling into weakness locks in losses", "Position may recover", "Tax implications"],
+                    first_order=f"SELL {trim_shares:,} {sym} @ ~${sym_price:,.2f} (30% trim). Notional: ${int(trim_shares * sym_price):,}.",
+                    second_order="Reduces portfolio drawdown exposure and largest-position concentration.",
+                    third_order="Defensive posture preserves capital for recovery. Aligns with Mentat risk doctrine.",
+                    ts=ts,
+                ))
+
+    # SIGNAL 4: On-chain gas spike = DeFi stress, potential TradFi spillover
+    if gas_price is not None:
+        try:
+            gas_float = float(gas_price)
+            if gas_float > 50 and "QQQ" in held_symbols:
+                qqq_price = prices.get("QQQ", 450.0)
+                shares = max(50, int(200_000 / qqq_price / 50) * 50)
+                recs.append(_build_neptune_rec(
+                    action="SELL", symbol="QQQ", shares=shares, price=qqq_price,
+                    asset_class="equities",
+                    thesis=(
+                        f"Ethereum gas price spiking at {gas_float:.1f} gwei (normal <20). "
+                        f"On-chain stress often precedes tech equity volatility. "
+                        f"Reduce QQQ exposure as defensive measure."
+                    ),
+                    conviction="LOW",
+                    signal_sources=["BLOCKSCOUT-PIPE-001"],
+                    risk_factors=["Gas spike may be isolated (NFT mint, not systemic)", "Correlation is statistical not causal"],
+                    first_order=f"SELL {shares:,} QQQ @ ~${qqq_price:,.2f}. Notional: ${int(shares * qqq_price):,}.",
+                    second_order="Reduces tech equity beta during on-chain stress event.",
+                    third_order="Neptune cross-domain signal — DeFi stress as leading indicator for TradFi risk.",
+                    ts=ts,
+                ))
+        except (ValueError, TypeError):
+            pass
+
+    # SIGNAL 5: Cash heavy + no fear = deploy capital
+    cash_pct = (cash / pv * 100) if pv > 0 else 0
+    if cash_pct > 60 and fear_level in ("COMPLACENT", "NEUTRAL") and len(positions) < 5:
+        for sym in ["SPY", "QQQ"]:
+            if sym in held_symbols:
+                continue
+            sym_price = prices.get(sym)
+            if not sym_price:
+                continue
+            target_notional = int(pv * 0.08)  # 8% of portfolio
+            shares = max(100, int(target_notional / sym_price / 100) * 100)
+            recs.append(_build_neptune_rec(
+                action="BUY", symbol=sym, shares=shares, price=sym_price,
+                asset_class="equities",
+                thesis=(
+                    f"Portfolio {cash_pct:.0f}% cash with only {len(positions)} positions. "
+                    f"Fear regime {fear_level} — conditions support deployment. "
+                    f"Initiate broad equity exposure via {sym} at 8% target weight."
+                ),
+                conviction="MEDIUM",
+                signal_sources=["MENTAT-L1", "CBOE-PIPE-001"],
+                risk_factors=["Market may be at local top", "Opportunity cost if better entry emerges"],
+                first_order=f"BUY {shares:,} {sym} @ ~${sym_price:,.2f}. Notional: ${int(shares * sym_price):,}.",
+                second_order="Reduces cash drag on portfolio return. Establishes core equity position.",
+                third_order="Moves portfolio from inception cash-heavy state toward target allocation.",
+                ts=ts,
+            ))
+            break
+
+    # ── Insert new recs ────────────────────────────────────────────
+    if recs:
+        with _lock:
+            existing_ids = {r["id"] for r in aureon_state["neptune_recommendations"]}
+            # Dedup by symbol+action
+            existing_sigs = {(r["symbol"], r["action"]) for r in aureon_state["neptune_recommendations"]}
+            for rec in recs:
+                if rec["id"] not in existing_ids and (rec["symbol"], rec["action"]) not in existing_sigs:
+                    if len(aureon_state["neptune_recommendations"]) < NEPTUNE_MAX_RECS:
+                        aureon_state["neptune_recommendations"].append(rec)
+                        _journal("NEPTUNE_REC", "NEPTUNE-SPEAR", rec["symbol"],
+                                 f"Neptune recommendation: {rec['action']} {rec['symbol']} — {rec['conviction']} conviction. "
+                                 f"Thesis: {rec['thesis'][:120]}...",
+                                 outcome="AWAITING_OPERATOR", ref_id=rec["id"])
+                        print(f"[NEPTUNE] Recommendation: {rec['action']} {rec['symbol']} "
+                              f"${rec['notional']:,} — {rec['conviction']} conviction")
+
+
+def _build_neptune_rec(action, symbol, shares, price, asset_class, thesis,
+                        conviction, signal_sources, risk_factors,
+                        first_order, second_order, third_order, ts):
+    """Build a structured Neptune recommendation dict."""
+    notional = int(shares * price)
+    rec_id = f"NPT-{random.randint(0x10000000, 0xFFFFFFFF):X}"
+    return {
+        "id":              rec_id,
+        "action":          action,
+        "symbol":          symbol,
+        "asset_class":     asset_class,
+        "shares":          shares,
+        "price":           round(price, 2),
+        "notional":        notional,
+        "thesis":          thesis,
+        "conviction":      conviction,       # HIGH, MEDIUM, LOW
+        "signal_sources":  signal_sources,    # pipe IDs that contributed
+        "risk_factors":    risk_factors,
+        "signal_brief": {
+            "commanders_intent": f"Neptune Spear: {thesis}",
+            "first_order":       first_order,
+            "second_order":      second_order,
+            "third_order":       third_order,
+            "doctrine_reference": "Neptune Spear — Advisory only, CAOM-001 approval required",
+            "signal_timestamp":   ts,
+        },
+        "status":          "ACTIVE",         # ACTIVE → PROMOTED | DISMISSED
+        "created":         ts,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────
 # 5b. STATE PERSISTENCE
 # ─────────────────────────────────────────────────────────────────
 # Saves/loads critical state so a server restart never wipes trades.
@@ -3566,6 +3834,12 @@ def market_loop():
             # Thifur-H only surfaces signals during US market hours
             if _market_is_open() and random.random() < 0.033:
                 _generate_signal()
+
+            # Neptune Spear origination scan (every NEPTUNE_SCAN_INTERVAL)
+            try:
+                _neptune_scan()
+            except Exception as nex:
+                _log_error("WARN", "neptune_scan", str(nex))
 
         except Exception as exc:
             _log_error("WARN", "market_loop", str(exc))
@@ -5432,6 +5706,121 @@ def api_edgar_institutional_packet():
     institutions = body.get("institutions", None)
     result       = client.get_neptune_institutional_packet(institutions=institutions)
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  NEPTUNE SPEAR — Recommendation Engine Routes
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/api/neptune/recommendations")
+def api_neptune_recommendations():
+    """List active Neptune trade recommendations."""
+    with _lock:
+        recs = [r for r in aureon_state["neptune_recommendations"] if r.get("status") == "ACTIVE"]
+    return jsonify({"recommendations": recs, "count": len(recs)})
+
+
+@app.route("/api/neptune/recommendations/scan", methods=["POST"])
+def api_neptune_scan():
+    """Force an immediate Neptune scan (bypasses interval cooldown)."""
+    global _neptune_last_scan
+    _neptune_last_scan = 0.0  # reset cooldown
+    try:
+        _neptune_scan()
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    with _lock:
+        recs = [r for r in aureon_state["neptune_recommendations"] if r.get("status") == "ACTIVE"]
+    return jsonify({"scanned": True, "recommendations": recs, "count": len(recs)})
+
+
+@app.route("/api/neptune/recommendations/<rec_id>/promote", methods=["POST"])
+def api_neptune_promote(rec_id):
+    """
+    Promote a Neptune recommendation to a governed decision.
+    The recommendation moves from neptune_recommendations to pending_decisions
+    as a PENDING governed decision requiring CAOM-001 approval.
+    """
+    with _lock:
+        rec = None
+        for r in aureon_state["neptune_recommendations"]:
+            if r["id"] == rec_id and r.get("status") == "ACTIVE":
+                rec = r
+                break
+
+        if not rec:
+            return jsonify({"error": f"Recommendation {rec_id} not found or not active"}), 404
+
+        if aureon_state["halt_active"]:
+            return jsonify({"error": "System halted — cannot promote recommendations"}), 409
+
+        if len(aureon_state["pending_decisions"]) >= 4:
+            return jsonify({"error": "Decision queue full (max 4). Approve or reject existing decisions first."}), 409
+
+        # Build governed decision from Neptune recommendation
+        notional = int(rec["shares"] * rec["price"])
+        decision = {
+            "id":                  f"DEC-{random.randint(0x10000000, 0xFFFFFFFF):X}",
+            "action":              rec["action"],
+            "symbol":              rec["symbol"],
+            "asset_class":         rec.get("asset_class", "equities"),
+            "shares":              rec["shares"],
+            "price":               rec["price"],
+            "notional":            notional,
+            "product_type":        "SINGLE_NAME_EQUITY" if rec.get("asset_class") == "equities" else "OUT_OF_SCOPE",
+            "rationale":           f"Neptune Spear ({rec['conviction']} conviction): {rec['thesis']}",
+            "signal_type":         "NEPTUNE",
+            "created":             datetime.now(timezone.utc).isoformat(),
+            "status":              "PENDING",
+            "required_approvals":  ["TRADER"],
+            "current_approvals":   [],
+            "release_target":      "OMS",
+            "mandate_sensitive":   False,
+            "policy_exception":    False,
+            "risk_exception":      notional >= 400000,
+            "pm_signoff_required": False,
+            "control_exception":   False,
+            "financing_relevant":  False,
+            "signal_brief":        rec.get("signal_brief", {}),
+        }
+
+        aureon_state["pending_decisions"].append(decision)
+        rec["status"] = "PROMOTED"
+        rec["promoted_to"] = decision["id"]
+        rec["promoted_at"] = datetime.now(timezone.utc).isoformat()
+
+    _journal("NEPTUNE_PROMOTED", "NEPTUNE-SPEAR", rec["symbol"],
+             f"Neptune rec {rec_id} promoted to governed decision {decision['id']}. "
+             f"{rec['action']} {rec['symbol']} ${notional:,}. Awaiting CAOM-001 approval.",
+             outcome="PENDING_DECISION", ref_id=decision["id"])
+    print(f"[NEPTUNE] Rec {rec_id} promoted → {decision['id']} — "
+          f"{rec['action']} {rec['symbol']} ${notional:,}")
+
+    return jsonify({
+        "status":        "promoted",
+        "rec_id":        rec_id,
+        "decision_id":   decision["id"],
+        "action":        decision["action"],
+        "symbol":        decision["symbol"],
+        "notional":      notional,
+    })
+
+
+@app.route("/api/neptune/recommendations/<rec_id>/dismiss", methods=["POST"])
+def api_neptune_dismiss(rec_id):
+    """Dismiss a Neptune recommendation (operator reviewed, chose not to act)."""
+    with _lock:
+        for r in aureon_state["neptune_recommendations"]:
+            if r["id"] == rec_id and r.get("status") == "ACTIVE":
+                r["status"] = "DISMISSED"
+                r["dismissed_at"] = datetime.now(timezone.utc).isoformat()
+                _journal("NEPTUNE_DISMISSED", "CAOM-001", r["symbol"],
+                         f"Neptune rec {rec_id} dismissed by operator. "
+                         f"{r['action']} {r['symbol']} — thesis: {r['thesis'][:80]}...",
+                         outcome="DISMISSED", ref_id=rec_id)
+                return jsonify({"status": "dismissed", "rec_id": rec_id})
+
+    return jsonify({"error": f"Recommendation {rec_id} not found or not active"}), 404
 
 
 # ─────────────────────────────────────────────────────────────────────────────
