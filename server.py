@@ -5334,7 +5334,15 @@ def api_neptune_flow_alerts():
     limit       = request.args.get("limit", 50, type=int)
     min_premium = request.args.get("min_premium", 25000, type=int)
     ticker      = request.args.get("ticker", None)
-    result = client.get_flow_alerts(limit=limit, min_premium=min_premium, ticker_symbol=ticker)
+    try:
+        result = client.get_flow_alerts(limit=limit, min_premium=min_premium, ticker_symbol=ticker)
+    except RuntimeError:
+        return jsonify({
+            "status":  "unavailable",
+            "reason":  "UW_API_TOKEN not configured",
+            "data":    [],
+            "message": "Add UW_API_TOKEN to Railway Variables to enable this feature",
+        }), 200
     if "error" in result:
         return jsonify(result), 502
     return jsonify(result)
@@ -5348,10 +5356,18 @@ def api_neptune_darkpool():
         return jsonify({"error": "Neptune pipe not initialized"}), 503
     limit  = request.args.get("limit", 50, type=int)
     ticker = request.args.get("ticker", None)
-    if ticker:
-        result = client.get_darkpool_ticker(ticker)
-    else:
-        result = client.get_darkpool_recent(limit=limit)
+    try:
+        if ticker:
+            result = client.get_darkpool_ticker(ticker)
+        else:
+            result = client.get_darkpool_recent(limit=limit)
+    except RuntimeError:
+        return jsonify({
+            "status":  "unavailable",
+            "reason":  "UW_API_TOKEN not configured",
+            "data":    [],
+            "message": "Add UW_API_TOKEN to Railway Variables to enable this feature",
+        }), 200
     if "error" in result:
         return jsonify(result), 502
     return jsonify(result)
@@ -5363,7 +5379,15 @@ def api_neptune_market_tide():
     client = get_neptune_client()
     if client is None:
         return jsonify({"error": "Neptune pipe not initialized"}), 503
-    result = client.get_market_tide()
+    try:
+        result = client.get_market_tide()
+    except RuntimeError:
+        return jsonify({
+            "status":  "unavailable",
+            "reason":  "UW_API_TOKEN not configured",
+            "data":    [],
+            "message": "Add UW_API_TOKEN to Railway Variables to enable this feature",
+        }), 200
     if "error" in result:
         return jsonify(result), 502
     return jsonify(result)
@@ -5514,7 +5538,15 @@ def api_alpaca_snapshots():
     if client is None:
         return jsonify({"error": "Alpaca pipe not initialized"}), 503
     symbols = request.args.get("symbols", "SPY,QQQ")
-    result  = client.get_snapshots([s.strip() for s in symbols.split(",")])
+    try:
+        result = client.get_snapshots([s.strip() for s in symbols.split(",")])
+    except RuntimeError:
+        return jsonify({
+            "status":  "unavailable",
+            "reason":  "ALPACA_API_KEY / ALPACA_API_SECRET not configured",
+            "data":    [],
+            "message": "Add ALPACA_API_KEY and ALPACA_API_SECRET to Railway Variables to enable this feature",
+        }), 200
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
