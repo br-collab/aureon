@@ -74,6 +74,10 @@ from aureon.config.neptune_spear import get_neptune_source_document_text, get_ne
 from aureon.config.thifur_c2_doctrine import get_c2_source_document_text, get_c2_doctrine_declaration
 from aureon.mcp.server import mcp_bp, init_mcp
 from aureon.mcp.neptune_client import init_neptune_pipe, get_client as get_neptune_client, pipe_status as neptune_pipe_status
+from aureon.mcp.tradier_client import init_tradier_pipe, get_client as get_tradier_client, pipe_status as tradier_pipe_status
+from aureon.mcp.alpaca_client  import init_alpaca_pipe,  get_client as get_alpaca_client,  pipe_status as alpaca_pipe_status
+from aureon.mcp.cboe_client    import init_cboe_pipe,    get_client as get_cboe_client,    pipe_status as cboe_pipe_status
+from aureon.mcp.edgar_client   import init_edgar_pipe,   get_client as get_edgar_client,   pipe_status as edgar_pipe_status
 from aureon.persistence.store import load_state as persistence_load_state, save_state as persistence_save_state
 from aureon.policy_engine.service import evaluate_pretrade_decision
 from aureon.evidence_service.service import build_trade_report as evidence_build_trade_report
@@ -3510,13 +3514,20 @@ def run_doctrine_stack():
     init_mcp(aureon_state, _lock, OFAC_BLOCKED_ISINS)
     print("[AUREON] MCP server initialized — Phase 1 Verana L0 — POST /mcp")
 
-    # ── Initialize Neptune Spear data pipe ────────────────────────
-    # Unusual Whales REST adapter — requires UW_API_TOKEN env var.
-    # Pipe initializes in degraded mode (no token) and upgrades to
-    # live once the token is present without requiring a restart.
+    # ── Initialize Neptune Spear data pipes ───────────────────────
+    # All five pipes initialize at startup. CBOE + EDGAR require no
+    # credentials and are always live. Unusual Whales, Tradier, and
+    # Alpaca degrade gracefully until tokens are added to env vars.
     init_neptune_pipe()
-    ps = neptune_pipe_status()
-    print(f"[AUREON] Neptune pipe status: {ps['status']} — source: {ps['source']}")
+    init_tradier_pipe()
+    init_alpaca_pipe()
+    init_cboe_pipe()
+    init_edgar_pipe()
+    for _ps in (
+        neptune_pipe_status(), tradier_pipe_status(),
+        alpaca_pipe_status(),  cboe_pipe_status(), edgar_pipe_status(),
+    ):
+        print(f"[AUREON] Pipe [{_ps['pipe_id']}] {_ps['status'].upper()} — {_ps['source']}")
 
 
 def market_loop():
@@ -5111,6 +5122,313 @@ def api_neptune_packet():
     if "error" in result:
         return jsonify(result), 502
     return jsonify(result)
+
+
+# ─────────────────────────────────────────────────────────────────
+# TRADIER — OPTIONS CHAINS + GREEKS + IV SURFACE
+# Requires TRADIER_API_TOKEN env var. Free paper account at tradier.com.
+# ─────────────────────────────────────────────────────────────────
+
+@app.route("/api/neptune/tradier/status")
+def api_tradier_status():
+    """Tradier pipe health — token presence, live vs sandbox."""
+    return jsonify(tradier_pipe_status())
+
+
+@app.route("/api/neptune/tradier/quotes")
+def api_tradier_quotes():
+    """Real-time equity quotes. ?symbols=AAPL,MSFT"""
+    client = get_tradier_client()
+    if client is None:
+        return jsonify({"error": "Tradier pipe not initialized"}), 503
+    symbols = request.args.get("symbols", "SPY")
+    result  = client.get_quotes([s.strip() for s in symbols.split(",")])
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/tradier/expirations")
+def api_tradier_expirations():
+    """Options expiration dates. ?symbol=SPY"""
+    client = get_tradier_client()
+    if client is None:
+        return jsonify({"error": "Tradier pipe not initialized"}), 503
+    symbol = request.args.get("symbol", "SPY")
+    result = client.get_options_expirations(symbol)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/tradier/chain")
+def api_tradier_chain():
+    """Full options chain. ?symbol=SPY&expiration=2026-05-16"""
+    client = get_tradier_client()
+    if client is None:
+        return jsonify({"error": "Tradier pipe not initialized"}), 503
+    symbol     = request.args.get("symbol", "SPY")
+    expiration = request.args.get("expiration")
+    if not expiration:
+        return jsonify({"error": "expiration required (YYYY-MM-DD)"}), 400
+    result = client.get_options_chain(symbol, expiration, greeks=True)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/tradier/iv-surface")
+def api_tradier_iv_surface():
+    """IV surface across all expirations. ?symbol=SPY"""
+    client = get_tradier_client()
+    if client is None:
+        return jsonify({"error": "Tradier pipe not initialized"}), 503
+    symbol = request.args.get("symbol", "SPY")
+    result = client.get_iv_surface(symbol)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/tradier/stress-packet", methods=["POST"])
+def api_tradier_stress_packet():
+    """
+    Thifur stress-test data packet. Body: {"symbols": ["AAPL","NVDA"]}
+    Returns quotes, nearest-expiry chain with greeks, and HV for each symbol.
+    """
+    client = get_tradier_client()
+    if client is None:
+        return jsonify({"error": "Tradier pipe not initialized"}), 503
+    body    = request.get_json(silent=True) or {}
+    symbols = body.get("symbols", [])
+    if not symbols:
+        return jsonify({"error": "symbols list is required"}), 400
+    result = client.get_thifur_stress_packet(
+        symbols    = symbols,
+        expiration = body.get("expiration"),
+    )
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+# ─────────────────────────────────────────────────────────────────
+# ALPACA — PRICE BARS + SNAPSHOTS + NEWS
+# Requires ALPACA_API_KEY + ALPACA_API_SECRET env vars.
+# Free paper trading account at alpaca.markets.
+# ─────────────────────────────────────────────────────────────────
+
+@app.route("/api/neptune/alpaca/status")
+def api_alpaca_status():
+    """Alpaca pipe health — key presence."""
+    return jsonify(alpaca_pipe_status())
+
+
+@app.route("/api/neptune/alpaca/bars")
+def api_alpaca_bars():
+    """OHLCV price bars. ?symbols=SPY,QQQ&timeframe=1Day&limit=252"""
+    client = get_alpaca_client()
+    if client is None:
+        return jsonify({"error": "Alpaca pipe not initialized"}), 503
+    symbols   = request.args.get("symbols", "SPY")
+    timeframe = request.args.get("timeframe", "1Day")
+    limit     = request.args.get("limit", 252, type=int)
+    result    = client.get_bars(
+        [s.strip() for s in symbols.split(",")],
+        timeframe=timeframe, limit=limit,
+    )
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/alpaca/snapshots")
+def api_alpaca_snapshots():
+    """Latest quote + trade + bar snapshot. ?symbols=AAPL,MSFT"""
+    client = get_alpaca_client()
+    if client is None:
+        return jsonify({"error": "Alpaca pipe not initialized"}), 503
+    symbols = request.args.get("symbols", "SPY,QQQ")
+    result  = client.get_snapshots([s.strip() for s in symbols.split(",")])
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/alpaca/news")
+def api_alpaca_news():
+    """News feed. ?symbols=NVDA,AAPL&limit=20"""
+    client = get_alpaca_client()
+    if client is None:
+        return jsonify({"error": "Alpaca pipe not initialized"}), 503
+    symbols = request.args.get("symbols", None)
+    limit   = request.args.get("limit", 20, type=int)
+    sym_list = [s.strip() for s in symbols.split(",")] if symbols else None
+    result   = client.get_news(sym_list, limit=limit)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/alpaca/packet", methods=["POST"])
+def api_alpaca_packet():
+    """
+    Full Alpaca Neptune packet. Body: {"symbols": ["SPY","QQQ","NVDA"]}
+    Returns snapshots, 1-year daily bars, and news.
+    """
+    client = get_alpaca_client()
+    if client is None:
+        return jsonify({"error": "Alpaca pipe not initialized"}), 503
+    body    = request.get_json(silent=True) or {}
+    symbols = body.get("symbols", [])
+    if not symbols:
+        return jsonify({"error": "symbols list is required"}), 400
+    result = client.get_neptune_ingestion_packet(
+        symbols    = symbols,
+        bar_limit  = body.get("bar_limit", 252),
+        news_limit = body.get("news_limit", 20),
+    )
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+# ─────────────────────────────────────────────────────────────────
+# CBOE — VIX TERM STRUCTURE + PUT/CALL RATIOS
+# No API key required. Public CBOE CDN data.
+# ─────────────────────────────────────────────────────────────────
+
+@app.route("/api/neptune/cboe/status")
+def api_cboe_status():
+    """CBOE pipe health — always live (no auth required)."""
+    return jsonify(cboe_pipe_status())
+
+
+@app.route("/api/neptune/cboe/vix")
+def api_cboe_vix():
+    """VIX daily history. ?limit=252"""
+    client = get_cboe_client()
+    if client is None:
+        return jsonify({"error": "CBOE pipe not initialized"}), 503
+    limit  = request.args.get("limit", 252, type=int)
+    result = client.get_vix_history(limit=limit)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/cboe/index")
+def api_cboe_index():
+    """Any CBOE index history. ?index=SKEW&limit=30. Valid: VIX,VIX9D,VIX3M,VIX6M,VVIX,SKEW,MOVE"""
+    client = get_cboe_client()
+    if client is None:
+        return jsonify({"error": "CBOE pipe not initialized"}), 503
+    index  = request.args.get("index", "VIX")
+    limit  = request.args.get("limit", 252, type=int)
+    result = client.get_index_history(index, limit=limit)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/cboe/term-structure")
+def api_cboe_term_structure():
+    """VIX term structure with contango/backwardation signal. ?lookback=30"""
+    client = get_cboe_client()
+    if client is None:
+        return jsonify({"error": "CBOE pipe not initialized"}), 503
+    lookback = request.args.get("lookback", 30, type=int)
+    result   = client.get_vix_term_structure(lookback_days=lookback)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/cboe/put-call")
+def api_cboe_put_call():
+    """All put/call ratios. ?lookback=30"""
+    client = get_cboe_client()
+    if client is None:
+        return jsonify({"error": "CBOE pipe not initialized"}), 503
+    lookback = request.args.get("lookback", 30, type=int)
+    result   = client.get_put_call_ratios(limit=lookback)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/cboe/fear-packet")
+def api_cboe_fear_packet():
+    """
+    Full Thifur fear gauge packet — VIX term structure + P/C ratios + SKEW + VVIX.
+    Returns composite fear_level: COMPLACENT | NEUTRAL | HEIGHTENED | ELEVATED.
+    ?lookback=30
+    """
+    client   = get_cboe_client()
+    if client is None:
+        return jsonify({"error": "CBOE pipe not initialized"}), 503
+    lookback = request.args.get("lookback", 30, type=int)
+    result   = client.get_thifur_fear_packet(lookback_days=lookback)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+# ─────────────────────────────────────────────────────────────────
+# SEC EDGAR — 13F INSTITUTIONAL HOLDINGS + INSIDER TRANSACTIONS
+# No API key required. Public SEC EDGAR data.
+# Rate limit: 10 req/sec (SEC fair access policy).
+# ─────────────────────────────────────────────────────────────────
+
+@app.route("/api/neptune/edgar/status")
+def api_edgar_status():
+    """EDGAR pipe health — always live (no auth required)."""
+    return jsonify(edgar_pipe_status())
+
+
+@app.route("/api/neptune/edgar/submissions")
+def api_edgar_submissions():
+    """Company filing history. ?cik=0001067983"""
+    client = get_edgar_client()
+    if client is None:
+        return jsonify({"error": "EDGAR pipe not initialized"}), 503
+    cik    = request.args.get("cik")
+    if not cik:
+        return jsonify({"error": "cik required"}), 400
+    result = client.get_company_submissions(cik)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/edgar/13f")
+def api_edgar_13f():
+    """Recent 13F filings for an institution. ?cik=0001067983&count=4"""
+    client = get_edgar_client()
+    if client is None:
+        return jsonify({"error": "EDGAR pipe not initialized"}), 503
+    cik   = request.args.get("cik")
+    count = request.args.get("count", 4, type=int)
+    if not cik:
+        return jsonify({"error": "cik required"}), 400
+    result = client.get_13f_filings(cik, count=count)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/edgar/insider")
+def api_edgar_insider():
+    """Recent Form 4 insider transactions. ?cik=0000320193&count=10"""
+    client = get_edgar_client()
+    if client is None:
+        return jsonify({"error": "EDGAR pipe not initialized"}), 503
+    cik   = request.args.get("cik")
+    count = request.args.get("count", 10, type=int)
+    if not cik:
+        return jsonify({"error": "cik required"}), 400
+    result = client.get_insider_transactions(cik, count=count)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/edgar/search")
+def api_edgar_search():
+    """Full-text EDGAR search. ?q=semiconductor&form=13F-HR"""
+    client = get_edgar_client()
+    if client is None:
+        return jsonify({"error": "EDGAR pipe not initialized"}), 503
+    q         = request.args.get("q", "")
+    form_type = request.args.get("form", "13F-HR")
+    limit     = request.args.get("limit", 10, type=int)
+    if not q:
+        return jsonify({"error": "q (query) required"}), 400
+    result = client.search_filings(q, form_type=form_type, limit=limit)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+
+
+@app.route("/api/neptune/edgar/institutional-packet", methods=["POST"])
+def api_edgar_institutional_packet():
+    """
+    Full Neptune institutional intelligence packet.
+    Body: {"institutions": ["berkshire","bridgewater","citadel"]}
+    Default: berkshire, bridgewater, citadel, two_sigma, tiger_global.
+    Returns latest 13F metadata + EDGAR links for each institution.
+    """
+    client = get_edgar_client()
+    if client is None:
+        return jsonify({"error": "EDGAR pipe not initialized"}), 503
+    body         = request.get_json(silent=True) or {}
+    institutions = body.get("institutions", None)
+    result       = client.get_neptune_institutional_packet(institutions=institutions)
+    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
 @app.route("/framework-brief")
