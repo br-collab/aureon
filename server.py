@@ -70,6 +70,8 @@ from datetime import datetime, timedelta, timezone, time as dt_time
 import zoneinfo
 from flask import Flask, Response, jsonify, send_from_directory, request
 from aureon.config.settings import LOG_FILE, STATE_FILE
+from aureon.config.neptune_spear import get_neptune_source_document_text, get_neptune_declaration
+from aureon.config.thifur_c2_doctrine import get_c2_source_document_text, get_c2_doctrine_declaration
 from aureon.persistence.store import load_state as persistence_load_state, save_state as persistence_save_state
 from aureon.policy_engine.service import evaluate_pretrade_decision
 from aureon.evidence_service.service import build_trade_report as evidence_build_trade_report
@@ -282,6 +284,22 @@ aureon_state = {
             "tier":      "Tier 1 — Human Authority",
             "trigger":   "HUMAN_AUTHORITY",
             "reason":    "Basel III Endgame vs EU CRR III conflict resolved. Apply HIGHER RWA standard.",
+        },
+        {
+            "version":   "1.3",
+            "prev":      "1.2",
+            "hash":      hashlib.sha256(b"AUREON-DOCTRINE-1.3-NEPTUNE-C2").hexdigest()[:16].upper(),
+            "ts":        datetime.now(timezone.utc).isoformat(),
+            "authority": "Guillermo Ravelo (CAOM-001)",
+            "tier":      "Tier 1 — Human Authority",
+            "trigger":   "HUMAN_AUTHORITY",
+            "reason":    (
+                "Two doctrine documents registered: Thifur-Neptune Spear (Alpha Generator "
+                "origination agent, Draft 1.0) and Thifur-C2 (Command and Control doctrine, "
+                "Draft 1.0). Neptune Spear added above execution triplet. Authority chain "
+                "formalized: Neptune → Operator → Kaladan → C2 → R/J/H. Five Immutable Stops "
+                "codified in C2 doctrine. CAOM agent advisory updated to reflect Neptune."
+            ),
         },
     ],
 
@@ -3327,6 +3345,66 @@ def _log_error(level: str, source: str, message: str):
 # 6. BACKGROUND JOBS
 # ─────────────────────────────────────────────────────────────────
 
+def _register_doctrine_documents():
+    """
+    Auto-register Aureon doctrine docs in the knowledge base (source_documents).
+
+    Called at the end of run_doctrine_stack() on every startup. Uses
+    _register_source_document() with source_type="doctrine" so these
+    appear as a distinct class from uploaded thesis memos.
+
+    Documents registered:
+      - Thifur-Neptune Spear Draft 1.0 (Alpha Generator doctrine)
+      - Thifur-C2 Draft 1.0 (Command and Control doctrine)
+    """
+    neptune_text = get_neptune_source_document_text()
+    _register_source_document(
+        title       = "Thifur-Neptune Spear — Alpha Generator Doctrine (Draft 1.0)",
+        source_type = "doctrine",
+        source_name = "Thifur-Neptune-Spear-Doctrine.docx",
+        content_text = neptune_text,
+        analysis    = {
+            "title":              "Thifur-Neptune Spear — Alpha Generator Doctrine",
+            "summary":            (
+                "Origination intelligence agent above the Thifur execution triplet. "
+                "Generates investment theses, market intelligence, and product "
+                "recommendations. Every output requires human authority approval. "
+                "Neptune never self-executes. Authority chain: Neptune → Operator → "
+                "Kaladan → Thifur-C2 → execution agents."
+            ),
+            "governance_status":  "DOCTRINE REGISTERED — HITL ENFORCED",
+            "risk_classification": "Origination Layer — Pre-Approval Intelligence",
+            "stance":             "Alpha Generation",
+            "conviction_score":   9,
+            "source_file":        "Thifur-Neptune-Spear-Doctrine.docx",
+        },
+    )
+
+    c2_text = get_c2_source_document_text()
+    _register_source_document(
+        title       = "Thifur-C2 — Command and Control Doctrine (Draft 1.0)",
+        source_type = "doctrine",
+        source_name = "Thifur-C2-Doctrine.docx",
+        content_text = c2_text,
+        analysis    = {
+            "title":              "Thifur-C2 — Command and Control Doctrine",
+            "summary":            (
+                "C2 sequences, coordinates, records handoffs, assembles unified lineage, "
+                "and presents a single human authority surface across all execution agents. "
+                "Five Immutable Stops govern all C2 behavior. C2 is the sole coordination "
+                "point at the TradFi-DeFi boundary. Makes the Aureon architecture auditable "
+                "at institutional scale."
+            ),
+            "governance_status":  "DOCTRINE REGISTERED — FIVE IMMUTABLE STOPS ACTIVE",
+            "risk_classification": "Execution Coordination Layer",
+            "stance":             "Governance Infrastructure",
+            "conviction_score":   10,
+            "source_file":        "Thifur-C2-Doctrine.docx",
+        },
+    )
+    print("[AUREON] Doctrine knowledge base: Thifur-Neptune Spear + Thifur-C2 registered")
+
+
 def run_doctrine_stack():
     """
     The full L0 → L3 doctrine cycle.
@@ -3354,17 +3432,17 @@ def run_doctrine_stack():
 
     # Audit hash = SHA-256 fingerprint of the doctrine seed
     # In a real system this would hash the actual execution trace
-    audit_hash = hashlib.sha256(b"AUREON-DOCTRINE-1.2").hexdigest()[:40].upper()
+    audit_hash = hashlib.sha256(b"AUREON-DOCTRINE-1.3-NEPTUNE-C2").hexdigest()[:40].upper()
 
     stack_result = {
         "integrity":        "PASS",
-        "doctrine_version": "1.2",
+        "doctrine_version": "1.3",
         "audit_hash":       audit_hash,
         "layers": {
             "verana":    {"status": "COMPLETE", "nodes": 15, "phase": "RECOVER"},
-            "mentat":    {"status": "COMPLETE", "doctrine": "1.2", "decisions": 9},
+            "mentat":    {"status": "COMPLETE", "doctrine": "1.3", "decisions": 9},
             "kaladan":   {"status": "COMPLETE", "executions": 6},
-            "thifur":    {"status": "COMPLETE", "R": 2, "J": 4, "H": 0},
+            "thifur":    {"status": "COMPLETE", "R": 2, "J": 4, "H": 0, "C2": 1, "NEPTUNE": 1},
             "telemetry": {"status": "COMPLETE", "signals": 6},
         },
     }
@@ -3379,7 +3457,7 @@ def run_doctrine_stack():
 
     with _lock:
         aureon_state["stack_status"]     = "ready"
-        aureon_state["doctrine_version"] = "1.2"
+        aureon_state["doctrine_version"] = "1.3"
         aureon_state["stack_result"]     = stack_result
         aureon_state["audit"]            = audit_hash
         aureon_state["last_stack_run"]   = datetime.now(timezone.utc).isoformat()
@@ -3411,8 +3489,13 @@ def run_doctrine_stack():
             aureon_state["pending_decisions"] = [dict(d) for d in PENDING_DECISIONS_INIT]
 
     n_pos = len(aureon_state["positions"])
-    print(f"[AUREON] Stack complete — doctrine v1.2 active — audit: {audit_hash[:12]}...")
+    print(f"[AUREON] Stack complete — doctrine v1.3 active — audit: {audit_hash[:12]}...")
     print(f"[AUREON] Portfolio: {n_pos} positions | Cash: ${aureon_state['cash']:,.0f}")
+
+    # ── Register doctrine documents in knowledge base ──────────────
+    # Thifur-Neptune Spear and Thifur-C2 doctrine are auto-ingested
+    # at every startup so they are always present in source_documents.
+    _register_doctrine_documents()
 
 
 def market_loop():
