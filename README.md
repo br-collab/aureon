@@ -281,6 +281,11 @@ The Grid 3/
   aureon/
     config/
       caom.py
+      neptune_spear.py
+      thifur_c2_doctrine.py
+    mcp/
+      __init__.py
+      server.py
     session/
       session_protocol.py
     approval_service/
@@ -294,11 +299,162 @@ Current file roles:
 - `fix_adapter.py`: FIX translation stub for OMS/EMS integration boundary exploration
 - `aureon_state_persist.json`: local persisted runtime state
 - `aureon/config/caom.py`: CAOM-001 Consolidated Authority Operating Mode configuration
+- `aureon/config/neptune_spear.py`: Thifur-Neptune Spear doctrine declaration and knowledge base text
+- `aureon/config/thifur_c2_doctrine.py`: Thifur-C2 Command and Control doctrine declaration
+- `aureon/mcp/server.py`: MCP server — Phase 1 Verana L0 (JSON-RPC 2.0 over HTTP, `POST /mcp`)
 - `aureon/session/session_protocol.py`: six-step session auto-complete protocol
 - `aureon/approval_service/release_control.py`: governed release control and approval lineage
 - `scripts/`: local startup helpers
 
 Phase 5 will refactor this structure to better separate decision orchestration, policy/risk checks, approvals, integration adapters, evidence services, presentation, and infrastructure concerns.
+
+---
+
+## MCP Integration Layer
+
+Aureon exposes a Model Context Protocol (MCP) server, enabling external AI agents, Claude Desktop, and data infrastructure to interact with the governance stack through a structured, auditable interface. The MCP layer does not bypass doctrine — every resource read and tool call reflects live system state and authority constraints.
+
+**Transport:** Streamable HTTP — JSON-RPC 2.0 over `POST /mcp`  
+**Discovery:** `GET /mcp` returns server info and capability index  
+**Spec:** MCP protocol version `2024-11-05`
+
+---
+
+### MCP Server Agents (expose resources + tools)
+
+| Agent | Phase | Endpoint | What It Exposes |
+|---|---|---|---|
+| **Verana L0** | Phase 1 — Live | `POST /mcp` | Network Registry, Regulatory Frameworks, OFAC Screening List, Compliance Alerts, Doctrine Status |
+| **Kaladan L2** | Phase 2 — Planned | `POST /mcp` | DSOR records, approval lineage, lifecycle status, evidence packages |
+| **Thifur (R/J/H/C2)** | Phase 3 — Planned | `POST /mcp` | Advisory outputs, handoff records, unified lineage, execution telemetry |
+
+### MCP Client Agents (consume external MCP servers)
+
+| Agent | What It Consumes | Why |
+|---|---|---|
+| **Neptune Spear** | External market data pipes, alternative data, onchain feeds via MCP | Structured, auditable data ingestion with full provenance — replaces raw API polling |
+| **Mentat L1** | Regulatory publication feeds, SEC/ESMA/FRB document streams | Doctrine updates require traceable source documents |
+| **Verana L0** | OFAC SDN list updates, DORA/MiFID II regulatory change feeds | Network Registry must absorb external regulatory changes with lineage |
+
+---
+
+### Verana L0 — Phase 1 Connection Schema
+
+```
+MCP Client (Claude Desktop / external agent / Neptune Spear)
+  │
+  │  POST /mcp
+  │  Content-Type: application/json
+  │  {"jsonrpc": "2.0", "id": "1", "method": "initialize", "params": {...}}
+  │
+  ▼
+Aureon MCP Server (aureon/mcp/server.py)
+  │
+  ├── resources/list     → 5 Verana resources
+  ├── resources/read     → live aureon_state data
+  ├── tools/list         → 4 Verana tools
+  └── tools/call         → governed tool execution
+```
+
+**Resources available:**
+
+```
+aureon://verana/network-registry        — node counts, agent roster, doctrine version
+aureon://verana/regulatory-frameworks   — SR 11-7, OCC 2023-17, BCBS 239, MiFID II, DORA, EU AI Act
+aureon://verana/ofac-screening-list     — OFAC SDN blocked identifiers with sanction basis
+aureon://verana/compliance-alerts       — live alert feed, drawdown state, halt status
+aureon://verana/doctrine-status         — doctrine version, audit hash, version log
+```
+
+**Tools available:**
+
+```
+verana_screen_ofac(identifier)          — Gate 5 OFAC SDN screen — returns PASS or BLOCKED
+verana_framework_status(framework)      — query specific regulatory framework status
+verana_node_status()                    — network operational posture
+verana_compliance_snapshot()            — full Verana governance picture in one call
+```
+
+**Example — initialize:**
+```json
+POST /mcp
+{"jsonrpc": "2.0", "id": "1", "method": "initialize",
+ "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+            "clientInfo": {"name": "claude-desktop", "version": "1.0"}}}
+```
+
+**Example — OFAC screen:**
+```json
+{"jsonrpc": "2.0", "id": "2", "method": "tools/call",
+ "params": {"name": "verana_screen_ofac", "arguments": {"identifier": "MSFT"}}}
+```
+
+**Example — read network registry:**
+```json
+{"jsonrpc": "2.0", "id": "3", "method": "resources/read",
+ "params": {"uri": "aureon://verana/network-registry"}}
+```
+
+---
+
+### Neptune Spear — External Data Pipe Architecture
+
+Neptune Spear is the highest-intelligence origination agent in the architecture. In Phase 2 activation, Neptune consumes external data sources via MCP clients — giving every data input a structured, auditable provenance trail.
+
+```
+External Data Sources (MCP Servers)
+  ├── Market Data MCP      — Twelve Data / Bloomberg feeds structured as MCP resources
+  ├── Onchain Data MCP     — DeFi protocol state, token flows, liquidity depth
+  ├── Macro Intelligence MCP — Fed publications, ECB releases, BIS working papers
+  ├── Alternative Data MCP — satellite, credit card, shipping, sentiment feeds
+  └── Regulatory Feed MCP  — SEC EDGAR, ESMA register, FRB supervisory publications
+          │
+          │  MCP resources/read + tools/call
+          ▼
+  Neptune Spear (MCP Client)
+  Synthesizes across all feeds → generates investment thesis
+          │
+          │  Recommendation + full analytical lineage
+          ▼
+  Human Authority (CAOM-001 operator approval required)
+          │
+          │  Approved output
+          ▼
+  Kaladan L2 → Thifur-C2 → R / J / H
+```
+
+**Why MCP for Neptune's data pipes:**
+- Every data source is a named, versioned MCP resource — not a raw API call
+- Full provenance trail: which data, from which server, at which timestamp
+- If a regulator asks "what data did Neptune use for this recommendation?" — the MCP resource URI is the answer
+- Same HITL guardrail applies: Neptune synthesizes, operator approves, nothing executes autonomously
+
+---
+
+### Phase 2 — Kaladan DSOR Records Schema (planned)
+
+```
+aureon://kaladan/dsor/{decision_id}     — full governed decision record
+aureon://kaladan/dsor/recent            — last 50 DSOR records
+aureon://kaladan/lifecycle/{id}         — lifecycle object state
+aureon://kaladan/evidence/{id}          — compliance evidence package
+```
+
+### Phase 3 — Thifur Advisory Outputs Schema (planned)
+
+```
+aureon://thifur/c2/status               — C2 operational status, active tasks
+aureon://thifur/c2/handoff-log          — recent handoff records
+aureon://thifur/r/settlement/{id}       — settlement preparation package
+aureon://thifur/j/pretrade/{id}         — pre-trade structuring output
+```
+
+Tools planned:
+```
+thifur_c2_get_lineage(task_id)          — retrieve unified lineage record
+thifur_j_pretrade_screen(decision)      — run pre-trade gate sequence
+thifur_r_settlement_status(decision_id) — settlement readiness check
+```
 
 ---
 

@@ -235,6 +235,19 @@
   .arch-layer.kaladan { border-left: 3px solid #10b981; }
   .arch-layer.c2      { border-left: 3px solid var(--blue-bright); }
   .arch-layer.thifur  { border-left: 3px solid #f43f5e; }
+  .mcp-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 3px; margin-top: 8px;
+    background: rgba(6,182,212,0.12); color: var(--cyan);
+    border: 1px solid rgba(6,182,212,0.25);
+  }
+  .mcp-badge.planned {
+    background: rgba(148,163,184,0.08); color: var(--grey);
+    border-color: rgba(148,163,184,0.2);
+  }
+  .mcp-badge::before { content: '⬡'; font-size: 8px; }
 
   .arch-alt {
     padding: 20px 16px;
@@ -536,6 +549,7 @@
       <div class="arch-body">
         <h4>Alpha Origination Layer — NEW</h4>
         <p>Systematic signal generation, predictive analytics, 24/7 market intelligence across real-time and onchain data pipes, product recommendations. Every output is advisory — full analytical lineage required before any recommendation surfaces to human authority. Neptune never self-executes.</p>
+        <div class="mcp-badge planned">MCP Client — Phase 2 · Consumes external data pipes</div>
       </div>
       <div class="arch-reg">
         <div class="reg-label">Regulatory</div>
@@ -556,6 +570,7 @@
       <div class="arch-body">
         <h4>Network Governance Layer</h4>
         <p>Network governance, vendor and counterparty boundaries, jurisdictional escalation, and system-wide control posture. Eight immutable principles. No unregistered node may participate in any workflow.</p>
+        <div class="mcp-badge">MCP Server — Live · POST /mcp · 5 resources · 4 tools</div>
       </div>
       <div class="arch-reg">
         <div class="reg-label">Regulatory</div>
@@ -593,6 +608,7 @@
       <div class="arch-body">
         <h4>Lifecycle Orchestration Layer</h4>
         <p>Lifecycle orchestration across routing, approval lineage, evidence packaging, DSOR record assembly, and downstream status attachment. Governed intent packet before any execution agent receives a tasking.</p>
+        <div class="mcp-badge planned">MCP Server — Phase 2 · DSOR records · Lifecycle state</div>
       </div>
       <div class="arch-reg">
         <div class="reg-label">Regulatory</div>
@@ -632,6 +648,7 @@
       <div class="arch-body">
         <h4>Bounded Execution Agents</h4>
         <p>Thifur-R (Ranger) — deterministic settlement, zero variance. Thifur-J (JTAC) — bounded autonomy, TradFi-DeFi convergence. Thifur-H (Hunter-Killer) — adaptive optimization, declared Phase 2. All agents advisory. Authority never leaves the governed system.</p>
+        <div class="mcp-badge planned">MCP Server — Phase 3 · Advisory outputs · Handoff records · Lineage</div>
       </div>
       <div class="arch-reg">
         <div class="reg-label">Regulatory</div>
@@ -703,6 +720,94 @@
   </table>
 </section>
 
+<!-- MCP INTEGRATION LAYER -->
+<section>
+  <div class="section-label">Integration</div>
+  <h2>MCP Integration Layer</h2>
+  <p style="color:var(--grey); margin-bottom: 32px; font-size: 14px; max-width: 720px;">
+    Aureon exposes a Model Context Protocol (MCP) server — enabling external AI agents, Claude Desktop, and data infrastructure to interact with the governance stack through a structured, auditable interface. Every resource read and tool call reflects live system state and authority constraints. The MCP layer does not bypass doctrine.
+  </p>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 32px;">
+
+    <div style="background: rgba(6,182,212,0.05); border: 1px solid rgba(6,182,212,0.2); border-radius: 8px; padding: 24px;">
+      <div style="font-family: 'DM Mono', monospace; font-size: 10px; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px;">MCP Servers — Expose</div>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div>
+          <div style="font-weight: 500; font-size: 14px; margin-bottom: 3px;">Verana L0 <span style="font-family:'DM Mono',monospace; font-size:10px; background:rgba(6,182,212,0.15); color:var(--cyan); padding:2px 6px; border-radius:3px; margin-left:6px;">LIVE</span></div>
+          <div style="color:var(--grey); font-size:13px;">Network Registry · Regulatory Frameworks · OFAC List · Compliance Alerts · Doctrine Status</div>
+          <div style="font-family:'DM Mono',monospace; font-size:11px; color:var(--grey-light); margin-top:4px;">POST /mcp · 5 resources · 4 tools</div>
+        </div>
+        <div>
+          <div style="font-weight: 500; font-size: 14px; margin-bottom: 3px;">Kaladan L2 <span style="font-family:'DM Mono',monospace; font-size:10px; background:rgba(148,163,184,0.1); color:var(--grey); padding:2px 6px; border-radius:3px; margin-left:6px;">Phase 2</span></div>
+          <div style="color:var(--grey); font-size:13px;">DSOR records · Approval lineage · Lifecycle state · Evidence packages</div>
+        </div>
+        <div>
+          <div style="font-weight: 500; font-size: 14px; margin-bottom: 3px;">Thifur R/J/H/C2 <span style="font-family:'DM Mono',monospace; font-size:10px; background:rgba(148,163,184,0.1); color:var(--grey); padding:2px 6px; border-radius:3px; margin-left:6px;">Phase 3</span></div>
+          <div style="color:var(--grey); font-size:13px;">Advisory outputs · Handoff records · Unified lineage · Execution telemetry</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.18); border-radius: 8px; padding: 24px;">
+      <div style="font-family: 'DM Mono', monospace; font-size: 10px; color: var(--gold); text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px;">MCP Clients — Consume</div>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div>
+          <div style="font-weight: 500; font-size: 14px; margin-bottom: 3px;">Neptune Spear <span style="font-family:'DM Mono',monospace; font-size:10px; background:rgba(148,163,184,0.1); color:var(--grey); padding:2px 6px; border-radius:3px; margin-left:6px;">Phase 2</span></div>
+          <div style="color:var(--grey); font-size:13px;">Consumes: market data pipes · onchain feeds · macro intelligence · alternative data · regulatory publications — all via structured MCP resources with full provenance</div>
+        </div>
+        <div>
+          <div style="font-weight: 500; font-size: 14px; margin-bottom: 3px;">Verana L0 <span style="font-family:'DM Mono',monospace; font-size:10px; background:rgba(148,163,184,0.1); color:var(--grey); padding:2px 6px; border-radius:3px; margin-left:6px;">Phase 2</span></div>
+          <div style="color:var(--grey); font-size:13px;">Consumes: OFAC SDN update feeds · DORA/MiFID II regulatory change streams — absorbed into Network Registry with lineage</div>
+        </div>
+        <div>
+          <div style="font-weight: 500; font-size: 14px; margin-bottom: 3px;">Mentat L1 <span style="font-family:'DM Mono',monospace; font-size:10px; background:rgba(148,163,184,0.1); color:var(--grey); padding:2px 6px; border-radius:3px; margin-left:6px;">Phase 2</span></div>
+          <div style="color:var(--grey); font-size:13px;">Consumes: regulatory publication feeds — SEC, ESMA, FRB — as traceable source documents for doctrine updates</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="background: var(--navy-light); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 20px;">
+    <div style="font-family: 'DM Mono', monospace; font-size: 10px; color: var(--grey); text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 16px;">Neptune Spear — External Data Pipe Flow (Phase 2)</div>
+    <pre style="font-family: 'DM Mono', monospace; font-size: 12px; color: var(--grey-light); line-height: 1.8; margin: 0; overflow-x: auto;">External MCP Servers (market data · onchain · macro · alt data · regulatory)
+  │  MCP resources/read — structured, versioned, auditable
+  ▼
+Neptune Spear (MCP Client)
+  Synthesizes across all feeds → generates investment thesis + full lineage
+  │  Advisory recommendation + data provenance trail
+  ▼
+Human Authority (CAOM-001 — operator approval required)
+  │  Approved
+  ▼
+Kaladan L2 → Thifur-C2 → R / J / H</pre>
+    <p style="color:var(--grey); font-size:12px; margin-top:12px; margin-bottom:0;">Every data source is a named MCP resource URI — not a raw API call. When the regulator asks "what data did Neptune use for this recommendation?" — the resource URI is the answer.</p>
+  </div>
+
+  <div style="background: var(--navy-light); border: 1px solid rgba(6,182,212,0.2); border-radius: 8px; padding: 24px;">
+    <div style="font-family: 'DM Mono', monospace; font-size: 10px; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 16px;">Live Connection — Verana L0 MCP Server</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 13px;">
+      <div>
+        <div style="color:var(--grey); margin-bottom:6px; font-size:11px; text-transform:uppercase; letter-spacing:0.1em;">Transport</div>
+        <div style="font-family:'DM Mono',monospace; color:var(--cyan);">POST /mcp<br>Content-Type: application/json<br>Protocol: JSON-RPC 2.0</div>
+      </div>
+      <div>
+        <div style="color:var(--grey); margin-bottom:6px; font-size:11px; text-transform:uppercase; letter-spacing:0.1em;">MCP Spec Version</div>
+        <div style="font-family:'DM Mono',monospace; color:var(--grey-light);">2024-11-05<br>Batch requests supported<br>Notifications: ignored per spec</div>
+      </div>
+      <div>
+        <div style="color:var(--grey); margin-bottom:6px; font-size:11px; text-transform:uppercase; letter-spacing:0.1em;">Resources</div>
+        <div style="font-family:'DM Mono',monospace; color:var(--grey-light); font-size:11px; line-height:1.9;">aureon://verana/network-registry<br>aureon://verana/regulatory-frameworks<br>aureon://verana/ofac-screening-list<br>aureon://verana/compliance-alerts<br>aureon://verana/doctrine-status</div>
+      </div>
+      <div>
+        <div style="color:var(--grey); margin-bottom:6px; font-size:11px; text-transform:uppercase; letter-spacing:0.1em;">Tools</div>
+        <div style="font-family:'DM Mono',monospace; color:var(--grey-light); font-size:11px; line-height:1.9;">verana_screen_ofac(identifier)<br>verana_framework_status(framework)<br>verana_node_status()<br>verana_compliance_snapshot()</div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- COMMERCIAL FRAMING -->
 <section>
   <div class="section-label">Positioning</div>
@@ -737,7 +842,7 @@
       <div class="audience-role">CTO</div>
       <div>
         <h4>Clear Systems Boundary</h4>
-        <p>Explicit separation between intelligence, control, and execution. MCP-compatible data ingestion. Clean OMS/EMS integration boundary. No incumbent stack displacement.</p>
+        <p>Explicit separation between intelligence, control, and execution. MCP server live — Verana L0 Network Registry and compliance state exposed as governed resources. Clean OMS/EMS integration boundary. No incumbent stack displacement.</p>
       </div>
     </div>
     <div class="audience-card">
