@@ -947,6 +947,7 @@ main {
     <button class="nav-btn" onclick="showTab('governance')">Governance</button>
     <button class="nav-btn" onclick="showTab('reports')">Reports</button>
     <button class="nav-btn" onclick="showTab('treasury')">Treasury</button>
+    <button class="nav-btn" onclick="showTab('neptune')">Neptune Spear</button>
     <button class="nav-btn" onclick="showTab('about')">Framework</button>
   </nav>
 
@@ -2017,6 +2018,229 @@ main {
 </div><!-- end tab-treasury -->
 
 
+<!-- ════════════════════════════════════════════════════════
+     TAB 8 — NEPTUNE SPEAR — Alpha Origination Intelligence
+════════════════════════════════════════════════════════ -->
+<div id="tab-neptune" class="tab">
+
+  <!-- PIPE STATUS ROW -->
+  <div style="margin-bottom:8px">
+    <div class="card-label" style="margin-bottom:12px;font-size:13px;letter-spacing:.12em">NEPTUNE SPEAR — DATA PIPE STATUS</div>
+  </div>
+  <div class="grid g3" style="margin-bottom:12px" id="neptune-pipe-status">
+    <div class="card" style="text-align:center">
+      <div class="card-label">Unusual Whales</div>
+      <div class="card-value" style="font-size:16px" id="pipe-uw-status">--</div>
+      <div class="card-sub">UW-PIPE-001 · Options Flow + Dark Pool</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="card-label">Tradier</div>
+      <div class="card-value" style="font-size:16px" id="pipe-tradier-status">--</div>
+      <div class="card-sub">TRADIER-PIPE-001 · Chains + Greeks + IV</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="card-label">Alpaca</div>
+      <div class="card-value" style="font-size:16px" id="pipe-alpaca-status">--</div>
+      <div class="card-sub">ALPACA-PIPE-001 · Bars + News + Snapshots</div>
+    </div>
+  </div>
+  <div class="grid g3" style="margin-bottom:24px">
+    <div class="card" style="text-align:center">
+      <div class="card-label">CBOE</div>
+      <div class="card-value" style="font-size:16px" id="pipe-cboe-status">--</div>
+      <div class="card-sub">CBOE-PIPE-001 · VIX + Put/Call + SKEW</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="card-label">SEC EDGAR</div>
+      <div class="card-value" style="font-size:16px" id="pipe-edgar-status">--</div>
+      <div class="card-sub">EDGAR-PIPE-001 · 13F + Insider</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="card-label">Blockscout</div>
+      <div class="card-value" style="font-size:16px" id="pipe-blockscout-status">--</div>
+      <div class="card-sub">BLOCKSCOUT-PIPE-001 · On-Chain Intelligence</div>
+    </div>
+  </div>
+
+  <!-- FEAR GAUGE + MARKET TIDE -->
+  <div class="grid g12" style="margin-bottom:24px">
+
+    <!-- CBOE FEAR GAUGE -->
+    <div class="card">
+      <div class="card-label" style="margin-bottom:12px">CBOE Fear Gauge</div>
+      <div id="neptune-fear-gauge">
+        <div style="text-align:center;padding:20px">
+          <div style="font-size:48px;font-weight:800;font-family:var(--font-display);letter-spacing:2px" id="fear-level-label">--</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px" id="fear-level-sub">VIX term structure + put/call ratios + SKEW + VVIX</div>
+        </div>
+        <div class="grid g4" style="margin-top:12px" id="fear-metrics">
+          <div style="text-align:center">
+            <div class="card-label">VIX Spot</div>
+            <div style="font-size:18px;font-weight:700" id="fear-vix">--</div>
+          </div>
+          <div style="text-align:center">
+            <div class="card-label">Term Structure</div>
+            <div style="font-size:14px;font-weight:600" id="fear-term">--</div>
+          </div>
+          <div style="text-align:center">
+            <div class="card-label">P/C Ratio</div>
+            <div style="font-size:18px;font-weight:700" id="fear-pc">--</div>
+          </div>
+          <div style="text-align:center">
+            <div class="card-label">SKEW</div>
+            <div style="font-size:18px;font-weight:700" id="fear-skew">--</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MARKET TIDE (Unusual Whales) -->
+    <div class="card">
+      <div class="card-label" style="margin-bottom:12px">Market Tide — Options Sentiment</div>
+      <div id="neptune-market-tide">
+        <div class="grid g3" style="margin-top:8px">
+          <div style="text-align:center">
+            <div class="card-label">Net Premium Delta</div>
+            <div style="font-size:22px;font-weight:800" id="tide-delta">--</div>
+          </div>
+          <div style="text-align:center">
+            <div class="card-label">Call Premium</div>
+            <div style="font-size:16px;font-weight:700;color:var(--green)" id="tide-call">--</div>
+          </div>
+          <div style="text-align:center">
+            <div class="card-label">Put Premium</div>
+            <div style="font-size:16px;font-weight:700;color:var(--red)" id="tide-put">--</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;font-size:11px;color:var(--muted);text-align:center" id="tide-source">Source: Unusual Whales · UW-PIPE-001</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPTIONS FLOW + DARK POOL -->
+  <div class="grid g12" style="margin-bottom:24px">
+
+    <!-- OPTIONS FLOW ALERTS -->
+    <div class="card">
+      <div class="card-label" style="margin-bottom:12px">Options Flow Alerts</div>
+      <div id="neptune-flow-alerts" style="max-height:360px;overflow-y:auto">
+        <div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">Awaiting pipe data...</div>
+      </div>
+    </div>
+
+    <!-- DARK POOL PRINTS -->
+    <div class="card">
+      <div class="card-label" style="margin-bottom:12px">Dark Pool Prints</div>
+      <div id="neptune-darkpool" style="max-height:360px;overflow-y:auto">
+        <div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">Awaiting pipe data...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALPACA MARKET SNAPSHOTS + EDGAR INSTITUTIONAL -->
+  <div class="grid g12" style="margin-bottom:24px">
+
+    <!-- MARKET SNAPSHOTS -->
+    <div class="card">
+      <div class="card-label" style="margin-bottom:12px">Market Snapshots — Alpaca</div>
+      <div id="neptune-snapshots" style="max-height:360px;overflow-y:auto">
+        <div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">Awaiting pipe data...</div>
+      </div>
+    </div>
+
+    <!-- INSTITUTIONAL POSITIONING -->
+    <div class="card">
+      <div class="card-label" style="margin-bottom:12px">Institutional Positioning — SEC EDGAR 13F</div>
+      <div id="neptune-institutional" style="max-height:360px;overflow-y:auto">
+        <div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">Awaiting pipe data...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ON-CHAIN INTELLIGENCE — Blockscout -->
+  <div class="card" style="margin-bottom:24px">
+    <div class="card-label" style="margin-bottom:12px">On-Chain Intelligence — Blockscout</div>
+    <div class="grid g4" id="blockscout-network-stats" style="margin-bottom:16px">
+      <div style="text-align:center">
+        <div class="card-label">ETH Gas (Gwei)</div>
+        <div style="font-size:22px;font-weight:700" id="bs-gas">--</div>
+      </div>
+      <div style="text-align:center">
+        <div class="card-label">Block Height</div>
+        <div style="font-size:18px;font-weight:700;color:var(--cyan)" id="bs-block">--</div>
+      </div>
+      <div style="text-align:center">
+        <div class="card-label">Total Addresses</div>
+        <div style="font-size:18px;font-weight:700" id="bs-addresses">--</div>
+      </div>
+      <div style="text-align:center">
+        <div class="card-label">Total Transactions</div>
+        <div style="font-size:18px;font-weight:700" id="bs-txns">--</div>
+      </div>
+    </div>
+    <div class="grid g3" style="margin-bottom:16px">
+      <div style="text-align:center">
+        <div class="card-label">Avg Block Time</div>
+        <div style="font-size:16px;font-weight:600" id="bs-blocktime">--</div>
+      </div>
+      <div style="text-align:center">
+        <div class="card-label">Network Utilization</div>
+        <div style="font-size:16px;font-weight:600" id="bs-utilization">--</div>
+      </div>
+      <div style="text-align:center">
+        <div class="card-label">Chain</div>
+        <div style="font-size:16px;font-weight:600;color:var(--cyan)" id="bs-chain">Ethereum</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);border-top:1px solid var(--border);padding-top:10px">
+      Source: Blockscout · BLOCKSCOUT-PIPE-001 · Public API (no auth) · Multi-chain: ETH, Polygon, Base, Arbitrum, OP, Gnosis
+    </div>
+  </div>
+
+  <!-- MCP SERVER STATUS -->
+  <div class="card" style="margin-bottom:24px">
+    <div class="card-label" style="margin-bottom:12px">Verana L0 — MCP Server</div>
+    <div class="grid g4" id="neptune-mcp-status">
+      <div style="text-align:center">
+        <div class="card-label">Protocol</div>
+        <div style="font-size:13px;font-weight:600" id="mcp-protocol">JSON-RPC 2.0</div>
+      </div>
+      <div style="text-align:center">
+        <div class="card-label">Resources</div>
+        <div style="font-size:22px;font-weight:700" id="mcp-resources">5</div>
+      </div>
+      <div style="text-align:center">
+        <div class="card-label">Tools</div>
+        <div style="font-size:22px;font-weight:700" id="mcp-tools">4</div>
+      </div>
+      <div style="text-align:center">
+        <div class="card-label">Endpoint</div>
+        <div style="font-size:13px;font-weight:600;color:var(--cyan)" id="mcp-endpoint">POST /mcp</div>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <div class="card-label" style="margin-bottom:8px">Registered Resources</div>
+      <div id="mcp-resource-list" style="font-size:11px;color:var(--muted);line-height:2;font-family:var(--font-mono)">
+        aureon://verana/network-registry · aureon://verana/regulatory-frameworks · aureon://verana/ofac-screening-list · aureon://verana/compliance-alerts · aureon://verana/doctrine-status
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <div class="card-label" style="margin-bottom:8px">Registered Tools</div>
+      <div id="mcp-tool-list" style="font-size:11px;color:var(--muted);line-height:2;font-family:var(--font-mono)">
+        verana_screen_ofac · verana_framework_status · verana_node_status · verana_compliance_snapshot
+      </div>
+    </div>
+  </div>
+
+  <!-- NEPTUNE GOVERNANCE FOOTER -->
+  <div style="text-align:center;padding:20px 0;color:var(--muted);font-size:11px;letter-spacing:1.2px;line-height:2">
+    NEPTUNE SPEAR — ALPHA ORIGINATION LAYER · 50,000 FT<br>
+    ADVISORY ONLY — ALL OUTPUTS REQUIRE HUMAN APPROVAL (CAOM-001)<br>
+    SIX DATA PIPES · VERANA L0 MCP · DOCTRINE v<span id="neptune-doctrine-ver">1.3</span>
+  </div>
+
+</div>
+
 <div id="tab-about" class="tab">
 
   <!-- HERO -->
@@ -2151,6 +2375,249 @@ main {
     </div>
   </div>
 
+  <!-- TARGET ARCHITECTURE -->
+  <div class="report-block" style="margin-bottom:24px">
+    <h3>Target Institutional Architecture</h3>
+    <pre style="font-size:11px;line-height:1.8;color:var(--muted);font-family:var(--font-mono);
+                overflow-x:auto;padding:16px;background:var(--deep);border-radius:8px;border:1px solid var(--border)">Neptune Spear — Alpha Origination (50,000 ft)
+  Systematic signal generation, predictive analytics,
+  market intelligence, product recommendations
+  [Advisory only — all outputs require human approval]
+                    |
+                    v
+      [HUMAN AUTHORITY — CAOM-001]
+      Operator reviews and approves Neptune output
+                    |
+                    v
+      Aureon Agent + Governance Layer
+      Layer 0 - Verana  — Network Governance
+      Layer 1 - Mentat  — Strategic Intelligence
+      Layer 2 - Kaladan — Lifecycle Orchestration
+      Layer 3 - Thifur-C2 — Command and Control
+        └── Thifur-R — Deterministic Execution
+        └── Thifur-J — Bounded Autonomy
+        └── Thifur-H — Adaptive Intelligence
+                    |
+                    v
+           OMS / Order Staging
+                    |
+                    v
+          EMS / Trader Workflow
+                    |
+                    v
+     SOR / Broker / Venue Connectivity
+                    |
+                    v
+Exchanges / ATS / Internalization Venues
+                    |
+                    v
+Post-Trade / Clearing / Custody / Settlement
+                    |
+                    v
+Status / fills / breaks / confirms returned to
+Aureon for replay, evidence, and audit packaging</pre>
+  </div>
+
+  <!-- DOCTRINE MODEL -->
+  <div class="report-block" style="margin-bottom:24px">
+    <h3>Doctrine Model — Institutional Translation</h3>
+    <table style="width:100%;font-size:12px;border-collapse:collapse;line-height:1.8">
+      <tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--border)">
+        <th style="padding:8px">Doctrine</th><th style="padding:8px">Altitude</th><th style="padding:8px">Institutional Role</th>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;font-weight:700;color:var(--cyan)">Neptune Spear</td>
+        <td style="padding:8px">50,000 ft</td>
+        <td style="padding:8px;color:var(--muted)">Alpha origination — signal generation, predictive analytics, product recommendations (advisory only)</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;font-weight:700;color:var(--cyan)">Verana</td>
+        <td style="padding:8px">Ground</td>
+        <td style="padding:8px;color:var(--muted)">Network governance — session controls, policy boundary enforcement, supervisory posture</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;font-weight:700;color:var(--blue)">Mentat</td>
+        <td style="padding:8px">30,000 ft</td>
+        <td style="padding:8px;color:var(--muted)">Decision intelligence — intent synthesis, scenario support, doctrine boundaries</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;font-weight:700">Kaladan</td>
+        <td style="padding:8px">10,000 ft</td>
+        <td style="padding:8px;color:var(--muted)">Lifecycle orchestration — approval lineage, evidence packaging, replay context</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;font-weight:700;color:var(--yellow)">Thifur-C2</td>
+        <td style="padding:8px">1,000 ft</td>
+        <td style="padding:8px;color:var(--muted)">Command &amp; Control — sequencing, handoff coordination, unified lineage assembly</td>
+      </tr>
+      <tr>
+        <td style="padding:8px;font-weight:700;color:var(--orange)">Thifur R/J/H</td>
+        <td style="padding:8px">500 ft</td>
+        <td style="padding:8px;color:var(--muted)">Execution intelligence — deterministic, bounded autonomy, adaptive (all advisory)</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- SYSTEM BOUNDARIES -->
+  <div class="report-block" style="margin-bottom:24px">
+    <h3>System Boundaries</h3>
+    <div class="grid g2" style="gap:20px">
+      <div>
+        <div style="font-weight:700;color:var(--cyan);font-size:12px;margin-bottom:8px;letter-spacing:.1em">AUREON OWNS</div>
+        <ul style="font-size:12px;color:var(--muted);line-height:2;padding-left:16px;margin:0">
+          <li>Governed portfolio intent formation before execution</li>
+          <li>Pre-trade policy, mandate, and control checks</li>
+          <li>Risk framing and constraint visibility for human review</li>
+          <li>Configurable role-based approval lineage</li>
+          <li>DSOR evidence, replay context, and audit packaging</li>
+          <li>Neptune Spear origination intelligence — advisory layer</li>
+          <li>Thifur-C2 coordination and unified lineage assembly</li>
+        </ul>
+      </div>
+      <div>
+        <div style="font-weight:700;color:var(--muted);font-size:12px;margin-bottom:8px;letter-spacing:.1em">OUTSIDE AUREON</div>
+        <ul style="font-size:12px;color:var(--muted);line-height:2;padding-left:16px;margin:0">
+          <li><strong style="color:var(--white)">OMS</strong> — order staging, blotter state, allocations</li>
+          <li><strong style="color:var(--white)">EMS</strong> — trader workflow, execution strategy, algo choice</li>
+          <li><strong style="color:var(--white)">SOR</strong> — venue routing, broker connectivity</li>
+          <li>Clearing, custody, treasury, settlement</li>
+          <li>Legal books and records</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI GOVERNANCE POSITION -->
+  <div class="report-block" style="margin-bottom:24px">
+    <h3>AI &amp; Governance Position</h3>
+    <p style="font-size:13px;color:var(--muted);line-height:1.9;font-family:var(--font-mono);margin-bottom:16px">
+      Intelligence and authority are explicitly separated. That separation is not a configuration option — it is the doctrine.
+    </p>
+    <div class="grid g4" style="text-align:center">
+      <div style="padding:12px">
+        <div style="font-weight:700;color:var(--cyan);margin-bottom:4px">Neptune</div>
+        <div style="font-size:11px;color:var(--muted)">Originates</div>
+        <div style="font-size:10px;color:var(--green);margin-top:2px">Operator approves</div>
+      </div>
+      <div style="padding:12px">
+        <div style="font-weight:700;color:var(--blue);margin-bottom:4px">Mentat</div>
+        <div style="font-size:11px;color:var(--muted)">Reasons</div>
+        <div style="font-size:10px;color:var(--green);margin-top:2px">Operator decides</div>
+      </div>
+      <div style="padding:12px">
+        <div style="font-weight:700;margin-bottom:4px">Kaladan</div>
+        <div style="font-size:11px;color:var(--muted)">Structures</div>
+        <div style="font-size:10px;color:var(--green);margin-top:2px">Operator releases</div>
+      </div>
+      <div style="padding:12px">
+        <div style="font-weight:700;color:var(--orange);margin-bottom:4px">Thifur</div>
+        <div style="font-size:11px;color:var(--muted)">Executes</div>
+        <div style="font-size:10px;color:var(--green);margin-top:2px">Within pre-approved bounds</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MCP INTEGRATION -->
+  <div class="report-block" style="margin-bottom:24px">
+    <h3>MCP Integration Layer</h3>
+    <p style="font-size:12px;color:var(--muted);line-height:1.8;margin-bottom:16px">
+      Aureon exposes a Model Context Protocol (MCP) server enabling external AI agents, Claude Desktop, and data infrastructure
+      to interact with the governance stack through a structured, auditable interface. The MCP layer does not bypass doctrine.
+    </p>
+    <div class="grid g3" style="text-align:center;margin-bottom:16px">
+      <div style="padding:12px">
+        <div style="font-weight:700;color:var(--cyan);font-size:14px">Verana L0</div>
+        <div style="font-size:10px;color:var(--green);margin-top:4px">Phase 1 — LIVE</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">Network Registry · OFAC · Compliance · Doctrine</div>
+      </div>
+      <div style="padding:12px">
+        <div style="font-weight:700;color:var(--blue);font-size:14px">Kaladan L2</div>
+        <div style="font-size:10px;color:var(--yellow);margin-top:4px">Phase 2 — Planned</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">DSOR records · Approval lineage · Evidence</div>
+      </div>
+      <div style="padding:12px">
+        <div style="font-weight:700;color:var(--orange);font-size:14px">Thifur</div>
+        <div style="font-size:10px;color:var(--yellow);margin-top:4px">Phase 3 — Planned</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">Advisory outputs · Handoff records · Telemetry</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);border-top:1px solid var(--border);padding-top:12px;line-height:1.7">
+      Transport: Streamable HTTP — JSON-RPC 2.0 over POST /mcp · Discovery: GET /mcp · Spec: MCP protocol version 2024-11-05
+    </div>
+  </div>
+
+  <!-- NEPTUNE DATA PIPES -->
+  <div class="report-block" style="margin-bottom:24px">
+    <h3>Neptune Spear — Data Pipe Architecture</h3>
+    <p style="font-size:12px;color:var(--muted);line-height:1.8;margin-bottom:16px">
+      Neptune consumes external data sources via structured MCP clients — giving every data input an auditable provenance trail.
+      Every data source is a named, versioned resource. If a regulator asks "what data did Neptune use?" — the MCP resource URI is the answer.
+    </p>
+    <div class="grid g3" style="text-align:center;margin-bottom:12px">
+      <div style="padding:12px;border:1px solid var(--border);border-radius:8px">
+        <div style="font-weight:700;color:var(--cyan);font-size:12px">Unusual Whales</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">Options flow · Dark pool · Market sentiment</div>
+      </div>
+      <div style="padding:12px;border:1px solid var(--border);border-radius:8px">
+        <div style="font-weight:700;color:var(--blue);font-size:12px">Tradier</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">Chains · Greeks · IV surface · HV</div>
+      </div>
+      <div style="padding:12px;border:1px solid var(--border);border-radius:8px">
+        <div style="font-weight:700;color:var(--green);font-size:12px">Alpaca</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">Bars · News · Snapshots · Corp actions</div>
+      </div>
+    </div>
+    <div class="grid g3" style="text-align:center">
+      <div style="padding:12px;border:1px solid var(--border);border-radius:8px">
+        <div style="font-weight:700;color:var(--yellow);font-size:12px">CBOE</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">VIX term structure · Put/call · SKEW</div>
+      </div>
+      <div style="padding:12px;border:1px solid var(--border);border-radius:8px">
+        <div style="font-weight:700;color:var(--orange);font-size:12px">SEC EDGAR</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">13F holdings · Insider Form 4</div>
+      </div>
+      <div style="padding:12px;border:1px solid var(--border);border-radius:8px">
+        <div style="font-weight:700;color:var(--indigo,#6366F1);font-size:12px">Blockscout</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">On-chain · Gas · Whale wallets · DeFi</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE ROADMAP -->
+  <div class="report-block" style="margin-bottom:24px">
+    <h3>Phase 1 vs Later</h3>
+    <table style="width:100%;font-size:11px;border-collapse:collapse;line-height:1.8">
+      <tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--border)">
+        <th style="padding:6px 8px">Area</th><th style="padding:6px 8px">Phase 1</th><th style="padding:6px 8px">Later</th>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:6px 8px;color:var(--white)">Asset scope</td>
+        <td style="padding:6px 8px;color:var(--green)">Equities-first</td>
+        <td style="padding:6px 8px;color:var(--muted)">Program Trading, Delta One, OTC, all classes</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:6px 8px;color:var(--white)">Neptune Spear</td>
+        <td style="padding:6px 8px;color:var(--green)">6 data pipes live</td>
+        <td style="padding:6px 8px;color:var(--muted)">Full activation with live trade origination</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:6px 8px;color:var(--white)">MCP Server</td>
+        <td style="padding:6px 8px;color:var(--green)">Verana L0 live</td>
+        <td style="padding:6px 8px;color:var(--muted)">Kaladan L2 + Thifur agents</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:6px 8px;color:var(--white)">Thifur-H</td>
+        <td style="padding:6px 8px;color:var(--yellow)">Declared — not activated</td>
+        <td style="padding:6px 8px;color:var(--muted)">VWAP/TWAP/POV, Phase 2 pending SR 11-7</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 8px;color:var(--white)">Regulatory</td>
+        <td style="padding:6px 8px;color:var(--green)">SR 11-7 T2, OCC, BCBS P3/P5</td>
+        <td style="padding:6px 8px;color:var(--muted)">Full six-framework coverage</td>
+      </tr>
+    </table>
+  </div>
+
   <!-- PREPARED BY -->
   <div style="text-align:center;padding:32px 0;color:var(--muted);font-size:11px;
               letter-spacing:1.5px;line-height:2">
@@ -2188,6 +2655,25 @@ const API = {
   macro:            '/api/macro',
   decisionJournal:  '/api/decision-journal',
   cascadePreview:   (id) => `/api/cascade-preview/${id}`,
+  // Neptune Spear data pipes
+  neptuneStatus:       '/api/neptune/status',
+  neptuneFlowAlerts:   '/api/neptune/flow-alerts',
+  neptuneDarkpool:     '/api/neptune/darkpool',
+  neptuneMarketTide:   '/api/neptune/market-tide',
+  neptuneTradierStatus:'/api/neptune/tradier/status',
+  neptuneAlpacaStatus: '/api/neptune/alpaca/status',
+  neptuneAlpacaSnaps:  '/api/neptune/alpaca/snapshots',
+  neptuneAlpacaNews:   '/api/neptune/alpaca/news',
+  neptuneCboeStatus:   '/api/neptune/cboe/status',
+  neptuneCboeFear:     '/api/neptune/cboe/fear-packet',
+  neptuneEdgarStatus:  '/api/neptune/edgar/status',
+  neptuneEdgarInst:    '/api/neptune/edgar/institutional-packet',
+  // Blockscout on-chain
+  neptuneBsStatus:     '/api/neptune/blockscout/status',
+  neptuneBsStats:      '/api/neptune/blockscout/stats',
+  neptuneBsPacket:     '/api/neptune/blockscout/onchain-packet',
+  // MCP
+  mcpDiscovery:        '/mcp',
 };
 
 const state = {
@@ -2228,6 +2714,16 @@ const state = {
   // Integration mode: 'standalone' | 'oms-overlay'
   integrationMode: 'standalone',
   selectedDecisionId: null,
+  // Neptune Spear
+  neptunePipes: {},
+  neptuneFear: null,
+  neptuneMarketTide: null,
+  neptuneFlowAlerts: [],
+  neptuneDarkpool: [],
+  neptuneSnapshots: {},
+  neptuneInstitutional: null,
+  neptuneBlockscout: null,
+  neptuneMcp: null,
 };
 
 // ── BASE PRICES for market ticker fallback ────────────
@@ -3965,6 +4461,269 @@ function renderReports() {
   document.getElementById('audit-ts').textContent       = today.toISOString().slice(0,19) + ' UTC';
 }
 
+// ── NEPTUNE SPEAR — fetch + render ───────────────────
+async function fetchNeptune() {
+  // Pipe statuses — fire all in parallel, catch individually
+  const pipes = [
+    { key: 'uw',      url: API.neptuneStatus,        label: 'Unusual Whales' },
+    { key: 'tradier', url: API.neptuneTradierStatus,  label: 'Tradier' },
+    { key: 'alpaca',  url: API.neptuneAlpacaStatus,   label: 'Alpaca' },
+    { key: 'cboe',    url: API.neptuneCboeStatus,     label: 'CBOE' },
+    { key: 'edgar',   url: API.neptuneEdgarStatus,    label: 'SEC EDGAR' },
+    { key: 'blockscout', url: API.neptuneBsStatus,  label: 'Blockscout' },
+  ];
+  const results = await Promise.allSettled(pipes.map(p =>
+    fetch(p.url).then(r => r.ok ? r.json() : Promise.reject(r.status))
+  ));
+  results.forEach((r, i) => {
+    state.neptunePipes[pipes[i].key] = r.status === 'fulfilled' ? r.value : { status: 'offline' };
+  });
+
+  // CBOE Fear Gauge
+  try {
+    const r = await fetch(API.neptuneCboeFear + '?lookback=30');
+    if (r.ok) state.neptuneFear = await r.json();
+  } catch(e) { /* silent */ }
+
+  // Market Tide
+  try {
+    const r = await fetch(API.neptuneMarketTide);
+    if (r.ok) state.neptuneMarketTide = await r.json();
+  } catch(e) { /* silent */ }
+
+  // Options Flow Alerts
+  try {
+    const r = await fetch(API.neptuneFlowAlerts + '?limit=20');
+    if (r.ok) { const d = await r.json(); state.neptuneFlowAlerts = d.alerts || d.data || []; }
+  } catch(e) { /* silent */ }
+
+  // Dark Pool
+  try {
+    const r = await fetch(API.neptuneDarkpool + '?limit=20');
+    if (r.ok) { const d = await r.json(); state.neptuneDarkpool = d.prints || d.data || []; }
+  } catch(e) { /* silent */ }
+
+  // Alpaca Snapshots
+  try {
+    const r = await fetch(API.neptuneAlpacaSnaps + '?symbols=SPY,QQQ,IWM,DIA');
+    if (r.ok) state.neptuneSnapshots = await r.json();
+  } catch(e) { /* silent */ }
+
+  // EDGAR Institutional
+  try {
+    const r = await fetch(API.neptuneEdgarInst, { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+    if (r.ok) state.neptuneInstitutional = await r.json();
+  } catch(e) { /* silent */ }
+
+  // Blockscout On-Chain
+  try {
+    const r = await fetch(API.neptuneBsStats + '?chain=1');
+    if (r.ok) state.neptuneBlockscout = await r.json();
+  } catch(e) { /* silent */ }
+
+  // MCP Discovery
+  try {
+    const r = await fetch(API.mcpDiscovery);
+    if (r.ok) state.neptuneMcp = await r.json();
+  } catch(e) { /* silent */ }
+
+  renderNeptune();
+}
+
+function renderNeptune() {
+  // ── Pipe status cards ──
+  const pipeMap = { uw: 'pipe-uw-status', tradier: 'pipe-tradier-status', alpaca: 'pipe-alpaca-status', cboe: 'pipe-cboe-status', edgar: 'pipe-edgar-status', blockscout: 'pipe-blockscout-status' };
+  Object.entries(pipeMap).forEach(([key, id]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const p = state.neptunePipes[key];
+    if (!p) { el.textContent = '--'; el.style.color = 'var(--muted)'; return; }
+    const live = (p.status === 'live' || p.status === 'ok' || p.operational === true || p.initialized === true);
+    el.textContent = live ? 'LIVE' : 'OFFLINE';
+    el.style.color = live ? 'var(--green)' : 'var(--red)';
+  });
+
+  // ── Fear Gauge ──
+  const fear = state.neptuneFear;
+  const fearLabel = document.getElementById('fear-level-label');
+  if (fear && fearLabel) {
+    const level = (fear.fear_level || fear.composite_level || '').toUpperCase();
+    fearLabel.textContent = level || '--';
+    const fearColors = { 'COMPLACENT': 'var(--green)', 'NEUTRAL': 'var(--cyan)', 'HEIGHTENED': 'var(--yellow)', 'ELEVATED': 'var(--red)' };
+    fearLabel.style.color = fearColors[level] || 'var(--white)';
+
+    const vix = fear.vix_spot ?? fear.vix?.close ?? null;
+    document.getElementById('fear-vix').textContent = vix != null ? vix.toFixed(2) : '--';
+    document.getElementById('fear-vix').style.color = vix > 25 ? 'var(--red)' : vix > 18 ? 'var(--yellow)' : 'var(--green)';
+
+    const term = fear.term_structure_signal || fear.term_structure || '--';
+    const termEl = document.getElementById('fear-term');
+    termEl.textContent = term;
+    termEl.style.color = term === 'BACKWARDATION' ? 'var(--red)' : term === 'CONTANGO' ? 'var(--green)' : 'var(--muted)';
+
+    const pc = fear.total_put_call_ratio ?? fear.put_call_ratio ?? null;
+    document.getElementById('fear-pc').textContent = pc != null ? pc.toFixed(3) : '--';
+
+    const skew = fear.skew?.close ?? fear.skew_value ?? null;
+    document.getElementById('fear-skew').textContent = skew != null ? skew.toFixed(1) : '--';
+  }
+
+  // ── Market Tide ──
+  const tide = state.neptuneMarketTide;
+  if (tide) {
+    const data = tide.data || tide;
+    const delta = data.net_premium_delta ?? data.net_delta ?? null;
+    const deltaEl = document.getElementById('tide-delta');
+    if (deltaEl && delta != null) {
+      const sign = delta >= 0 ? '+' : '';
+      deltaEl.textContent = sign + '$' + Math.abs(delta / 1e6).toFixed(1) + 'M';
+      deltaEl.style.color = delta >= 0 ? 'var(--green)' : 'var(--red)';
+    }
+    const callPrem = data.call_premium ?? data.total_call_premium ?? null;
+    if (callPrem != null) document.getElementById('tide-call').textContent = '$' + (callPrem / 1e6).toFixed(1) + 'M';
+    const putPrem = data.put_premium ?? data.total_put_premium ?? null;
+    if (putPrem != null) document.getElementById('tide-put').textContent = '$' + (putPrem / 1e6).toFixed(1) + 'M';
+  }
+
+  // ── Options Flow Alerts ──
+  const flowEl = document.getElementById('neptune-flow-alerts');
+  if (flowEl && state.neptuneFlowAlerts.length > 0) {
+    flowEl.innerHTML = state.neptuneFlowAlerts.map(a => `
+      <div class="alert-row" style="padding:8px 12px">
+        <div class="alert-icon" style="background:${a.sentiment === 'bullish' || a.is_call ? 'var(--green)' : 'var(--red)'}"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px">${a.ticker || a.symbol || '--'} · ${a.is_call ? 'CALL' : a.is_put ? 'PUT' : a.option_type || '--'} · ${a.strike || '--'} · ${a.expiration || a.expiry || '--'}</div>
+          <div class="dim-t">Premium: $${((a.premium || 0) / 1000).toFixed(0)}K · Vol: ${(a.volume || 0).toLocaleString()} · OI: ${(a.open_interest || 0).toLocaleString()}</div>
+        </div>
+        <span class="layer-tag ${a.sentiment === 'bullish' || a.is_call ? 'tag-green' : 'tag-red'}"
+              style="margin-left:auto;flex-shrink:0;font-size:10px">${(a.sentiment || (a.is_call ? 'CALL' : 'PUT')).toUpperCase()}</span>
+      </div>`).join('');
+  } else if (flowEl && state.neptunePipes.uw && state.neptunePipes.uw.status === 'offline') {
+    flowEl.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">UW-PIPE-001 offline — no API token configured</div>';
+  }
+
+  // ── Dark Pool ──
+  const dpEl = document.getElementById('neptune-darkpool');
+  if (dpEl && state.neptuneDarkpool.length > 0) {
+    dpEl.innerHTML = state.neptuneDarkpool.map(p => `
+      <div class="alert-row" style="padding:8px 12px">
+        <div class="alert-icon" style="background:var(--indigo)"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px">${p.ticker || p.symbol || '--'} · $${(p.price || 0).toFixed(2)} · ${(p.size || p.volume || 0).toLocaleString()} shares</div>
+          <div class="dim-t">Notional: $${((p.notional || (p.price * p.size) || 0) / 1e6).toFixed(2)}M · ${p.exchange || p.venue || 'Dark Pool'}</div>
+        </div>
+      </div>`).join('');
+  } else if (dpEl && state.neptunePipes.uw && state.neptunePipes.uw.status === 'offline') {
+    dpEl.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">UW-PIPE-001 offline — no API token configured</div>';
+  }
+
+  // ── Alpaca Snapshots ──
+  const snapEl = document.getElementById('neptune-snapshots');
+  const snapData = state.neptuneSnapshots?.snapshots || state.neptuneSnapshots?.data || state.neptuneSnapshots;
+  if (snapEl && snapData && typeof snapData === 'object') {
+    const symbols = Object.keys(snapData).filter(k => k !== 'pipe_id' && k !== 'source' && k !== 'timestamp' && k !== 'content_hash');
+    if (symbols.length > 0) {
+      snapEl.innerHTML = `<table style="width:100%;font-size:12px;border-collapse:collapse">
+        <tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--border)">
+          <th style="padding:6px 8px">Symbol</th><th style="padding:6px 8px">Price</th>
+          <th style="padding:6px 8px">Change</th><th style="padding:6px 8px">Volume</th>
+        </tr>
+        ${symbols.map(s => {
+          const snap = snapData[s] || {};
+          const trade = snap.latestTrade || snap.latest_trade || {};
+          const bar = snap.dailyBar || snap.daily_bar || {};
+          const price = trade.p ?? trade.price ?? bar.c ?? bar.close ?? 0;
+          const prevClose = snap.prevDailyBar?.c ?? snap.prev_daily_bar?.close ?? bar.o ?? bar.open ?? price;
+          const chg = price - prevClose;
+          const chgPct = prevClose ? (chg / prevClose * 100) : 0;
+          const vol = bar.v ?? bar.volume ?? 0;
+          const color = chg >= 0 ? 'var(--green)' : 'var(--red)';
+          return `<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:6px 8px;font-weight:700">${s}</td>
+            <td style="padding:6px 8px">$${price.toFixed(2)}</td>
+            <td style="padding:6px 8px;color:${color}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)} (${chgPct >= 0 ? '+' : ''}${chgPct.toFixed(2)}%)</td>
+            <td style="padding:6px 8px">${vol > 1e6 ? (vol/1e6).toFixed(1) + 'M' : vol.toLocaleString()}</td>
+          </tr>`;
+        }).join('')}
+      </table>`;
+    }
+  }
+
+  // ── Institutional Positioning ──
+  const instEl = document.getElementById('neptune-institutional');
+  const instData = state.neptuneInstitutional;
+  if (instEl && instData) {
+    const institutions = instData.institutions || instData.data || [];
+    if (institutions.length > 0) {
+      instEl.innerHTML = institutions.map(inst => `
+        <div class="alert-row" style="padding:8px 12px">
+          <div class="alert-icon" style="background:var(--blue)"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px">${inst.name || inst.institution || '--'}</div>
+            <div class="dim-t">CIK: ${inst.cik || '--'} · Latest 13F: ${inst.latest_filing_date || inst.filed || '--'} · ${inst.holding_count || '—'} holdings</div>
+          </div>
+          ${inst.edgar_url ? `<a href="${inst.edgar_url}" target="_blank" rel="noopener" style="color:var(--cyan);font-size:10px;text-decoration:none;flex-shrink:0">EDGAR</a>` : ''}
+        </div>`).join('');
+    }
+  }
+
+  // ── Blockscout On-Chain ──
+  const bs = state.neptuneBlockscout;
+  if (bs && bs.data) {
+    const d = bs.data;
+    const gasEl = document.getElementById('bs-gas');
+    if (gasEl) {
+      const gas = d.gas_prices?.average ?? d.gas_price ?? null;
+      gasEl.textContent = gas != null ? parseFloat(gas).toFixed(1) : '--';
+      if (gas != null) gasEl.style.color = gas > 50 ? 'var(--red)' : gas > 20 ? 'var(--yellow)' : 'var(--green)';
+    }
+    const blockEl = document.getElementById('bs-block');
+    if (blockEl) {
+      const bn = d.total_blocks ?? d.block_number ?? null;
+      blockEl.textContent = bn != null ? parseInt(bn).toLocaleString() : '--';
+    }
+    const addrEl = document.getElementById('bs-addresses');
+    if (addrEl) {
+      const addrs = d.total_addresses ?? null;
+      addrEl.textContent = addrs != null ? (parseInt(addrs) / 1e6).toFixed(1) + 'M' : '--';
+    }
+    const txEl = document.getElementById('bs-txns');
+    if (txEl) {
+      const txns = d.total_transactions ?? null;
+      txEl.textContent = txns != null ? (parseInt(txns) / 1e9).toFixed(2) + 'B' : '--';
+    }
+    const btEl = document.getElementById('bs-blocktime');
+    if (btEl) {
+      const bt = d.average_block_time ?? null;
+      btEl.textContent = bt != null ? (bt / 1000).toFixed(1) + 's' : '--';
+    }
+    const utilEl = document.getElementById('bs-utilization');
+    if (utilEl) {
+      const util = d.network_utilization_percentage ?? null;
+      utilEl.textContent = util != null ? parseFloat(util).toFixed(1) + '%' : '--';
+    }
+  }
+
+  // ── MCP Server ──
+  const mcp = state.neptuneMcp;
+  if (mcp) {
+    const resCount = mcp.resources?.length ?? mcp.resource_count ?? 5;
+    const toolCount = mcp.tools?.length ?? mcp.tool_count ?? 4;
+    document.getElementById('mcp-resources').textContent = resCount;
+    document.getElementById('mcp-tools').textContent = toolCount;
+    if (mcp.resources) {
+      document.getElementById('mcp-resource-list').textContent = mcp.resources.map(r => r.uri || r.name || r).join(' · ');
+    }
+    if (mcp.tools) {
+      document.getElementById('mcp-tool-list').textContent = mcp.tools.map(t => t.name || t).join(' · ');
+    }
+  }
+
+  // Doctrine version footer
+  const verEl = document.getElementById('neptune-doctrine-ver');
+  if (verEl) verEl.textContent = state.doctrineVersion || '1.3';
+}
+
 // ── TAB SWITCHING ─────────────────────────────────────
 function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -4267,6 +5026,7 @@ async function slowTick() {
   await fetchGovernance();   // also updates halt banner + header button
   await fetchTreasury();
   await fetchMacro();
+  await fetchNeptune();
   renderGovernance();
 
   // Compliance tab
