@@ -3798,7 +3798,7 @@ def run_doctrine_stack():
         alpaca_pipe_status(),  cboe_pipe_status(), edgar_pipe_status(),
         blockscout_pipe_status(),
     ):
-        print(f"[AUREON] Pipe [{_ps['pipe_id']}] {_ps['status'].upper()} — {_ps['source']}")
+        print(f"[AUREON] Pipe [{_ps['pipe_id']}] {_ps.get('status', 'UNKNOWN').upper()} — {_ps['source']}")
 
 
 def market_loop():
