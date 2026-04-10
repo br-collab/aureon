@@ -41,10 +41,18 @@ def save_state(*, state, lock, state_file, resolve_mmf_provider, log_error):
                 "decision_journal":  list(state.get("decision_journal", [])),
                 "saved_at":          datetime.now(timezone.utc).isoformat(),
             }
-        tmp_file = state_file + ".tmp"
-        with open(tmp_file, "w") as fh:
-            json.dump(snapshot, fh, indent=2)
-        os.replace(tmp_file, state_file)
+        # Atomic save: write to tmp in the same directory, then rename.
+        # Fallback to direct write if rename fails (Railway volume edge case).
+        state_dir = os.path.dirname(state_file) or "."
+        tmp_file = os.path.join(state_dir, ".aureon_state_tmp.json")
+        try:
+            with open(tmp_file, "w") as fh:
+                json.dump(snapshot, fh, indent=2)
+            os.replace(tmp_file, state_file)
+        except OSError:
+            # Fallback: direct write (not atomic but preserves data)
+            with open(state_file, "w") as fh:
+                json.dump(snapshot, fh, indent=2)
         print(
             f"[AUREON] State saved — {len(snapshot['positions'])} positions, "
             f"{len(snapshot['trades'])} trades"
