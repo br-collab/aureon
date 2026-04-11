@@ -1196,22 +1196,22 @@ main {
   <div class="grid g5" style="margin-bottom:20px">
     <div class="card">
       <div class="card-label">Portfolio Value</div>
-      <div class="card-value" id="kpi-value">$50,000,000</div>
-      <div class="card-sub">AUM inception</div>
+      <div class="card-value" id="kpi-value">—</div>
+      <div class="card-sub">Loading...</div>
     </div>
     <div class="card">
       <div class="card-label">Total P&L</div>
-      <div class="card-value up" id="kpi-pnl">+$0</div>
-      <div class="card-sub up" id="kpi-pnlp">+0.00%</div>
+      <div class="card-value" id="kpi-pnl">—</div>
+      <div class="card-sub" id="kpi-pnlp">—</div>
     </div>
     <div class="card">
       <div class="card-label">Drawdown</div>
-      <div class="card-value" id="kpi-dd">0.00%</div>
+      <div class="card-value" id="kpi-dd">—</div>
       <div class="card-sub">Limit: 10.00%</div>
     </div>
     <div class="card">
       <div class="card-label">Positions</div>
-      <div class="card-value" id="kpi-pos">0</div>
+      <div class="card-value" id="kpi-pos">—</div>
       <div class="card-sub">Across 5 classes</div>
     </div>
     <div class="card">
@@ -1886,7 +1886,7 @@ main {
     <div class="grid g3" style="margin-bottom:20px">
       <div style="text-align:center">
         <div class="card-label" style="text-align:center">Portfolio Value</div>
-        <div style="font-size:20px;font-weight:700;text-align:center" id="rpt-value">$50,000,000</div>
+        <div style="font-size:20px;font-weight:700;text-align:center" id="rpt-value">—</div>
       </div>
       <div style="text-align:center">
         <div class="card-label" style="text-align:center">Week P&L</div>
@@ -2026,12 +2026,12 @@ main {
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px">
     <div class="card" style="padding:20px">
       <div class="dim-t" style="font-size:10px;margin-bottom:8px;letter-spacing:.08em">T+0 CASH POSITION</div>
-      <div id="tr-t0cash" style="font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--cyan)">$50,000,000</div>
+      <div id="tr-t0cash" style="font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--cyan)">—</div>
       <div class="dim-t" style="font-size:10px;margin-top:6px">Settled cash · all accounts</div>
     </div>
     <div class="card" style="padding:20px">
       <div class="dim-t" style="font-size:10px;margin-bottom:8px;letter-spacing:.08em">CASH AVAILABLE TO TRADE</div>
-      <div id="tr-available" style="font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--green)">$50,000,000</div>
+      <div id="tr-available" style="font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--green)">—</div>
       <div class="dim-t" style="font-size:10px;margin-top:6px">T+0 less pending obligations</div>
     </div>
     <div class="card" style="padding:20px">
@@ -2917,8 +2917,8 @@ const API = {
 };
 
 const state = {
-  portfolioValue: 50_000_000,
-  cash: 50_000_000,
+  portfolioValue: 0,
+  cash: 0,
   pnl: 0,
   pnlPct: 0,
   drawdown: 0,
