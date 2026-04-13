@@ -6131,6 +6131,22 @@ def index():
     return send_from_directory(THIS_DIR, "index.html")
 
 
+@app.route("/<path:path>")
+def catch_all(path):
+    """
+    Catch-all for client-side routing.
+    Excludes /api/* and /mcp routes so they are handled by their own
+    registered blueprints/routes and never accidentally served index.html.
+    """
+    # Don't intercept API or MCP routes — let Flask 404 naturally
+    if path.startswith("api/") or path.startswith("mcp"):
+        return jsonify({"error": "Not found"}), 404
+    # Serve static files if they exist on disk (JS, CSS, images, etc.)
+    if path and os.path.exists(os.path.join(THIS_DIR, path)):
+        return send_from_directory(THIS_DIR, path)
+    # Fall back to index.html for all other paths (client-side routing)
+    return send_from_directory(THIS_DIR, "index.html")
+
 
 # ─────────────────────────────────────────────────────────────────
 # 9. START
