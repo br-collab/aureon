@@ -5520,7 +5520,14 @@ def api_alpaca_bars():
         [s.strip() for s in symbols.split(",")],
         timeframe=timeframe, limit=limit,
     )
-    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+    if not result.get("ok"):
+        return jsonify({
+            "status": "error",
+            "reason": result.get("error", "Unknown error"),
+            "data": None,
+            "message": "Alpaca API request failed"
+        }), 200
+    return jsonify(result), 200
 
 
 @app.route("/api/neptune/alpaca/snapshots")
@@ -5539,7 +5546,14 @@ def api_alpaca_snapshots():
             "data":    [],
             "message": "Add ALPACA_API_KEY and ALPACA_API_SECRET to Railway Variables to enable this feature",
         }), 200
-    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+    if not result.get("ok"):
+        return jsonify({
+            "status": "error",
+            "reason": result.get("error", "Unknown error"),
+            "data": None,
+            "message": "Alpaca API request failed"
+        }), 200
+    return jsonify(result), 200
 
 
 @app.route("/api/neptune/alpaca/news")
@@ -5552,7 +5566,14 @@ def api_alpaca_news():
     limit   = request.args.get("limit", 20, type=int)
     sym_list = [s.strip() for s in symbols.split(",")] if symbols else None
     result   = client.get_news(sym_list, limit=limit)
-    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+    if not result.get("ok"):
+        return jsonify({
+            "status": "error",
+            "reason": result.get("error", "Unknown error"),
+            "data": None,
+            "message": "Alpaca API request failed"
+        }), 200
+    return jsonify(result), 200
 
 
 @app.route("/api/neptune/alpaca/packet", methods=["POST"])
@@ -5573,7 +5594,14 @@ def api_alpaca_packet():
         bar_limit  = body.get("bar_limit", 252),
         news_limit = body.get("news_limit", 20),
     )
-    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+    if not result.get("ok"):
+        return jsonify({
+            "status": "error",
+            "reason": result.get("error", "Unknown error"),
+            "data": None,
+            "message": "Alpaca API request failed"
+        }), 200
+    return jsonify(result), 200
 
 
 # ─────────────────────────────────────────────────────────────────
