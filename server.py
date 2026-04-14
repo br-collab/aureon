@@ -1905,9 +1905,28 @@ _cato_input_cache = {
     "ts": 0.0,
     "sofr_rate": None,    # percent, e.g. 5.33
     "ofr_stress": None,   # FSI value, e.g. 0.12 (positive = above-average stress)
-    "gas_gwei": None,     # Ethereum mainnet average gas price
+    "chain_state": None,  # v0.2.0 multi-chain rail state dict (see below)
 }
 _cato_input_cache_lock = threading.Lock()
+
+# Cato v0.2.0 multi-chain endpoints — mirror of BLOCKSCOUT_CHAINS in the
+# Cato MCP server (cato-mcp/index.js). Fetched from inside
+# _neptune_refresh_loop every 60 seconds, cached into _cato_input_cache,
+# and served from cache to /api/cato/* endpoints with zero network I/O
+# in the request path.
+_CATO_BLOCKSCOUT_CHAINS = {
+    "ethereum": "https://eth.blockscout.com/api/v2/stats",
+    "base":     "https://base.blockscout.com/api/v2/stats",
+    "arbitrum": "https://arbitrum.blockscout.com/api/v2/stats",
+}
+_CATO_SOLANA_RPC = "https://api.mainnet-beta.solana.com"
+_CATO_SOL_PRICE_PROXY = 150.0   # USD per SOL — mirror cato_client.SOL_PRICE_PROXY
+_CATO_CHAIN_SPEED = {
+    "ethereum": "12s",
+    "base":     "2s",
+    "arbitrum": "2s",
+    "solana":   "400ms",
+}
 _FRED_SERIES = {
     "fed_funds": {"id": "DFF", "label": "Fed Funds"},
     "ust_10y": {"id": "DGS10", "label": "UST 10Y"},
@@ -2099,20 +2118,140 @@ def _neptune_data_cache_set(key, data):
         _neptune_data_cache[key] = {"ts": time.time(), "data": data}
 
 
+def _cato_fetch_blockscout_stats(url):
+    """
+    Direct HTTP fetch of a Blockscout /api/v2/stats endpoint. Used for the
+    Cato multi-chain refresh (Base and Arbitrum don't have dedicated client
+    modules in aureon/mcp — only Ethereum does via blockscout_client).
+    Returns {"gas_gwei", "coin_price_usd"} or None on any failure.
+    5-second timeout. All errors swallowed and logged.
+    """
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Aureon-Cato/0.2.0 (in-process)"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        gas_avg = payload.get("gas_prices", {}).get("average")
+        coin_price = payload.get("coin_price")
+        return {
+            "gas_gwei": float(gas_avg) if gas_avg is not None else None,
+            "coin_price_usd": float(coin_price) if coin_price is not None else None,
+        }
+    except Exception as exc:
+        _log_error("WARN", f"cato_refresh:blockscout:{url}", str(exc))
+        return None
+
+
+def _cato_fetch_solana_fees():
+    """
+    Solana priority fee fetch via getRecentPrioritizationFees JSON-RPC.
+    Base fee on Solana is a fixed 5000 lamports per signature. Total fee
+    ≈ 5000 + median priority fee. Returns lamports total + USD estimate
+    at a static SOL_PRICE_PROXY of $150. 5-second timeout, fail-safe to
+    base fee only on any error.
+    """
+    try:
+        body = json.dumps({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getRecentPrioritizationFees",
+            "params": [],
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            _CATO_SOLANA_RPC,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "Aureon-Cato/0.2.0 (in-process)",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        fees = payload.get("result") or []
+        if fees:
+            priorities = sorted(int(f.get("prioritizationFee", 0) or 0) for f in fees)
+            priority_median = priorities[len(priorities) // 2]
+        else:
+            priority_median = 0
+        base = 5000
+        total = base + priority_median
+        return {
+            "base_fee_lamports": base,
+            "priority_fee_lamports": priority_median,
+            "total_fee_lamports": total,
+            "total_fee_usd": total * 1e-9 * _CATO_SOL_PRICE_PROXY,
+        }
+    except Exception as exc:
+        _log_error("WARN", "cato_refresh:solana", str(exc))
+        return {
+            "base_fee_lamports": 5000,
+            "priority_fee_lamports": 0,
+            "total_fee_lamports": 5000,
+            "total_fee_usd": 5000 * 1e-9 * _CATO_SOL_PRICE_PROXY,
+        }
+
+
+def _cato_build_chain_state():
+    """
+    Assemble the Cato v0.2.0 chain_state dict from live network queries.
+    Each fetch is isolated so one slow/broken chain can never block the
+    others. Returns the full {ethereum, base, arbitrum, solana, fed_l1}
+    shape the cato_client module expects.
+    """
+    eth_stats = _cato_fetch_blockscout_stats(_CATO_BLOCKSCOUT_CHAINS["ethereum"])
+    base_stats = _cato_fetch_blockscout_stats(_CATO_BLOCKSCOUT_CHAINS["base"])
+    arb_stats = _cato_fetch_blockscout_stats(_CATO_BLOCKSCOUT_CHAINS["arbitrum"])
+    sol_stats = _cato_fetch_solana_fees()
+
+    def evm_block(key, stats):
+        if stats is None or stats.get("gas_gwei") is None:
+            return {
+                "gas_gwei": None,
+                "settlement_speed": _CATO_CHAIN_SPEED[key],
+                "status": "unavailable",
+            }
+        return {
+            "gas_gwei": stats["gas_gwei"],
+            "settlement_speed": _CATO_CHAIN_SPEED[key],
+            "status": "live",
+            "coin_price_usd": stats.get("coin_price_usd"),
+        }
+
+    return {
+        "ethereum": evm_block("ethereum", eth_stats),
+        "base":     evm_block("base", base_stats),
+        "arbitrum": evm_block("arbitrum", arb_stats),
+        "solana": {
+            "fee_lamports":     sol_stats["total_fee_lamports"] if sol_stats else None,
+            "fee_usd_estimate": round(sol_stats["total_fee_usd"], 6) if sol_stats else None,
+            "base_fee_lamports": sol_stats.get("base_fee_lamports") if sol_stats else None,
+            "priority_fee_lamports": sol_stats.get("priority_fee_lamports") if sol_stats else None,
+            "settlement_speed": _CATO_CHAIN_SPEED["solana"],
+            "status": "live" if sol_stats and sol_stats.get("total_fee_lamports") else "unavailable",
+            "note": "Solana 400ms finality. Base 5000 lamports + median prioritization. SOL $150 proxy.",
+        },
+        "fed_l1": {
+            "status": "not_yet_issued",
+            "note": "PORTS — Duffie 2025. Tokenized Fed reserves pending. Monitor GENIUS Act progress.",
+        },
+    }
+
+
 def _cato_refresh_inputs():
     """
-    Refresh the three Cato gate inputs (SOFR, OFR stress, ETH gas) into
-    _cato_input_cache. Reads from existing cached sources so this is
-    mostly free — only FRED SOFR requires a new fetch because the existing
-    _fred_cache stores the macro snapshot dict, not the SOFR scalar.
-    Called from inside _neptune_refresh_loop.
+    Refresh Cato gate inputs (SOFR, OFR stress, full multi-chain state)
+    into _cato_input_cache. v0.2.0 multi-chain: populates Ethereum, Base,
+    Arbitrum, and Solana in one cycle. Each chain fetch is isolated.
+
+    Called from inside _neptune_refresh_loop on the 60s cadence.
     """
     sofr_rate = None
     ofr_stress = None
-    gas_gwei = None
 
-    # SOFR — fresh fetch via the existing FRED helper. 6-second timeout
-    # already baked in via urllib; falls through to None on any error.
+    # SOFR — fresh fetch via the existing FRED helper.
     try:
         sofr_obs = _fred_series_latest("SOFR")
         if sofr_obs and sofr_obs.get("value") is not None:
@@ -2120,13 +2259,7 @@ def _cato_refresh_inputs():
     except Exception as exc:
         _log_error("WARN", "cato_refresh:sofr", str(exc))
 
-    # SOFR fallback — use cached fed_funds rate as a proxy. SOFR ≈ fed funds
-    # in practice (typically within ~5 bps). This kicks in when FRED API is
-    # unreachable (no FRED_API_KEY set, rate-limited, or offline), which is
-    # the default state on Railway today. The existing _fred_cache["data"]
-    # holds whatever _get_fred_macro_snapshot last returned — a live FRED
-    # snapshot OR _fallback_macro_snapshot() (fed_funds=5.33). Either way
-    # the scalar is available and a reasonable proxy.
+    # SOFR fallback — cached fed_funds rate as proxy when FRED is unreachable.
     if sofr_rate is None:
         try:
             fred_data = _fred_cache.get("data")
@@ -2135,8 +2268,7 @@ def _cato_refresh_inputs():
         except Exception:
             pass
 
-    # OFR stress — read from the already-maintained _ofr_cache. The macro
-    # refresh call inside market_loop keeps this warm.
+    # OFR stress — read from the market_loop-maintained _ofr_cache.
     try:
         ofr_data = _ofr_cache.get("data")
         if ofr_data and ofr_data.get("fsi_value") is not None:
@@ -2144,26 +2276,16 @@ def _cato_refresh_inputs():
     except Exception as exc:
         _log_error("WARN", "cato_refresh:ofr", str(exc))
 
-    # ETH gas — read from the Blockscout network stats the same way the
-    # existing blockscout_stats cached endpoint does.
-    try:
-        bs_client = get_blockscout_client()
-        if bs_client is not None:
-            result = bs_client.get_network_stats(chain_id="1")
-            if result and result.get("ok"):
-                gas_obj = result.get("data", {}).get("gas_prices", {})
-                # Blockscout returns gas prices as strings under slow/average/fast
-                avg = gas_obj.get("average")
-                if avg is not None:
-                    gas_gwei = float(avg)
-    except Exception as exc:
-        _log_error("WARN", "cato_refresh:gas", str(exc))
+    # Multi-chain state — fetches all four chains in sequence. Each fetch
+    # has a 5s hard timeout so worst case is ~20s cycle time; typical is
+    # well under 2s when chains are healthy. Never holds any lock.
+    chain_state = _cato_build_chain_state()
 
     with _cato_input_cache_lock:
         _cato_input_cache["ts"] = time.time()
         _cato_input_cache["sofr_rate"] = sofr_rate
         _cato_input_cache["ofr_stress"] = ofr_stress
-        _cato_input_cache["gas_gwei"] = gas_gwei
+        _cato_input_cache["chain_state"] = chain_state
 
 
 def _neptune_refresh_loop():
@@ -4240,18 +4362,19 @@ def api_compliance():
 @app.route("/api/cato/gate")
 def api_cato_gate():
     """
-    Cato atomic settlement gate — Verana L0 doctrine check.
+    Cato atomic settlement gate — Verana L0 doctrine check (v0.2.0 multi-chain).
 
-    Returns PROCEED / HOLD / ESCALATE based on live SOFR, OFR stress,
-    and ETH gas. Served from cache — the underlying inputs refresh
-    every 60s via _cato_refresh_inputs() in the Neptune refresh loop.
+    Returns PROCEED / HOLD / ESCALATE + recommended_chain based on live
+    SOFR, OFR stress, and the full multi-chain state (Ethereum, Base,
+    Arbitrum, Solana). Served from cache — _cato_refresh_inputs refreshes
+    every 60s inside the Neptune refresh loop.
     """
     with _cato_input_cache_lock:
         inputs = dict(_cato_input_cache)
     decision = cato_atomic_settlement_gate(
         sofr_rate=inputs.get("sofr_rate"),
         ofr_stress=inputs.get("ofr_stress"),
-        gas_gwei=inputs.get("gas_gwei"),
+        chain_state=inputs.get("chain_state"),
     )
     decision["cache_age_seconds"] = (
         round(time.time() - inputs["ts"], 1) if inputs.get("ts") else None
@@ -4264,14 +4387,14 @@ def api_cato_settlement_context():
     """
     Cato tokenized-settlement context — settlement_posture signal for
     dashboard display. favorable / monitor / elevated based on the same
-    cached SOFR, OFR, and gas scalars as /api/cato/gate.
+    cached inputs as /api/cato/gate.
     """
     with _cato_input_cache_lock:
         inputs = dict(_cato_input_cache)
     ctx = cato_tokenized_settlement_context(
         sofr_rate=inputs.get("sofr_rate"),
         ofr_stress=inputs.get("ofr_stress"),
-        gas_gwei=inputs.get("gas_gwei"),
+        chain_state=inputs.get("chain_state"),
     )
     ctx["cache_age_seconds"] = (
         round(time.time() - inputs["ts"], 1) if inputs.get("ts") else None
@@ -4282,9 +4405,10 @@ def api_cato_settlement_context():
 @app.route("/api/cato/compare-rails", methods=["GET", "POST"])
 def api_cato_compare_rails():
     """
-    Cato rail comparison — FICC traditional vs atomic on-chain cost for
-    a given notional. Uses cached SOFR + gas so the request path makes
-    no network calls.
+    Cato multi-chain rail comparison (v0.2.0) — ranks FICC, Ethereum L1,
+    Base, Arbitrum, and Solana by all-in cost for a given notional, and
+    returns a notional-aware recommended_rail. Uses cached SOFR + OFR
+    stress + chain_state so the request path makes no network calls.
 
     Query params or JSON body:
       notional_usd : required, positive number
@@ -4313,17 +4437,38 @@ def api_cato_compare_rails():
     sofr_pct = inputs.get("sofr_rate")
     if sofr_pct is None:
         sofr_pct = 0.0   # conservative default when cache cold
+    ofr_stress = inputs.get("ofr_stress") or 0.0
 
     result = cato_compare_settlement_rails(
         notional_usd=notional_usd,
         term_days=term_days,
         sofr_pct=sofr_pct,
-        gas_gwei=inputs.get("gas_gwei"),
+        ofr_stress=ofr_stress,
+        chain_state=inputs.get("chain_state"),
     )
     result["cache_age_seconds"] = (
         round(time.time() - inputs["ts"], 1) if inputs.get("ts") else None
     )
     return jsonify(result)
+
+
+@app.route("/api/cato/multichain-gas")
+def api_cato_multichain_gas():
+    """
+    Raw multi-chain gas/fee state from the Cato input cache. Useful for
+    dashboard visualizations that need the per-chain numbers directly
+    (ETH, Base, Arbitrum gas in gwei; Solana fee in lamports and USD).
+    Served entirely from cache — no network I/O in the request path.
+    """
+    with _cato_input_cache_lock:
+        inputs = dict(_cato_input_cache)
+    chain_state = inputs.get("chain_state") or {}
+    return jsonify({
+        "source": "Aureon (cached from _cato_refresh_inputs)",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "cache_age_seconds": round(time.time() - inputs["ts"], 1) if inputs.get("ts") else None,
+        **chain_state,
+    })
 
 
 @app.route("/api/decisions")
