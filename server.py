@@ -2120,6 +2120,21 @@ def _cato_refresh_inputs():
     except Exception as exc:
         _log_error("WARN", "cato_refresh:sofr", str(exc))
 
+    # SOFR fallback — use cached fed_funds rate as a proxy. SOFR ≈ fed funds
+    # in practice (typically within ~5 bps). This kicks in when FRED API is
+    # unreachable (no FRED_API_KEY set, rate-limited, or offline), which is
+    # the default state on Railway today. The existing _fred_cache["data"]
+    # holds whatever _get_fred_macro_snapshot last returned — a live FRED
+    # snapshot OR _fallback_macro_snapshot() (fed_funds=5.33). Either way
+    # the scalar is available and a reasonable proxy.
+    if sofr_rate is None:
+        try:
+            fred_data = _fred_cache.get("data")
+            if fred_data and fred_data.get("fed_funds") is not None:
+                sofr_rate = float(fred_data["fed_funds"])
+        except Exception:
+            pass
+
     # OFR stress — read from the already-maintained _ofr_cache. The macro
     # refresh call inside market_loop keeps this warm.
     try:
