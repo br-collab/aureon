@@ -5373,12 +5373,10 @@ async function slowTick() {
     fetchTreasury(),
     fetchMacro(),
   ]);
-  // Neptune polling temporarily disabled — every Neptune endpoint makes
-  // blocking external API calls in the request handler with no caching,
-  // and the 13 fetches per poll saturate gunicorn workers within minutes.
-  // Re-enable after server-side endpoints are converted to background-
-  // refresh + cached-read pattern (same fix applied to /api/compliance).
-  // fetchNeptune().catch(() => {});
+  // Neptune fetches are now safe — server-side endpoints serve from a
+  // cache refreshed every 60s by _neptune_refresh_loop. Fire-and-forget
+  // so the main poll loop never waits on Neptune.
+  fetchNeptune().catch(() => {});
   renderGovernance();
 
   // Compliance tab
