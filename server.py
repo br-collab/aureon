@@ -3989,8 +3989,10 @@ def api_thesis_upload():
 @app.route("/api/macro")
 def api_macro():
     """Macro regime monitor backed by FRED with safe fallback values."""
-    macro = _get_fred_macro_snapshot()
-    macro["ofr"] = _get_ofr_stress_snapshot(macro)
+    # Cache-only read — never block the request thread on FRED/OFR network I/O.
+    # market_loop refreshes these in the background.
+    macro = dict(_fred_cache.get("data") or _fallback_macro_snapshot())
+    macro["ofr"] = _ofr_cache.get("data") or _fallback_ofr_snapshot(macro)
     return jsonify(macro)
 
 
