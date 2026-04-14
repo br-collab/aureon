@@ -37,7 +37,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 
-CATO_DOCTRINE_VERSION = "0.2.0"
+CATO_DOCTRINE_VERSION = "0.2.1"
 CATO_GATE_LABEL = f"Verana L0 — Cato settlement gate v{CATO_DOCTRINE_VERSION}"
 
 # Doctrine thresholds (see Duffie 2025, Brookings Institution).
@@ -51,10 +51,14 @@ CATO_POSTURE_MONITOR_STRESS = 0.5
 CATO_POSTURE_ELEVATED_GAS = 50.0
 CATO_POSTURE_ELEVATED_STRESS = 1.0
 
-# Price proxies — mirror the MCP server v0.2.0 constants.
-# Phase 3 will replace these with live feeds from the chains themselves.
-ETH_PRICE_PROXY = 3500.0   # USD per ETH
-SOL_PRICE_PROXY = 150.0    # USD per SOL
+# Price fallbacks — used only when CoinGecko is unreachable and the caller
+# doesn't supply a live `prices` dict. The doctrine principle: live prices
+# everywhere, fallbacks only when the feed breaks. server.py fetches live
+# ETH/SOL from CoinGecko in _cato_refresh_inputs() and threads the scalars
+# into every function below via the `prices` parameter. Mirrors the Cato
+# MCP server v0.2.1 ETH_PRICE_FALLBACK / SOL_PRICE_FALLBACK constants.
+ETH_PRICE_FALLBACK = 3500.0   # USD per ETH
+SOL_PRICE_FALLBACK = 150.0    # USD per SOL
 
 # Settlement speeds (informational, surfaced in output).
 CHAIN_SPEED = {
@@ -137,7 +141,7 @@ def _eth_gas(chain_state: dict) -> Optional[float]:
     return _coerce_float(chain_state.get("ethereum", {}).get("gas_gwei"))
 
 
-# ── Cost helpers (mirror Cato MCP v0.2.0) ────────────────────────────────────
+# ── Cost helpers (mirror Cato MCP v0.2.1 — live prices) ─────────────────────
 
 def _ficc_cost(notional_usd: float, sofr_pct: float, term_days: int) -> float:
     """FICC rail: 0.5 bps clearing fee net of 40% netting, annualized
@@ -147,21 +151,50 @@ def _ficc_cost(notional_usd: float, sofr_pct: float, term_days: int) -> float:
     return clearing + coc
 
 
-def _evm_l1_cost(gas_gwei: Optional[float]) -> Optional[float]:
-    """EVM rail: gas_gwei × 65000 gas × 1e-9 × ETH_PRICE_PROXY.
+def _evm_l1_cost(gas_gwei: Optional[float], eth_price_usd: Optional[float] = None) -> Optional[float]:
+    """EVM rail: gas_gwei × 65000 gas × 1e-9 × live ETH price.
 
     The gwei→ETH conversion is 1e-9 (corrected from the v0.1.0 1e-10 typo
-    that was caught in commit ff87291 before first real-world use)."""
+    that was caught in commit ff87291 before first real-world use).
+    Falls back to ETH_PRICE_FALLBACK only if the caller didn't supply a
+    live eth_price_usd."""
     if gas_gwei is None:
         return None
-    return gas_gwei * 65000 * 1e-9 * ETH_PRICE_PROXY
+    price = eth_price_usd if eth_price_usd is not None else ETH_PRICE_FALLBACK
+    return gas_gwei * 65000 * 1e-9 * price
 
 
-def _solana_cost(fee_lamports: Optional[float]) -> Optional[float]:
-    """Solana rail: total lamports × 1e-9 × SOL_PRICE_PROXY."""
+def _solana_cost(fee_lamports: Optional[float], sol_price_usd: Optional[float] = None) -> Optional[float]:
+    """Solana rail: total lamports × 1e-9 × live SOL price.
+
+    Falls back to SOL_PRICE_FALLBACK only if the caller didn't supply a
+    live sol_price_usd."""
     if fee_lamports is None:
         return None
-    return fee_lamports * 1e-9 * SOL_PRICE_PROXY
+    price = sol_price_usd if sol_price_usd is not None else SOL_PRICE_FALLBACK
+    return fee_lamports * 1e-9 * price
+
+
+def _resolve_prices(prices: Optional[dict]) -> dict:
+    """Normalize a caller-supplied prices dict. Returns a dict with at
+    least {eth, sol, source, fallback_used}. If the caller passes None,
+    falls back to the static constants and marks the result accordingly
+    so the output's `price_sources` block reflects the degraded state."""
+    if prices and prices.get("eth") is not None and prices.get("sol") is not None:
+        return {
+            "eth": float(prices["eth"]),
+            "sol": float(prices["sol"]),
+            "source": prices.get("source", "caller_supplied"),
+            "timestamp": prices.get("timestamp"),
+            "fallback_used": bool(prices.get("fallback_used", False)),
+        }
+    return {
+        "eth": ETH_PRICE_FALLBACK,
+        "sol": SOL_PRICE_FALLBACK,
+        "source": "static_fallback",
+        "timestamp": None,
+        "fallback_used": True,
+    }
 
 
 # ── Tokenized settlement context ─────────────────────────────────────────────
@@ -232,16 +265,19 @@ def atomic_settlement_gate(
     sofr_rate: Optional[float],
     ofr_stress: Optional[float],
     chain_state: Optional[dict] = None,
+    prices: Optional[dict] = None,
 ) -> dict:
     """
-    Deterministic Cato doctrine gate v0.2.0.
+    Deterministic Cato doctrine gate v0.2.1.
 
     Uses Ethereum L1 gas as the primary threshold input (mirrors MCP
     server — the 50 gwei HOLD threshold is ETH-specific, because a gas
     spike on ETH L1 signals network-wide congestion that also slows L2s).
     Returns PROCEED/HOLD/ESCALATE + recommended_chain for the PROCEED
-    case, plus solana_note and fed_l1_note per v0.2.0 spec.
+    case, plus solana_note, fed_l1_note, and a `price_sources` block
+    reflecting the live CoinGecko ETH/SOL prices the caller supplied.
     """
+    resolved_prices = _resolve_prices(prices)
     state = _get_chain_state(chain_state)
     eth_gas = _eth_gas(state)
     ofr = ofr_stress if ofr_stress is not None else 0.0
@@ -296,6 +332,13 @@ def atomic_settlement_gate(
             "settlement_posture": posture["settlement_posture"],
         },
         "chain_state": state,
+        "price_sources": {
+            "eth_usd": resolved_prices["eth"],
+            "sol_usd": resolved_prices["sol"],
+            "source": resolved_prices["source"],
+            "timestamp": resolved_prices["timestamp"],
+            "fallback_used": resolved_prices["fallback_used"],
+        },
         "thresholds": {
             "escalate_ofr": CATO_OFR_ESCALATE_THRESHOLD,
             "hold_ofr": CATO_OFR_HOLD_THRESHOLD,
@@ -340,13 +383,18 @@ def compare_settlement_rails(
     sofr_pct: float,
     ofr_stress: float = 0.0,
     chain_state: Optional[dict] = None,
+    prices: Optional[dict] = None,
 ) -> dict:
     """
-    Cato v0.2.0 multi-chain rail cost comparison.
+    Cato v0.2.1 multi-chain rail cost comparison.
 
     Returns a full rails table plus a ranked ordering (cheapest → most
-    expensive) and a notional-aware recommended_rail.
+    expensive) and a notional-aware recommended_rail. Rail costs use
+    live CoinGecko ETH/SOL prices when the caller supplies a `prices`
+    dict; otherwise falls back to the static constants (and marks
+    fallback_used=True in the output's price_sources block).
     """
+    resolved_prices = _resolve_prices(prices)
     state = _get_chain_state(chain_state)
     eth_gas = _eth_gas(state)
     base_gas = _coerce_float(state.get("base", {}).get("gas_gwei"))
@@ -355,10 +403,10 @@ def compare_settlement_rails(
     sol_fee_usd = _coerce_float(state.get("solana", {}).get("fee_usd_estimate"))
 
     ficc_cost = _ficc_cost(notional_usd, sofr_pct, term_days)
-    eth_cost = _evm_l1_cost(eth_gas)
-    base_cost = _evm_l1_cost(base_gas)
-    arb_cost = _evm_l1_cost(arb_gas)
-    sol_cost = _solana_cost(sol_fee_lamports)
+    eth_cost = _evm_l1_cost(eth_gas, resolved_prices["eth"])
+    base_cost = _evm_l1_cost(base_gas, resolved_prices["eth"])
+    arb_cost = _evm_l1_cost(arb_gas, resolved_prices["eth"])
+    sol_cost = _solana_cost(sol_fee_lamports, resolved_prices["sol"])
 
     rails_table = {
         "ficc_traditional": {
@@ -376,25 +424,25 @@ def compare_settlement_rails(
             "cost_usd": round(eth_cost, 4) if eth_cost is not None else None,
             "speed": CHAIN_SPEED["ethereum"],
             "status": state.get("ethereum", {}).get("status"),
-            "inputs": {"gas_gwei": eth_gas, "gas_units": 65000, "eth_price_proxy": ETH_PRICE_PROXY},
+            "inputs": {"gas_gwei": eth_gas, "gas_units": 65000, "eth_price_usd": resolved_prices["eth"]},
         },
         "base": {
             "cost_usd": round(base_cost, 4) if base_cost is not None else None,
             "speed": CHAIN_SPEED["base"],
             "status": state.get("base", {}).get("status"),
-            "inputs": {"gas_gwei": base_gas, "gas_units": 65000, "eth_price_proxy": ETH_PRICE_PROXY},
+            "inputs": {"gas_gwei": base_gas, "gas_units": 65000, "eth_price_usd": resolved_prices["eth"]},
         },
         "arbitrum": {
             "cost_usd": round(arb_cost, 4) if arb_cost is not None else None,
             "speed": CHAIN_SPEED["arbitrum"],
             "status": state.get("arbitrum", {}).get("status"),
-            "inputs": {"gas_gwei": arb_gas, "gas_units": 65000, "eth_price_proxy": ETH_PRICE_PROXY},
+            "inputs": {"gas_gwei": arb_gas, "gas_units": 65000, "eth_price_usd": resolved_prices["eth"]},
         },
         "solana": {
             "cost_usd": round(sol_cost, 6) if sol_cost is not None else None,
             "speed": CHAIN_SPEED["solana"],
             "status": state.get("solana", {}).get("status"),
-            "inputs": {"fee_lamports": sol_fee_lamports, "sol_price_proxy": SOL_PRICE_PROXY},
+            "inputs": {"fee_lamports": sol_fee_lamports, "sol_price_usd": resolved_prices["sol"]},
         },
         "fed_l1": {
             "cost_usd": None,
@@ -421,7 +469,7 @@ def compare_settlement_rails(
     )
 
     return {
-        "source": "Aureon (in-process Cato v0.2.0)",
+        "source": "Aureon (in-process Cato v0.2.1)",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "inputs": {"notional_usd": notional_usd, "term_days": term_days},
         "market_state": {
@@ -431,15 +479,23 @@ def compare_settlement_rails(
             "base_gas_gwei": base_gas,
             "arbitrum_gas_gwei": arb_gas,
             "solana_fee_usd_estimate": sol_fee_usd,
-            "eth_price_proxy": ETH_PRICE_PROXY,
-            "sol_price_proxy": SOL_PRICE_PROXY,
+            "eth_price_usd": resolved_prices["eth"],
+            "sol_price_usd": resolved_prices["sol"],
+        },
+        "price_sources": {
+            "eth_usd": resolved_prices["eth"],
+            "sol_usd": resolved_prices["sol"],
+            "source": resolved_prices["source"],
+            "timestamp": resolved_prices["timestamp"],
+            "fallback_used": resolved_prices["fallback_used"],
+            "note": "Live prices via CoinGecko public API. For institutional deployment use a licensed price feed (Bloomberg BVAL, Refinitiv, Chainlink Price Feeds).",
         },
         "rails": rails_table,
         "ranked": ranked,
         "recommended_rail": recommended,
         "doctrine_note": (
             "On-chain atomic DvP eliminates T+1 counterparty risk window. "
-            "FICC clearing provides netting benefit at scale. Cato v0.2.0 "
+            "FICC clearing provides netting benefit at scale. Cato v0.2.1 "
             "routes by notional, gas, and systemic stress — stress override "
             "is absolute."
         ),

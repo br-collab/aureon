@@ -1906,10 +1906,11 @@ _cato_input_cache = {
     "sofr_rate": None,    # percent, e.g. 5.33
     "ofr_stress": None,   # FSI value, e.g. 0.12 (positive = above-average stress)
     "chain_state": None,  # v0.2.0 multi-chain rail state dict (see below)
+    "prices": None,       # v0.2.1 live CoinGecko ETH/SOL prices dict
 }
 _cato_input_cache_lock = threading.Lock()
 
-# Cato v0.2.0 multi-chain endpoints — mirror of BLOCKSCOUT_CHAINS in the
+# Cato v0.2.1 multi-chain endpoints — mirror of BLOCKSCOUT_CHAINS in the
 # Cato MCP server (cato-mcp/index.js). Fetched from inside
 # _neptune_refresh_loop every 60 seconds, cached into _cato_input_cache,
 # and served from cache to /api/cato/* endpoints with zero network I/O
@@ -1920,7 +1921,9 @@ _CATO_BLOCKSCOUT_CHAINS = {
     "arbitrum": "https://arbitrum.blockscout.com/api/v2/stats",
 }
 _CATO_SOLANA_RPC = "https://api.mainnet-beta.solana.com"
-_CATO_SOL_PRICE_PROXY = 150.0   # USD per SOL — mirror cato_client.SOL_PRICE_PROXY
+_CATO_COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price"
+_CATO_ETH_PRICE_FALLBACK = 3500.0   # USD per ETH — mirror cato_client.ETH_PRICE_FALLBACK
+_CATO_SOL_PRICE_FALLBACK = 150.0    # USD per SOL — mirror cato_client.SOL_PRICE_FALLBACK
 _CATO_CHAIN_SPEED = {
     "ethereum": "12s",
     "base":     "2s",
@@ -2118,6 +2121,57 @@ def _neptune_data_cache_set(key, data):
         _neptune_data_cache[key] = {"ts": time.time(), "data": data}
 
 
+def _cato_fetch_coingecko_prices():
+    """
+    Live ETH and SOL USD prices from the free CoinGecko public API.
+    No auth required. Mirrors the Cato MCP server v0.2.1 getLivePrices()
+    function bit-for-bit.
+
+    Returns {"eth", "sol", "source", "timestamp", "fallback_used", "note"}.
+    On any failure (timeout, rate limit, malformed response) returns the
+    static fallback constants with fallback_used=True so the caller
+    surfaces the degraded state in the output's price_sources block.
+    5-second timeout; all errors logged.
+    """
+    url = (
+        f"{_CATO_COINGECKO_URL}"
+        "?ids=ethereum,solana&vs_currencies=usd"
+    )
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Aureon-Cato/0.2.1 (in-process)"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        eth_usd = payload.get("ethereum", {}).get("usd")
+        sol_usd = payload.get("solana", {}).get("usd")
+        fallback_used = eth_usd is None or sol_usd is None
+        return {
+            "eth": float(eth_usd) if eth_usd is not None else _CATO_ETH_PRICE_FALLBACK,
+            "sol": float(sol_usd) if sol_usd is not None else _CATO_SOL_PRICE_FALLBACK,
+            "source": "coingecko_partial_fallback" if fallback_used else "coingecko_public",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "fallback_used": fallback_used,
+            "note": (
+                "Live prices via CoinGecko public API. For institutional "
+                "deployment use a licensed price feed (Bloomberg BVAL, "
+                "Refinitiv, Chainlink Price Feeds)."
+            ),
+        }
+    except Exception as exc:
+        _log_error("WARN", "cato_refresh:coingecko", str(exc))
+        return {
+            "eth": _CATO_ETH_PRICE_FALLBACK,
+            "sol": _CATO_SOL_PRICE_FALLBACK,
+            "source": "static_fallback",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "fallback_used": True,
+            "error": str(exc),
+            "note": "CoinGecko unreachable. Using Cato static fallback prices.",
+        }
+
+
 def _cato_fetch_blockscout_stats(url):
     """
     Direct HTTP fetch of a Blockscout /api/v2/stats endpoint. Used for the
@@ -2144,14 +2198,16 @@ def _cato_fetch_blockscout_stats(url):
         return None
 
 
-def _cato_fetch_solana_fees():
+def _cato_fetch_solana_fees(sol_price_usd=None):
     """
     Solana priority fee fetch via getRecentPrioritizationFees JSON-RPC.
     Base fee on Solana is a fixed 5000 lamports per signature. Total fee
-    ≈ 5000 + median priority fee. Returns lamports total + USD estimate
-    at a static SOL_PRICE_PROXY of $150. 5-second timeout, fail-safe to
-    base fee only on any error.
+    ≈ 5000 + median priority fee. Takes a live sol_price_usd so the USD
+    estimate reflects the live CoinGecko SOL price (v0.2.1). Falls back
+    to the static constant if the caller doesn't supply one. 5-second
+    timeout, fail-safe to base fee only on any error.
     """
+    price_usd = sol_price_usd if sol_price_usd is not None else _CATO_SOL_PRICE_FALLBACK
     try:
         body = json.dumps({
             "jsonrpc": "2.0",
@@ -2164,7 +2220,7 @@ def _cato_fetch_solana_fees():
             data=body,
             headers={
                 "Content-Type": "application/json",
-                "User-Agent": "Aureon-Cato/0.2.0 (in-process)",
+                "User-Agent": "Aureon-Cato/0.2.1 (in-process)",
             },
             method="POST",
         )
@@ -2182,7 +2238,7 @@ def _cato_fetch_solana_fees():
             "base_fee_lamports": base,
             "priority_fee_lamports": priority_median,
             "total_fee_lamports": total,
-            "total_fee_usd": total * 1e-9 * _CATO_SOL_PRICE_PROXY,
+            "total_fee_usd": total * 1e-9 * price_usd,
         }
     except Exception as exc:
         _log_error("WARN", "cato_refresh:solana", str(exc))
@@ -2190,21 +2246,24 @@ def _cato_fetch_solana_fees():
             "base_fee_lamports": 5000,
             "priority_fee_lamports": 0,
             "total_fee_lamports": 5000,
-            "total_fee_usd": 5000 * 1e-9 * _CATO_SOL_PRICE_PROXY,
+            "total_fee_usd": 5000 * 1e-9 * price_usd,
         }
 
 
-def _cato_build_chain_state():
+def _cato_build_chain_state(prices=None):
     """
-    Assemble the Cato v0.2.0 chain_state dict from live network queries.
-    Each fetch is isolated so one slow/broken chain can never block the
-    others. Returns the full {ethereum, base, arbitrum, solana, fed_l1}
-    shape the cato_client module expects.
+    Assemble the Cato v0.2.1 chain_state dict from live network queries.
+    Takes a prices dict ({"eth", "sol", ...}) so the Solana fee_usd_estimate
+    reflects the live CoinGecko SOL price. Each fetch is isolated so one
+    slow/broken chain can never block the others. Returns the full
+    {ethereum, base, arbitrum, solana, fed_l1} shape the cato_client
+    module expects.
     """
+    sol_price = prices.get("sol") if prices else _CATO_SOL_PRICE_FALLBACK
     eth_stats = _cato_fetch_blockscout_stats(_CATO_BLOCKSCOUT_CHAINS["ethereum"])
     base_stats = _cato_fetch_blockscout_stats(_CATO_BLOCKSCOUT_CHAINS["base"])
     arb_stats = _cato_fetch_blockscout_stats(_CATO_BLOCKSCOUT_CHAINS["arbitrum"])
-    sol_stats = _cato_fetch_solana_fees()
+    sol_stats = _cato_fetch_solana_fees(sol_price_usd=sol_price)
 
     def evm_block(key, stats):
         if stats is None or stats.get("gas_gwei") is None:
@@ -2231,7 +2290,7 @@ def _cato_build_chain_state():
             "priority_fee_lamports": sol_stats.get("priority_fee_lamports") if sol_stats else None,
             "settlement_speed": _CATO_CHAIN_SPEED["solana"],
             "status": "live" if sol_stats and sol_stats.get("total_fee_lamports") else "unavailable",
-            "note": "Solana 400ms finality. Base 5000 lamports + median prioritization. SOL $150 proxy.",
+            "note": f"Solana 400ms finality. Base 5000 lamports + median prioritization. Live SOL: ${sol_price:.2f}.",
         },
         "fed_l1": {
             "status": "not_yet_issued",
@@ -2242,9 +2301,10 @@ def _cato_build_chain_state():
 
 def _cato_refresh_inputs():
     """
-    Refresh Cato gate inputs (SOFR, OFR stress, full multi-chain state)
-    into _cato_input_cache. v0.2.0 multi-chain: populates Ethereum, Base,
-    Arbitrum, and Solana in one cycle. Each chain fetch is isolated.
+    Refresh Cato gate inputs (SOFR, OFR stress, live prices, full
+    multi-chain state) into _cato_input_cache. v0.2.1 pulls live
+    ETH/SOL USD prices from CoinGecko before building chain_state so
+    the Solana fee_usd_estimate reflects the live SOL price.
 
     Called from inside _neptune_refresh_loop on the 60s cadence.
     """
@@ -2276,16 +2336,22 @@ def _cato_refresh_inputs():
     except Exception as exc:
         _log_error("WARN", "cato_refresh:ofr", str(exc))
 
+    # v0.2.1 live prices — CoinGecko public API, 5s timeout, fallback to
+    # static constants on any error. Fetched FIRST so chain_state uses
+    # the live SOL price for Solana fee USD conversion.
+    prices = _cato_fetch_coingecko_prices()
+
     # Multi-chain state — fetches all four chains in sequence. Each fetch
     # has a 5s hard timeout so worst case is ~20s cycle time; typical is
     # well under 2s when chains are healthy. Never holds any lock.
-    chain_state = _cato_build_chain_state()
+    chain_state = _cato_build_chain_state(prices=prices)
 
     with _cato_input_cache_lock:
         _cato_input_cache["ts"] = time.time()
         _cato_input_cache["sofr_rate"] = sofr_rate
         _cato_input_cache["ofr_stress"] = ofr_stress
         _cato_input_cache["chain_state"] = chain_state
+        _cato_input_cache["prices"] = prices
 
 
 def _neptune_refresh_loop():
@@ -4362,12 +4428,14 @@ def api_compliance():
 @app.route("/api/cato/gate")
 def api_cato_gate():
     """
-    Cato atomic settlement gate — Verana L0 doctrine check (v0.2.0 multi-chain).
+    Cato atomic settlement gate — Verana L0 doctrine check (v0.2.1
+    multi-chain with live CoinGecko prices).
 
-    Returns PROCEED / HOLD / ESCALATE + recommended_chain based on live
-    SOFR, OFR stress, and the full multi-chain state (Ethereum, Base,
-    Arbitrum, Solana). Served from cache — _cato_refresh_inputs refreshes
-    every 60s inside the Neptune refresh loop.
+    Returns PROCEED / HOLD / ESCALATE + recommended_chain + price_sources
+    based on live SOFR, OFR stress, live ETH/SOL prices, and the full
+    multi-chain state (Ethereum, Base, Arbitrum, Solana). Served from
+    cache — _cato_refresh_inputs refreshes every 60s inside the Neptune
+    refresh loop.
     """
     with _cato_input_cache_lock:
         inputs = dict(_cato_input_cache)
@@ -4375,6 +4443,7 @@ def api_cato_gate():
         sofr_rate=inputs.get("sofr_rate"),
         ofr_stress=inputs.get("ofr_stress"),
         chain_state=inputs.get("chain_state"),
+        prices=inputs.get("prices"),
     )
     decision["cache_age_seconds"] = (
         round(time.time() - inputs["ts"], 1) if inputs.get("ts") else None
@@ -4405,10 +4474,11 @@ def api_cato_settlement_context():
 @app.route("/api/cato/compare-rails", methods=["GET", "POST"])
 def api_cato_compare_rails():
     """
-    Cato multi-chain rail comparison (v0.2.0) — ranks FICC, Ethereum L1,
+    Cato multi-chain rail comparison (v0.2.1) — ranks FICC, Ethereum L1,
     Base, Arbitrum, and Solana by all-in cost for a given notional, and
     returns a notional-aware recommended_rail. Uses cached SOFR + OFR
-    stress + chain_state so the request path makes no network calls.
+    stress + live ETH/SOL prices + chain_state so the request path makes
+    no network calls.
 
     Query params or JSON body:
       notional_usd : required, positive number
@@ -4445,6 +4515,7 @@ def api_cato_compare_rails():
         sofr_pct=sofr_pct,
         ofr_stress=ofr_stress,
         chain_state=inputs.get("chain_state"),
+        prices=inputs.get("prices"),
     )
     result["cache_age_seconds"] = (
         round(time.time() - inputs["ts"], 1) if inputs.get("ts") else None
@@ -4455,19 +4526,50 @@ def api_cato_compare_rails():
 @app.route("/api/cato/multichain-gas")
 def api_cato_multichain_gas():
     """
-    Raw multi-chain gas/fee state from the Cato input cache. Useful for
-    dashboard visualizations that need the per-chain numbers directly
-    (ETH, Base, Arbitrum gas in gwei; Solana fee in lamports and USD).
+    Raw multi-chain gas/fee state + live prices from the Cato input cache.
+    Useful for dashboard visualizations that need the per-chain numbers
+    directly (ETH, Base, Arbitrum gas in gwei; Solana fee in lamports and
+    USD) and the live ETH/SOL prices via price_sources.
     Served entirely from cache — no network I/O in the request path.
     """
     with _cato_input_cache_lock:
         inputs = dict(_cato_input_cache)
     chain_state = inputs.get("chain_state") or {}
+    prices = inputs.get("prices") or {}
     return jsonify({
         "source": "Aureon (cached from _cato_refresh_inputs)",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "cache_age_seconds": round(time.time() - inputs["ts"], 1) if inputs.get("ts") else None,
+        "price_sources": {
+            "eth_usd": prices.get("eth"),
+            "sol_usd": prices.get("sol"),
+            "source": prices.get("source"),
+            "timestamp": prices.get("timestamp"),
+            "fallback_used": prices.get("fallback_used"),
+        },
         **chain_state,
+    })
+
+
+@app.route("/api/cato/prices")
+def api_cato_prices():
+    """
+    Live ETH / SOL USD prices from the Cato input cache (mirror of
+    Cato MCP server v0.2.1 `get_onchain_prices` tool). Served from
+    cache — _cato_refresh_inputs hits CoinGecko every 60s.
+    """
+    with _cato_input_cache_lock:
+        inputs = dict(_cato_input_cache)
+    prices = inputs.get("prices") or {}
+    return jsonify({
+        "source": "Aureon (cached from _cato_refresh_inputs)",
+        "eth_usd": prices.get("eth"),
+        "sol_usd": prices.get("sol"),
+        "fetch_source": prices.get("source"),
+        "timestamp": prices.get("timestamp"),
+        "fallback_used": prices.get("fallback_used"),
+        "cache_age_seconds": round(time.time() - inputs["ts"], 1) if inputs.get("ts") else None,
+        "note": prices.get("note"),
     })
 
 

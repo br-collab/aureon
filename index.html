@@ -2513,8 +2513,18 @@ main {
       </div>
     </div>
 
+    <!-- Live price feed line (v0.2.1 — CoinGecko) -->
+    <div style="font-size:10px;color:var(--dim);border-top:1px solid var(--border2);padding-top:10px;letter-spacing:.3px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <span>
+        <span style="color:var(--text)">ETH</span> <span id="cato-eth-price" style="color:var(--cyan)">--</span>
+        &nbsp;·&nbsp;
+        <span style="color:var(--text)">SOL</span> <span id="cato-sol-price" style="color:var(--cyan)">--</span>
+        &nbsp;<span id="cato-price-source" style="font-size:9px">(--)</span>
+      </span>
+      <span style="font-size:9px">Live prices via CoinGecko public API — institutional deployments should use Bloomberg BVAL / Refinitiv / Chainlink</span>
+    </div>
     <!-- Footer -->
-    <div style="font-size:10px;color:var(--dim);border-top:1px solid var(--border2);padding-top:10px;letter-spacing:.3px">
+    <div style="font-size:10px;color:var(--dim);border-top:1px solid var(--border2);padding-top:10px;margin-top:8px;letter-spacing:.3px">
       <span id="cato-doctrine">Verana L0 — Cato settlement gate</span> · ESCALATE &gt; 1.0 OFR · HOLD &gt; 0.5 OFR OR &gt; 50 gwei · PROCEED otherwise
     </div>
   </div>
@@ -2981,11 +2991,12 @@ const API = {
   macro:            '/api/macro',
   decisionJournal:  '/api/decision-journal',
   cascadePreview:   (id) => `/api/cascade-preview/${id}`,
-  // Cato — Verana L0 tokenized-settlement doctrine gate (v0.2.0 multi-chain)
+  // Cato — Verana L0 tokenized-settlement doctrine gate (v0.2.1 live prices)
   catoGate:              '/api/cato/gate',
   catoSettlementCtx:     '/api/cato/settlement-context',
   catoCompareRails:      '/api/cato/compare-rails',
   catoMultichainGas:     '/api/cato/multichain-gas',
+  catoPrices:            '/api/cato/prices',
   // Neptune Spear data pipes
   neptuneStatus:       '/api/neptune/status',
   neptuneFlowAlerts:   '/api/neptune/flow-alerts',
@@ -5565,6 +5576,28 @@ function renderCato() {
   if (ageEl) {
     const age = gate.cache_age_seconds;
     ageEl.textContent = (age === null || age === undefined) ? '--' : Math.round(age) + 's';
+  }
+
+  // v0.2.1 live price feed — ETH and SOL USD from CoinGecko via price_sources
+  const ps = gate.price_sources || {};
+  const ethPriceEl = document.getElementById('cato-eth-price');
+  if (ethPriceEl) {
+    ethPriceEl.textContent = (ps.eth_usd === null || ps.eth_usd === undefined)
+      ? '--'
+      : '$' + ps.eth_usd.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  }
+  const solPriceEl = document.getElementById('cato-sol-price');
+  if (solPriceEl) {
+    solPriceEl.textContent = (ps.sol_usd === null || ps.sol_usd === undefined)
+      ? '--'
+      : '$' + ps.sol_usd.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  }
+  const sourceEl = document.getElementById('cato-price-source');
+  if (sourceEl) {
+    const src = ps.source || 'unknown';
+    const fallback = ps.fallback_used ? ' ⚠ fallback' : '';
+    sourceEl.textContent = '(' + src + fallback + ')';
+    sourceEl.style.color = ps.fallback_used ? 'var(--yellow)' : 'var(--dim)';
   }
 }
 
