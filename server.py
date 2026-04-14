@@ -224,8 +224,14 @@ app.register_blueprint(mcp_bp)
 # One dictionary holds everything. We protect it with a threading
 # lock (_lock) so the market loop and API routes don't collide.
 # Think of _lock like a "do not disturb" sign on the dictionary.
+#
+# Reentrant (RLock): many call paths enter `with _lock:` and then
+# transitively call helpers like _log_error that also need _lock.
+# A plain Lock() would self-deadlock in those cases and freeze the
+# whole service. RLock has identical mutual-exclusion across threads
+# but tolerates re-acquisition by the same thread.
 
-_lock = threading.Lock()
+_lock = threading.RLock()
 
 aureon_state = {
     # ── Doctrine stack ──────────────────────────────────────────
