@@ -98,7 +98,7 @@ Required in `.env` (local) or Railway service variables (production):
 
 ## Cato — Verana L0 Tokenized Settlement Doctrine Gate
 
-**Status:** v0.2.1 — paper trading, approaching institutional-testing readiness.
+**Status:** v0.2.2 — paper trading, approaching institutional-testing readiness.
 **Reference:** Duffie (2025) *"The Case for PORTS"* — Brookings Institution.
 
 Cato is the Verana L0 pre-settlement doctrine gate. It takes live SOFR (FRED), OFR financial stress (FRED STLFSI4), multi-chain gas/fee state (Blockscout + Solana RPC), and live ETH/SOL prices (CoinGecko), and emits a deterministic `PROCEED / HOLD / ESCALATE` decision plus a `recommended_chain` for tokenized repo settlement.
@@ -115,13 +115,14 @@ Cato exists in **two forms** that must produce bit-for-bit identical decisions:
 
 **The parity principle (hard rule):** any doctrine change — new threshold, new input, new decision branch — must land in **both** codebases in the same commit series. The deterministic identity is what lets regulators trust the gate regardless of caller. If you only update one side you break SR 11-7 model governance.
 
-### Doctrine thresholds (v0.2.1)
+### Doctrine thresholds (v0.2.2)
 
 | Input | Threshold | Effect |
 |---|---|---|
 | OFR STLFSI4 | `> 1.0` | **ESCALATE** — systemic stress, route to human authority |
-| OFR STLFSI4 | `> 0.5` | **HOLD** — non-systemic friction, route to FICC traditional |
+| OFR STLFSI4 | `> 0.5` | **HOLD** — non-systemic broad stress, route to FICC traditional |
 | ETH gas | `> 50 gwei` | **HOLD** — L1 congestion, route to FICC traditional |
+| \|SOFR(t) − SOFR(t−1)\| × 100 | `> 10 bps` | **HOLD** — funding-market shock (v0.2.2, Sept 2019 backtest fix) |
 | everything below | — | **PROCEED** — atomic settlement viable |
 
 Chain selection (trade-size-agnostic) picks cheapest live rail:
@@ -159,17 +160,19 @@ All `/api/cato/*` handlers read from `_cato_input_cache` and never make a networ
 | Solana | ~400ms | ~$0.0004 / settlement at 5000 lamports, $84 SOL | Live |
 | Fed L1 / PORTS | Instant | TBD | **Pending — GENIUS Act** |
 
-### Known doctrine gap — backtest-validated
+### Historical backtest — SR 11-7 Tier 1 validation artifact
 
 `scripts/cato_backtest.py` replays Cato against March 2020 COVID, September 2019 repo spike, and March 2023 SVB. Results in `scripts/cato_backtest_results.md`:
 
-| Event | Accuracy | Peak OFR | Peak SOFR Δ | Verdict |
-|---|---|---|---|---|
-| March 2020 COVID | **100%** (20/20) | 5.657 | 84 bps | ✅ |
-| September 2019 repo spike | **0%** (0/5) | -0.155 | **282 bps** | ❌ |
-| March 2023 SVB | 45.5% (5/11) | 1.097 | 25 bps | ⚠️ |
+| Event | v0.2.1 (before fix) | v0.2.2 (current) | Peak OFR | Peak SOFR Δ | Verdict |
+|---|---|---|---|---|---|
+| March 2020 COVID | 100% (20/20) | **100% (20/20)** | 5.657 | 84 bps | ✅ caught |
+| September 2019 repo spike | 0% (0/5) | **80% (4/5)** | -0.155 | 282 bps | ✅ caught after v0.2.2 fix |
+| March 2023 SVB | 45.5% (5/11) | 45.5% (5/11) | 1.097 | 25 bps | ⚠️ calibration limit |
 
-**Critical finding:** Cato misses the September 2019 repo spike entirely because pure funding-market liquidity crunches don't show up in the broad OFR STLFSI4 index. Peak SOFR 1-day move was 282 bps (crisis-level) but OFR FSI was *negative* during the event. The doctrine needs a **SOFR delta check** (e.g., `|sofr_today − sofr_prev| × 100 > 10 bps → HOLD`) to catch this class of event. The original v0.1.0 specification included this trigger; it was dropped in the v0.2.0 refactor when `get_atomic_settlement_gate` was restructured to compose `cato_gate` + `get_tokenized_settlement_context`. **Restoration is required before institutional pilot deployment.**
+**v0.2.2 closed the September 2019 gap** by restoring the SOFR 1-day delta trigger that was silently dropped in the v0.2.0 refactor. Peak SOFR 1-day move was 282 bps (crisis-level) while OFR FSI was *negative* during the event — a pure funding-market liquidity crunch that broad financial-stress indices don't capture. Cato now flags these in real time.
+
+**March 2023 SVB is a documented calibration limitation**, not a bug. Peak OFR STLFSI4 was 1.097 (only barely above the 1.0 ESCALATE threshold, and only for one day). Peak SOFR delta was 25 bps (only exceeded the 10 bps threshold on one day, which was already tripping ESCALATE on OFR). SVB was a slow-moving regional-banking credit event that didn't produce the signal shapes Cato v0.2.2 watches for. To catch events of this class would require additional doctrine inputs (HY OAS delta, VIX percentile, or bank equity performance) — explicitly deferred to avoid over-calibrating to slow-moving credit moves. Documented in `scripts/cato_backtest_results.md`.
 
 Run the backtest with:
 
