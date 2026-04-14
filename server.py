@@ -1904,6 +1904,7 @@ NEPTUNE_DATA_CACHE_REFRESH_SECONDS = 60
 _cato_input_cache = {
     "ts": 0.0,
     "sofr_rate": None,    # percent, e.g. 5.33
+    "sofr_prev": None,    # percent, prior-day SOFR — v0.2.2 funding-shock detector
     "ofr_stress": None,   # FSI value, e.g. 0.12 (positive = above-average stress)
     "chain_state": None,  # v0.2.0 multi-chain rail state dict (see below)
     "prices": None,       # v0.2.1 live CoinGecko ETH/SOL prices dict
@@ -1960,6 +1961,41 @@ def _fred_series_latest(series_id: str):
                 "value": float(value),
             }
     raise ValueError(f"no usable FRED value for {series_id}")
+
+
+def _fred_series_recent(series_id: str, count: int = 2):
+    """
+    Return the N most recent non-null observations for a FRED series as
+    a list of {"date", "value"} dicts, newest first. Used by Cato v0.2.2
+    for the SOFR 1-day delta check — needs 2 observations to compute
+    the day-over-day move. Over-fetches by 3x to handle FRED missing-
+    value markers ('.', '', None).
+    """
+    params = {
+        "series_id": series_id,
+        "file_type": "json",
+        "sort_order": "desc",
+        "limit": max(count * 3, 7),
+    }
+    if FRED_API_KEY:
+        params["api_key"] = FRED_API_KEY
+    url = "https://api.stlouisfed.org/fred/series/observations?" + urllib.parse.urlencode(params)
+    with urllib.request.urlopen(url, timeout=6) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+    out = []
+    for obs in payload.get("observations", []):
+        value = obs.get("value")
+        if value in (None, ".", ""):
+            continue
+        try:
+            out.append({"date": obs.get("date"), "value": float(value)})
+        except (TypeError, ValueError):
+            continue
+        if len(out) >= count:
+            break
+    if not out:
+        raise ValueError(f"no usable FRED values for {series_id}")
+    return out
 
 
 def _fallback_macro_snapshot():
@@ -2301,25 +2337,31 @@ def _cato_build_chain_state(prices=None):
 
 def _cato_refresh_inputs():
     """
-    Refresh Cato gate inputs (SOFR, OFR stress, live prices, full
-    multi-chain state) into _cato_input_cache. v0.2.1 pulls live
-    ETH/SOL USD prices from CoinGecko before building chain_state so
-    the Solana fee_usd_estimate reflects the live SOL price.
+    Refresh Cato gate inputs (SOFR today + prior day, OFR stress, live
+    prices, full multi-chain state) into _cato_input_cache. v0.2.2
+    fetches two SOFR observations so the gate can compute the 1-day
+    delta (funding-market shock detector — restored from v0.1.0 spec
+    after the Sept 2019 repo spike backtest gap).
 
     Called from inside _neptune_refresh_loop on the 60s cadence.
     """
     sofr_rate = None
+    sofr_prev = None
     ofr_stress = None
 
-    # SOFR — fresh fetch via the existing FRED helper.
+    # SOFR today + prior day (v0.2.2 requires 2 observations for delta).
     try:
-        sofr_obs = _fred_series_latest("SOFR")
-        if sofr_obs and sofr_obs.get("value") is not None:
-            sofr_rate = float(sofr_obs["value"])
+        sofr_recent = _fred_series_recent("SOFR", count=2)
+        if len(sofr_recent) >= 1 and sofr_recent[0].get("value") is not None:
+            sofr_rate = float(sofr_recent[0]["value"])
+        if len(sofr_recent) >= 2 and sofr_recent[1].get("value") is not None:
+            sofr_prev = float(sofr_recent[1]["value"])
     except Exception as exc:
         _log_error("WARN", "cato_refresh:sofr", str(exc))
 
     # SOFR fallback — cached fed_funds rate as proxy when FRED is unreachable.
+    # Only applies to the current value; sofr_prev stays None on fallback
+    # so the delta check is skipped (graceful degradation).
     if sofr_rate is None:
         try:
             fred_data = _fred_cache.get("data")
@@ -2349,6 +2391,7 @@ def _cato_refresh_inputs():
     with _cato_input_cache_lock:
         _cato_input_cache["ts"] = time.time()
         _cato_input_cache["sofr_rate"] = sofr_rate
+        _cato_input_cache["sofr_prev"] = sofr_prev
         _cato_input_cache["ofr_stress"] = ofr_stress
         _cato_input_cache["chain_state"] = chain_state
         _cato_input_cache["prices"] = prices
@@ -4441,6 +4484,7 @@ def api_cato_gate():
         inputs = dict(_cato_input_cache)
     decision = cato_atomic_settlement_gate(
         sofr_rate=inputs.get("sofr_rate"),
+        sofr_prev=inputs.get("sofr_prev"),
         ofr_stress=inputs.get("ofr_stress"),
         chain_state=inputs.get("chain_state"),
         prices=inputs.get("prices"),
@@ -4516,6 +4560,7 @@ def api_cato_compare_rails():
         ofr_stress=ofr_stress,
         chain_state=inputs.get("chain_state"),
         prices=inputs.get("prices"),
+        sofr_prev=inputs.get("sofr_prev"),
     )
     result["cache_age_seconds"] = (
         round(time.time() - inputs["ts"], 1) if inputs.get("ts") else None

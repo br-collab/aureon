@@ -1,6 +1,6 @@
-# Cato Historical Backtest — v0.2.1
+# Cato Historical Backtest — v0.2.2
 
-_Generated: 2026-04-14T22:27:32.291862+00:00_
+_Generated: 2026-04-14T22:46:33.348761+00:00_
 
 ## Methodology
 
@@ -12,11 +12,12 @@ Replays the Cato `atomic_settlement_gate` doctrine against three historical mark
 - **OFR Financial Stress Index** — FRED series `STLFSI4`, weekly (forward-filled to daily)
 - **ETH gas** — not available historically; gas threshold excluded from backtest
 
-### Cato doctrine under test (v0.2.1)
+### Cato doctrine under test (v0.2.2)
 
 - **ESCALATE** if OFR stress index > 1.0
 - **HOLD** if OFR stress index > 0.5
 - **HOLD** if ETH gas > 50.0 gwei _(not tested; historical gas unavailable)_
+- **HOLD** if |SOFR(t) - SOFR(t-1)| × 100 > 10.0 bps _(funding-market shock trigger — restored in v0.2.2)_
 - **PROCEED** otherwise
 
 ## Summary
@@ -24,11 +25,11 @@ Replays the Cato `atomic_settlement_gate` doctrine against three historical mark
 | Event | Days in window | PROCEED | HOLD | ESCALATE | In-window accuracy |
 |---|---|---|---|---|---|
 | March 2020 — COVID repo freeze | 62 | 18 | 5 | 39 | 20/20 (100.0%) |
-| September 2019 — overnight repo spike | 64 | 64 | 0 | 0 | 0/5 (0.0%) |
-| March 2023 — SVB collapse | 61 | 56 | 0 | 5 | 5/11 (45.5%) |
+| September 2019 — overnight repo spike | 64 | 55 | 9 | 0 | 4/5 (80.0%) |
+| March 2023 — SVB collapse | 61 | 55 | 1 | 5 | 5/11 (45.5%) |
 
 - **March 2020 — COVID repo freeze** — ✅ doctrine correctly flagged stress (100% of window)
-- **September 2019 — overnight repo spike** — ❌ doctrine MISSED the event (0% of window)
+- **September 2019 — overnight repo spike** — ⚠️ partial coverage (80% of window)
 - **March 2023 — SVB collapse** — ❌ doctrine MISSED the event (45% of window)
 
 ## March 2020 — COVID repo freeze
@@ -63,22 +64,22 @@ Replays the Cato `atomic_settlement_gate` doctrine against three historical mark
 
 **Historical context.** Overnight SOFR spiked from ~2.2% to 5.25% on September 17, 2019 after tax-day cash outflows collided with Treasury coupon settlements. The Fed launched its first post-crisis standing repo operations on September 17. CRITICAL: the OFR STLFSI4 did NOT spike during this event — it was a pure funding-market liquidity crunch, not a broad financial stress event. This is the test case that exposes whether Cato's doctrine catches funding-market-only stress (SOFR 1-day delta) or only broad stress (OFR).
 
-**Decisions:** PROCEED=64, HOLD=0, ESCALATE=0
+**Decisions:** PROCEED=55, HOLD=9, ESCALATE=0
 
 **Peak in-window metrics:**
 - OFR STLFSI4 peak: `-0.1555`
 - SOFR range: `1.86%` → `5.25%`
 - Peak SOFR 1-day move: `282.0 bps`
 
-**In-window accuracy:** 0/5 = 0.0%
+**In-window accuracy:** 4/5 = 80.0%
 
 **Notable days:**
 
 | Date | SOFR % | SOFR Δ bps | OFR FSI | Decision |
 |---|---|---|---|---|
-| 2019-09-16 | 2.43 | 23.0 | -0.350 | **PROCEED** |
+| 2019-09-16 | 2.43 | 23.0 | -0.350 | **HOLD** |
 | 2019-09-20 | 1.86 | 9.0 | -0.155 | **PROCEED** |
-| 2019-09-17 | 5.25 | 282.0 | -0.350 | **PROCEED** |
+| 2019-09-17 | 5.25 | 282.0 | -0.350 | **HOLD** |
 
 ## March 2023 — SVB collapse
 
@@ -87,7 +88,7 @@ Replays the Cato `atomic_settlement_gate` doctrine against three historical mark
 
 **Historical context.** Silicon Valley Bank failed March 10, 2023. Signature Bank followed March 12. FDIC announced systemic-risk exception March 12. First Republic received $30B deposit from 11 banks on March 16. STLFSI4 rose but less dramatically than March 2020 — this is a regional-banking-stress event that tests threshold calibration at the HOLD / PROCEED boundary.
 
-**Decisions:** PROCEED=56, HOLD=0, ESCALATE=5
+**Decisions:** PROCEED=55, HOLD=1, ESCALATE=5
 
 **Peak in-window metrics:**
 - OFR STLFSI4 peak: `1.0965`
@@ -107,19 +108,16 @@ Replays the Cato `atomic_settlement_gate` doctrine against three historical mark
 
 ## Doctrine gaps found
 
-### GAP: SOFR 1-day delta is not a HOLD trigger
+### CALIBRATION FINDING: March 2023 — SVB collapse — in-window accuracy 45.5%
 
-During the September 2019 repo spike, peak SOFR 1-day move was **282.0 bps** (a crisis-level shock) but peak OFR STLFSI4 only reached **-0.155** — well below the 0.5 HOLD threshold. Result: Cato classified the entire Sept 2019 event as PROCEED, which is **wrong**. Pure funding-market liquidity crunches don't show up in broad financial stress indices.
+Cato failed to flag this event as HOLD or ESCALATE on 6 of 11 days in the expected stress window. Peak in-window OFR FSI was **1.097** (HOLD threshold 0.5, ESCALATE threshold 1.0). Peak in-window SOFR 1-day delta was **25.0 bps** (HOLD threshold 10.0 bps).
 
-**Recommended fix:** restore the v0.1.0-era SOFR delta check. Add `CATO_SOFR_DELTA_HOLD_BPS = 10.0` to the doctrine and promote any day with `|SOFR_today - SOFR_prev| × 100 > 10` to HOLD. This requires the caller to supply `sofr_prev` to `atomic_settlement_gate` (a two-field expansion of the cache and the Python twin signature).
-
-
-### GAP: September 2019 — overnight repo spike — in-window accuracy 0.0%
-Cato failed to flag this event as HOLD or ESCALATE on 5 of 5 days in the expected stress window.
+**Interpretation:** this event did not produce signals that broad financial-stress indices or overnight funding rates capture in real time. Slow-moving credit events (regional bank runs, credit spread widening) may require additional doctrine inputs — e.g., HY OAS delta, VIX percentile, or bank equity performance — to be flagged. Cato v0.2.2 deliberately does not over-calibrate to such events to avoid false positives on normal credit moves. Document as a known limitation; close in a future doctrine revision only with institutional input.
 
 
-### GAP: March 2023 — SVB collapse — in-window accuracy 45.5%
-Cato failed to flag this event as HOLD or ESCALATE on 6 of 11 days in the expected stress window.
+### PARTIAL COVERAGE
+
+- **September 2019 — overnight repo spike** — 80.0% (4/5 days). Partial coverage; review which days were missed and whether they represent sustained stress or noise days at the window edge.
 
 
 ---

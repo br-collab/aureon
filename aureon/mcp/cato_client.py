@@ -37,13 +37,21 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 
-CATO_DOCTRINE_VERSION = "0.2.1"
+CATO_DOCTRINE_VERSION = "0.2.2"
 CATO_GATE_LABEL = f"Verana L0 — Cato settlement gate v{CATO_DOCTRINE_VERSION}"
 
 # Doctrine thresholds (see Duffie 2025, Brookings Institution).
 CATO_OFR_ESCALATE_THRESHOLD = 1.0
 CATO_OFR_HOLD_THRESHOLD = 0.5
 CATO_GAS_GWEI_HOLD_THRESHOLD = 50.0
+# v0.2.2: restored the v0.1.0-era SOFR 1-day delta trigger that was
+# silently dropped in the v0.2.0 refactor. The historical backtest
+# in scripts/cato_backtest.py proved the gap: during the September
+# 2019 repo spike, peak SOFR 1-day move was 282 bps while OFR FSI
+# was only -0.155. Cato missed the event entirely because broad
+# financial-stress indices don't pick up pure funding-market
+# liquidity crunches. A SOFR delta check closes this gap.
+CATO_SOFR_DELTA_HOLD_BPS = 10.0
 
 # Settlement-posture bands for the tokenized-settlement context tool.
 CATO_POSTURE_MONITOR_GAS = 30.0
@@ -266,21 +274,39 @@ def atomic_settlement_gate(
     ofr_stress: Optional[float],
     chain_state: Optional[dict] = None,
     prices: Optional[dict] = None,
+    sofr_prev: Optional[float] = None,
 ) -> dict:
     """
-    Deterministic Cato doctrine gate v0.2.1.
+    Deterministic Cato doctrine gate v0.2.2.
 
-    Uses Ethereum L1 gas as the primary threshold input (mirrors MCP
-    server — the 50 gwei HOLD threshold is ETH-specific, because a gas
-    spike on ETH L1 signals network-wide congestion that also slows L2s).
+    Primary HOLD triggers (any one trips it):
+      - OFR STLFSI4 > 0.5                     (broad financial stress)
+      - ETH L1 gas > 50 gwei                  (network congestion)
+      - |SOFR(t) - SOFR(t-1)| × 100 > 10 bps  (funding-market shock)
+
+    ESCALATE if OFR STLFSI4 > 1.0 (systemic stress, route to human
+    authority — overrides everything else).
+
+    The SOFR delta trigger was added in v0.2.2 to close the September
+    2019 repo spike gap identified by scripts/cato_backtest.py. Pure
+    funding-market crunches (Sept 17, 2019: SOFR +282 bps, OFR FSI
+    -0.155) don't surface in broad financial-stress indices.
+
     Returns PROCEED/HOLD/ESCALATE + recommended_chain for the PROCEED
-    case, plus solana_note, fed_l1_note, and a `price_sources` block
-    reflecting the live CoinGecko ETH/SOL prices the caller supplied.
+    case, plus solana_note, fed_l1_note, price_sources, and a
+    sofr_delta_bps field showing the computed 1-day move.
     """
     resolved_prices = _resolve_prices(prices)
     state = _get_chain_state(chain_state)
     eth_gas = _eth_gas(state)
     ofr = ofr_stress if ofr_stress is not None else 0.0
+
+    # SOFR 1-day delta — absolute value in basis points. None if either
+    # observation is missing (caller hasn't supplied prev yet, or first
+    # cycle after boot).
+    sofr_delta_bps: Optional[float] = None
+    if sofr_rate is not None and sofr_prev is not None:
+        sofr_delta_bps = abs(float(sofr_rate) - float(sofr_prev)) * 100.0
 
     reasons: list[str] = []
     decision = "PROCEED"
@@ -306,6 +332,15 @@ def atomic_settlement_gate(
                 f"ETH gas at {eth_gas:.1f} gwei — "
                 f"above {CATO_GAS_GWEI_HOLD_THRESHOLD:.0f} gwei doctrine threshold"
             )
+        # v0.2.2: SOFR 1-day delta trigger — catches funding-market
+        # shocks (Sept 2019 repo spike) that OFR STLFSI4 misses entirely.
+        if sofr_delta_bps is not None and sofr_delta_bps > CATO_SOFR_DELTA_HOLD_BPS:
+            decision = "HOLD"
+            reasons.append(
+                f"SOFR 1-day move of {sofr_delta_bps:.1f} bps exceeds "
+                f"{CATO_SOFR_DELTA_HOLD_BPS:.0f} bps doctrine threshold "
+                f"(funding-market shock indicator)"
+            )
         if decision == "HOLD":
             recommended_rail = "traditional"
         else:
@@ -327,6 +362,8 @@ def atomic_settlement_gate(
         "doctrine": CATO_GATE_LABEL,
         "inputs": {
             "sofr_rate": sofr_rate,
+            "sofr_prev": sofr_prev,
+            "sofr_delta_bps": round(sofr_delta_bps, 2) if sofr_delta_bps is not None else None,
             "ofr_stress": ofr,
             "gas_gwei": eth_gas,
             "settlement_posture": posture["settlement_posture"],
@@ -343,6 +380,7 @@ def atomic_settlement_gate(
             "escalate_ofr": CATO_OFR_ESCALATE_THRESHOLD,
             "hold_ofr": CATO_OFR_HOLD_THRESHOLD,
             "hold_gas_gwei": CATO_GAS_GWEI_HOLD_THRESHOLD,
+            "hold_sofr_delta_bps": CATO_SOFR_DELTA_HOLD_BPS,
         },
         "solana_note": SOLANA_NOTE,
         "fed_l1_note": FED_L1_NOTE,
@@ -356,14 +394,19 @@ def _route_recommended_rail(
     notional_usd: float,
     ofr_stress: float,
     chain_state: dict,
+    sofr_delta_bps: Optional[float] = None,
 ) -> str:
-    """Cato v0.2.0 notional-aware routing. Mirrors MCP server routing
-    block exactly."""
+    """Cato v0.2.2 notional-aware routing. Mirrors MCP server routing
+    block. Stress overrides (OFR or SOFR delta) are absolute — they
+    force ficc_traditional regardless of notional or on-chain state."""
     eth_gas = _eth_gas(chain_state)
     base_gas = _coerce_float(chain_state.get("base", {}).get("gas_gwei"))
     solana_fee_usd = _coerce_float(chain_state.get("solana", {}).get("fee_usd_estimate"))
 
+    # Stress overrides (v0.2.2 expands the override to include SOFR delta)
     if ofr_stress > 0.5:
+        return "ficc_traditional"
+    if sofr_delta_bps is not None and sofr_delta_bps > CATO_SOFR_DELTA_HOLD_BPS:
         return "ficc_traditional"
     if notional_usd > 10_000_000 and eth_gas is not None and eth_gas < 30:
         return "ethereum_l1"
@@ -384,18 +427,29 @@ def compare_settlement_rails(
     ofr_stress: float = 0.0,
     chain_state: Optional[dict] = None,
     prices: Optional[dict] = None,
+    sofr_prev: Optional[float] = None,
 ) -> dict:
     """
-    Cato v0.2.1 multi-chain rail cost comparison.
+    Cato v0.2.2 multi-chain rail cost comparison.
 
     Returns a full rails table plus a ranked ordering (cheapest → most
     expensive) and a notional-aware recommended_rail. Rail costs use
     live CoinGecko ETH/SOL prices when the caller supplies a `prices`
     dict; otherwise falls back to the static constants (and marks
     fallback_used=True in the output's price_sources block).
+
+    v0.2.2: the routing logic now also overrides to ficc_traditional
+    on a SOFR 1-day delta > 10 bps. Pass `sofr_prev` alongside
+    `sofr_pct` to enable the check. Without sofr_prev the check is
+    skipped (graceful degradation).
     """
     resolved_prices = _resolve_prices(prices)
     state = _get_chain_state(chain_state)
+
+    # SOFR 1-day delta (v0.2.2 funding-market shock indicator)
+    sofr_delta_bps: Optional[float] = None
+    if sofr_prev is not None:
+        sofr_delta_bps = abs(float(sofr_pct) - float(sofr_prev)) * 100.0
     eth_gas = _eth_gas(state)
     base_gas = _coerce_float(state.get("base", {}).get("gas_gwei"))
     arb_gas = _coerce_float(state.get("arbitrum", {}).get("gas_gwei"))
@@ -466,14 +520,22 @@ def compare_settlement_rails(
         notional_usd=notional_usd,
         ofr_stress=ofr_stress,
         chain_state=state,
+        sofr_delta_bps=sofr_delta_bps,
     )
 
     return {
-        "source": "Aureon (in-process Cato v0.2.1)",
+        "source": "Aureon (in-process Cato v0.2.2)",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "inputs": {"notional_usd": notional_usd, "term_days": term_days},
+        "inputs": {
+            "notional_usd": notional_usd,
+            "term_days": term_days,
+            "sofr_prev": sofr_prev,
+            "sofr_delta_bps": round(sofr_delta_bps, 2) if sofr_delta_bps is not None else None,
+        },
         "market_state": {
             "sofr_pct": sofr_pct,
+            "sofr_prev_pct": sofr_prev,
+            "sofr_delta_bps": round(sofr_delta_bps, 2) if sofr_delta_bps is not None else None,
             "ofr_stress": ofr_stress,
             "ethereum_gas_gwei": eth_gas,
             "base_gas_gwei": base_gas,
@@ -495,9 +557,10 @@ def compare_settlement_rails(
         "recommended_rail": recommended,
         "doctrine_note": (
             "On-chain atomic DvP eliminates T+1 counterparty risk window. "
-            "FICC clearing provides netting benefit at scale. Cato v0.2.1 "
-            "routes by notional, gas, and systemic stress — stress override "
-            "is absolute."
+            "FICC clearing provides netting benefit at scale. Cato v0.2.2 "
+            "routes by notional, gas, OFR stress, AND SOFR 1-day delta — "
+            "stress overrides (OFR > 0.5 or |SOFR delta| > 10 bps) are "
+            "absolute and force ficc_traditional."
         ),
         "fed_l1_note": FED_L1_NOTE,
     }
