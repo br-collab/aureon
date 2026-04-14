@@ -5366,11 +5366,16 @@ async function tick() {
 }
 
 async function slowTick() {
-  await fetchCompliance();
-  await fetchGovernance();   // also updates halt banner + header button
-  await fetchTreasury();
-  await fetchMacro();
-  await fetchNeptune();
+  // Core widgets — must complete fast for the main dashboard to render.
+  await Promise.allSettled([
+    fetchCompliance(),
+    fetchGovernance(),
+    fetchTreasury(),
+    fetchMacro(),
+  ]);
+  // Neptune is fire-and-forget — it makes 13 sequential fetches against
+  // sometimes-degraded external pipes; it must not block the main loop.
+  fetchNeptune().catch(() => {});
   renderGovernance();
 
   // Compliance tab
