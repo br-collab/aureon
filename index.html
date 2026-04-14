@@ -5373,9 +5373,12 @@ async function slowTick() {
     fetchTreasury(),
     fetchMacro(),
   ]);
-  // Neptune is fire-and-forget — it makes 13 sequential fetches against
-  // sometimes-degraded external pipes; it must not block the main loop.
-  fetchNeptune().catch(() => {});
+  // Neptune polling temporarily disabled — every Neptune endpoint makes
+  // blocking external API calls in the request handler with no caching,
+  // and the 13 fetches per poll saturate gunicorn workers within minutes.
+  // Re-enable after server-side endpoints are converted to background-
+  // refresh + cached-read pattern (same fix applied to /api/compliance).
+  // fetchNeptune().catch(() => {});
   renderGovernance();
 
   // Compliance tab
