@@ -2890,6 +2890,10 @@ const API = {
   macro:            '/api/macro',
   decisionJournal:  '/api/decision-journal',
   cascadePreview:   (id) => `/api/cascade-preview/${id}`,
+  // Cato — Verana L0 tokenized-settlement doctrine gate
+  catoGate:              '/api/cato/gate',
+  catoSettlementCtx:     '/api/cato/settlement-context',
+  catoCompareRails:      '/api/cato/compare-rails',
   // Neptune Spear data pipes
   neptuneStatus:       '/api/neptune/status',
   neptuneFlowAlerts:   '/api/neptune/flow-alerts',
@@ -2965,6 +2969,9 @@ const state = {
   neptuneRecs: [],
   neptuneBlockscout: null,
   neptuneMcp: null,
+  // Cato — Verana L0 tokenized-settlement doctrine gate
+  catoGate: null,
+  catoContext: null,
 };
 
 // ── BASE PRICES for market ticker fallback ────────────
@@ -5365,6 +5372,20 @@ async function tick() {
     (state.liveMode ? ' · LIVE' : ' · SIM');
 }
 
+async function fetchCato() {
+  // Cato — Verana L0 tokenized-settlement doctrine gate.
+  // All Cato endpoints are pure in-memory reads (cache populated by
+  // _neptune_refresh_loop on the backend), so this is always fast.
+  try {
+    const [gateR, ctxR] = await Promise.all([
+      fetch(API.catoGate),
+      fetch(API.catoSettlementCtx),
+    ]);
+    if (gateR.ok) state.catoGate = await gateR.json();
+    if (ctxR.ok) state.catoContext = await ctxR.json();
+  } catch (e) { /* silent — Cato is advisory, never blocks */ }
+}
+
 async function slowTick() {
   // Core widgets — must complete fast for the main dashboard to render.
   await Promise.allSettled([
@@ -5372,6 +5393,7 @@ async function slowTick() {
     fetchGovernance(),
     fetchTreasury(),
     fetchMacro(),
+    fetchCato(),
   ]);
   // Neptune fetches are now safe — server-side endpoints serve from a
   // cache refreshed every 60s by _neptune_refresh_loop. Fire-and-forget

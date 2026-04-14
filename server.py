@@ -79,6 +79,12 @@ from aureon.mcp.alpaca_client  import init_alpaca_pipe,  get_client as get_alpac
 from aureon.mcp.cboe_client    import init_cboe_pipe,    get_client as get_cboe_client,    pipe_status as cboe_pipe_status
 from aureon.mcp.edgar_client       import init_edgar_pipe,       get_client as get_edgar_client,       pipe_status as edgar_pipe_status
 from aureon.mcp.blockscout_client  import init_blockscout_pipe,  get_client as get_blockscout_client,  pipe_status as blockscout_pipe_status
+from aureon.mcp.cato_client import (
+    atomic_settlement_gate as cato_atomic_settlement_gate,
+    tokenized_settlement_context as cato_tokenized_settlement_context,
+    compare_settlement_rails as cato_compare_settlement_rails,
+    CATO_GATE_LABEL,
+)
 from aureon.persistence.store import load_state as persistence_load_state, save_state as persistence_save_state
 from aureon.policy_engine.service import evaluate_pretrade_decision
 from aureon.evidence_service.service import build_trade_report as evidence_build_trade_report
@@ -1888,6 +1894,20 @@ _neptune_data_cache = {
 }
 _neptune_data_cache_lock = threading.Lock()
 NEPTUNE_DATA_CACHE_REFRESH_SECONDS = 60
+
+# ── Cato doctrine-gate input cache ───────────────────────────────────────────
+# Cato needs three scalars: SOFR, OFR stress, and ETH gas (gwei). All three
+# are already being refreshed by other loops (_get_fred_macro_snapshot,
+# _get_ofr_stress_snapshot, and the blockscout client respectively) — this
+# cache just holds the extracted scalars so /api/cato/gate is a pure
+# in-memory read and never makes a network call from the request path.
+_cato_input_cache = {
+    "ts": 0.0,
+    "sofr_rate": None,    # percent, e.g. 5.33
+    "ofr_stress": None,   # FSI value, e.g. 0.12 (positive = above-average stress)
+    "gas_gwei": None,     # Ethereum mainnet average gas price
+}
+_cato_input_cache_lock = threading.Lock()
 _FRED_SERIES = {
     "fed_funds": {"id": "DFF", "label": "Fed Funds"},
     "ust_10y": {"id": "DGS10", "label": "UST 10Y"},
@@ -2079,14 +2099,74 @@ def _neptune_data_cache_set(key, data):
         _neptune_data_cache[key] = {"ts": time.time(), "data": data}
 
 
+def _cato_refresh_inputs():
+    """
+    Refresh the three Cato gate inputs (SOFR, OFR stress, ETH gas) into
+    _cato_input_cache. Reads from existing cached sources so this is
+    mostly free — only FRED SOFR requires a new fetch because the existing
+    _fred_cache stores the macro snapshot dict, not the SOFR scalar.
+    Called from inside _neptune_refresh_loop.
+    """
+    sofr_rate = None
+    ofr_stress = None
+    gas_gwei = None
+
+    # SOFR — fresh fetch via the existing FRED helper. 6-second timeout
+    # already baked in via urllib; falls through to None on any error.
+    try:
+        sofr_obs = _fred_series_latest("SOFR")
+        if sofr_obs and sofr_obs.get("value") is not None:
+            sofr_rate = float(sofr_obs["value"])
+    except Exception as exc:
+        _log_error("WARN", "cato_refresh:sofr", str(exc))
+
+    # OFR stress — read from the already-maintained _ofr_cache. The macro
+    # refresh call inside market_loop keeps this warm.
+    try:
+        ofr_data = _ofr_cache.get("data")
+        if ofr_data and ofr_data.get("fsi_value") is not None:
+            ofr_stress = float(ofr_data["fsi_value"])
+    except Exception as exc:
+        _log_error("WARN", "cato_refresh:ofr", str(exc))
+
+    # ETH gas — read from the Blockscout network stats the same way the
+    # existing blockscout_stats cached endpoint does.
+    try:
+        bs_client = get_blockscout_client()
+        if bs_client is not None:
+            result = bs_client.get_network_stats(chain_id="1")
+            if result and result.get("ok"):
+                gas_obj = result.get("data", {}).get("gas_prices", {})
+                # Blockscout returns gas prices as strings under slow/average/fast
+                avg = gas_obj.get("average")
+                if avg is not None:
+                    gas_gwei = float(avg)
+    except Exception as exc:
+        _log_error("WARN", "cato_refresh:gas", str(exc))
+
+    with _cato_input_cache_lock:
+        _cato_input_cache["ts"] = time.time()
+        _cato_input_cache["sofr_rate"] = sofr_rate
+        _cato_input_cache["ofr_stress"] = ofr_stress
+        _cato_input_cache["gas_gwei"] = gas_gwei
+
+
 def _neptune_refresh_loop():
     """
-    Background refresh of Neptune data feeds. Each fetch is isolated so one
-    slow/broken upstream cannot block the others. Runs forever; sleeps
-    NEPTUNE_DATA_CACHE_REFRESH_SECONDS between cycles. The first iteration
-    fires immediately so the cache is warm before the dashboard polls.
+    Background refresh of Neptune data feeds and Cato gate inputs. Each
+    fetch is isolated so one slow/broken upstream cannot block the others.
+    Runs forever; sleeps NEPTUNE_DATA_CACHE_REFRESH_SECONDS between cycles.
+    The first iteration fires immediately so caches are warm before the
+    dashboard polls.
     """
     while True:
+        # Refresh Cato gate inputs first — these are fast (cache reads
+        # + one FRED SOFR fetch) and power /api/cato/gate.
+        try:
+            _cato_refresh_inputs()
+        except Exception as exc:
+            _log_error("WARN", "cato_refresh_loop", str(exc))
+
         # Alpaca snapshots — dashboard default symbols
         try:
             client = get_alpaca_client()
@@ -4135,6 +4215,100 @@ def api_compliance():
             ],
             "ts": datetime.now(timezone.utc).isoformat(),
         })
+
+
+# ─────────────────────────────────────────────────────────────────
+# Cato doctrine gate — Verana L0 pre-settlement check
+# Served from in-memory cache (_cato_input_cache) populated by
+# _neptune_refresh_loop. No network I/O in the request path.
+# ─────────────────────────────────────────────────────────────────
+@app.route("/api/cato/gate")
+def api_cato_gate():
+    """
+    Cato atomic settlement gate — Verana L0 doctrine check.
+
+    Returns PROCEED / HOLD / ESCALATE based on live SOFR, OFR stress,
+    and ETH gas. Served from cache — the underlying inputs refresh
+    every 60s via _cato_refresh_inputs() in the Neptune refresh loop.
+    """
+    with _cato_input_cache_lock:
+        inputs = dict(_cato_input_cache)
+    decision = cato_atomic_settlement_gate(
+        sofr_rate=inputs.get("sofr_rate"),
+        ofr_stress=inputs.get("ofr_stress"),
+        gas_gwei=inputs.get("gas_gwei"),
+    )
+    decision["cache_age_seconds"] = (
+        round(time.time() - inputs["ts"], 1) if inputs.get("ts") else None
+    )
+    return jsonify(decision)
+
+
+@app.route("/api/cato/settlement-context")
+def api_cato_settlement_context():
+    """
+    Cato tokenized-settlement context — settlement_posture signal for
+    dashboard display. favorable / monitor / elevated based on the same
+    cached SOFR, OFR, and gas scalars as /api/cato/gate.
+    """
+    with _cato_input_cache_lock:
+        inputs = dict(_cato_input_cache)
+    ctx = cato_tokenized_settlement_context(
+        sofr_rate=inputs.get("sofr_rate"),
+        ofr_stress=inputs.get("ofr_stress"),
+        gas_gwei=inputs.get("gas_gwei"),
+    )
+    ctx["cache_age_seconds"] = (
+        round(time.time() - inputs["ts"], 1) if inputs.get("ts") else None
+    )
+    return jsonify(ctx)
+
+
+@app.route("/api/cato/compare-rails", methods=["GET", "POST"])
+def api_cato_compare_rails():
+    """
+    Cato rail comparison — FICC traditional vs atomic on-chain cost for
+    a given notional. Uses cached SOFR + gas so the request path makes
+    no network calls.
+
+    Query params or JSON body:
+      notional_usd : required, positive number
+      term_days    : optional, default 1 (overnight repo)
+    """
+    if request.method == "POST":
+        body = request.get_json(silent=True) or {}
+        notional_raw = body.get("notional_usd")
+        term_raw = body.get("term_days", 1)
+    else:
+        notional_raw = request.args.get("notional_usd")
+        term_raw = request.args.get("term_days", 1)
+
+    try:
+        notional_usd = float(notional_raw) if notional_raw is not None else None
+        term_days = int(term_raw) if term_raw is not None else 1
+    except (TypeError, ValueError):
+        return jsonify({"error": "notional_usd and term_days must be numeric"}), 400
+
+    if notional_usd is None or notional_usd <= 0:
+        return jsonify({"error": "notional_usd is required and must be a positive number"}), 400
+
+    with _cato_input_cache_lock:
+        inputs = dict(_cato_input_cache)
+
+    sofr_pct = inputs.get("sofr_rate")
+    if sofr_pct is None:
+        sofr_pct = 0.0   # conservative default when cache cold
+
+    result = cato_compare_settlement_rails(
+        notional_usd=notional_usd,
+        term_days=term_days,
+        sofr_pct=sofr_pct,
+        gas_gwei=inputs.get("gas_gwei"),
+    )
+    result["cache_age_seconds"] = (
+        round(time.time() - inputs["ts"], 1) if inputs.get("ts") else None
+    )
+    return jsonify(result)
 
 
 @app.route("/api/decisions")
