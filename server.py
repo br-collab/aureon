@@ -1866,6 +1866,22 @@ _THESIS_COMPLEXITY_KEYWORDS = {
 _thesis_market_metric_cache = {}
 _fred_cache = {"ts": 0.0, "data": None}
 _ofr_cache = {"ts": 0.0, "data": None}
+
+# ── Neptune data-feed cache ──────────────────────────────────────────────────
+# The dashboard polls Neptune endpoints every 15s, but each endpoint makes
+# blocking external HTTP calls (Alpaca/CBOE/EDGAR/Blockscout) that can take
+# seconds when upstream pipes are degraded. Without this cache, concurrent
+# polling saturates gunicorn workers within minutes. The endpoints serve from
+# cache only; _neptune_refresh_loop refreshes the cache every 60s in the
+# background so the request path never makes a network call.
+_neptune_data_cache = {
+    "alpaca_snapshots":    {"ts": 0.0, "data": None},
+    "cboe_fear_packet":    {"ts": 0.0, "data": None},
+    "edgar_institutional": {"ts": 0.0, "data": None},
+    "blockscout_stats":    {"ts": 0.0, "data": None},
+}
+_neptune_data_cache_lock = threading.Lock()
+NEPTUNE_DATA_CACHE_REFRESH_SECONDS = 60
 _FRED_SERIES = {
     "fed_funds": {"id": "DFF", "label": "Fed Funds"},
     "ust_10y": {"id": "DGS10", "label": "UST 10Y"},
@@ -2043,6 +2059,69 @@ def _get_ofr_stress_snapshot(macro_snapshot: dict):
     _ofr_cache["ts"] = now
     _ofr_cache["data"] = data
     return data
+
+
+def _neptune_data_cache_get(key):
+    """Thread-safe read of a Neptune data-feed cache entry. Returns data or None."""
+    with _neptune_data_cache_lock:
+        return _neptune_data_cache.get(key, {}).get("data")
+
+
+def _neptune_data_cache_set(key, data):
+    """Thread-safe write of a Neptune data-feed cache entry."""
+    with _neptune_data_cache_lock:
+        _neptune_data_cache[key] = {"ts": time.time(), "data": data}
+
+
+def _neptune_refresh_loop():
+    """
+    Background refresh of Neptune data feeds. Each fetch is isolated so one
+    slow/broken upstream cannot block the others. Runs forever; sleeps
+    NEPTUNE_DATA_CACHE_REFRESH_SECONDS between cycles. The first iteration
+    fires immediately so the cache is warm before the dashboard polls.
+    """
+    while True:
+        # Alpaca snapshots — dashboard default symbols
+        try:
+            client = get_alpaca_client()
+            if client is not None and getattr(client, "is_ready", False):
+                data = client.get_snapshots(["SPY", "QQQ", "IWM", "DIA"])
+                if data is not None:
+                    _neptune_data_cache_set("alpaca_snapshots", data)
+        except Exception as exc:
+            _log_error("WARN", "neptune_refresh:alpaca_snapshots", str(exc))
+
+        # CBOE Thifur fear packet — dashboard default lookback
+        try:
+            client = get_cboe_client()
+            if client is not None:
+                data = client.get_thifur_fear_packet(lookback_days=30)
+                if data is not None:
+                    _neptune_data_cache_set("cboe_fear_packet", data)
+        except Exception as exc:
+            _log_error("WARN", "neptune_refresh:cboe_fear_packet", str(exc))
+
+        # EDGAR institutional packet — defaults
+        try:
+            client = get_edgar_client()
+            if client is not None:
+                data = client.get_neptune_institutional_packet(institutions=None)
+                if data is not None:
+                    _neptune_data_cache_set("edgar_institutional", data)
+        except Exception as exc:
+            _log_error("WARN", "neptune_refresh:edgar_institutional", str(exc))
+
+        # Blockscout network stats — Ethereum mainnet
+        try:
+            client = get_blockscout_client()
+            if client is not None:
+                data = client.get_network_stats(chain_id="1")
+                if data is not None:
+                    _neptune_data_cache_set("blockscout_stats", data)
+        except Exception as exc:
+            _log_error("WARN", "neptune_refresh:blockscout_stats", str(exc))
+
+        time.sleep(NEPTUNE_DATA_CACHE_REFRESH_SECONDS)
 
 
 def _thesis_compute_realized_vol_pct(close_series):
@@ -5545,28 +5624,21 @@ def api_alpaca_bars():
 
 @app.route("/api/neptune/alpaca/snapshots")
 def api_alpaca_snapshots():
-    """Latest quote + trade + bar snapshot. ?symbols=AAPL,MSFT"""
-    client = get_alpaca_client()
-    if client is None or not client.is_ready:
-        return jsonify({"error": "Alpaca pipe not ready — ALPACA_API_KEY not configured"}), 503
-    symbols = request.args.get("symbols", "SPY,QQQ")
-    try:
-        result = client.get_snapshots([s.strip() for s in symbols.split(",")])
-    except RuntimeError:
-        return jsonify({
-            "status":  "unavailable",
-            "reason":  "ALPACA_API_KEY / ALPACA_API_SECRET not configured",
-            "data":    [],
-            "message": "Add ALPACA_API_KEY and ALPACA_API_SECRET to Railway Variables to enable this feature",
-        }), 200
-    if not result.get("ok"):
-        return jsonify({
-            "status": "error",
-            "reason": result.get("error", "Unknown error"),
-            "data": None,
-            "message": "Alpaca API request failed"
-        }), 200
-    return jsonify(result), 200
+    """
+    Latest quote + trade + bar snapshot. Served from the Neptune data-feed cache,
+    which is refreshed every 60s in the background by _neptune_refresh_loop.
+    Default symbols: SPY, QQQ, IWM, DIA. Custom ?symbols= is ignored to keep this
+    endpoint fast and prevent gunicorn worker saturation under dashboard polling.
+    """
+    cached = _neptune_data_cache_get("alpaca_snapshots")
+    if cached is not None:
+        return jsonify(cached), 200
+    return jsonify({
+        "status":  "warming",
+        "reason":  "Neptune cache populating",
+        "data":    None,
+        "message": "Cache will populate within 60s of boot. Retry shortly.",
+    }), 200
 
 
 @app.route("/api/neptune/alpaca/news")
@@ -5677,15 +5749,18 @@ def api_cboe_put_call():
 def api_cboe_fear_packet():
     """
     Full Thifur fear gauge packet — VIX term structure + P/C ratios + SKEW + VVIX.
-    Returns composite fear_level: COMPLACENT | NEUTRAL | HEIGHTENED | ELEVATED.
-    ?lookback=30
+    Served from the Neptune data-feed cache (60s background refresh) to prevent
+    gunicorn worker saturation. Default lookback=30; custom values ignored.
     """
-    client   = get_cboe_client()
-    if client is None:
-        return jsonify({"error": "CBOE pipe not initialized"}), 503
-    lookback = request.args.get("lookback", 30, type=int)
-    result   = client.get_thifur_fear_packet(lookback_days=lookback)
-    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+    cached = _neptune_data_cache_get("cboe_fear_packet")
+    if cached is not None:
+        return jsonify(cached)
+    return jsonify({
+        "ok":      False,
+        "status":  "warming",
+        "reason":  "Neptune cache populating",
+        "message": "Cache will populate within 60s of boot. Retry shortly.",
+    }), 200
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -5760,17 +5835,19 @@ def api_edgar_search():
 def api_edgar_institutional_packet():
     """
     Full Neptune institutional intelligence packet.
-    Body: {"institutions": ["berkshire","bridgewater","citadel"]}
-    Default: berkshire, bridgewater, citadel, two_sigma, tiger_global.
-    Returns latest 13F metadata + EDGAR links for each institution.
+    Served from the Neptune data-feed cache (60s background refresh) to prevent
+    gunicorn worker saturation. Uses default institution list; custom body is
+    ignored. Berkshire, Bridgewater, Citadel, Two Sigma, Tiger Global.
     """
-    client = get_edgar_client()
-    if client is None:
-        return jsonify({"error": "EDGAR pipe not initialized"}), 503
-    body         = request.get_json(silent=True) or {}
-    institutions = body.get("institutions", None)
-    result       = client.get_neptune_institutional_packet(institutions=institutions)
-    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+    cached = _neptune_data_cache_get("edgar_institutional")
+    if cached is not None:
+        return jsonify(cached)
+    return jsonify({
+        "ok":      False,
+        "status":  "warming",
+        "reason":  "Neptune cache populating",
+        "message": "Cache will populate within 60s of boot. Retry shortly.",
+    }), 200
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -5900,13 +5977,21 @@ def api_blockscout_status():
 
 @app.route("/api/neptune/blockscout/stats")
 def api_blockscout_stats():
-    """Ethereum network stats — gas, block time, total addresses, market cap. ?chain=1"""
-    client = get_blockscout_client()
-    if client is None:
-        return jsonify({"error": "Blockscout pipe not initialized"}), 503
-    chain  = request.args.get("chain", "1")
-    result = client.get_network_stats(chain_id=chain)
-    return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
+    """
+    Ethereum network stats — gas, block time, total addresses, market cap.
+    Served from the Neptune data-feed cache (60s background refresh) to prevent
+    gunicorn worker saturation. Default chain=1 (Ethereum mainnet); custom
+    ?chain= is ignored.
+    """
+    cached = _neptune_data_cache_get("blockscout_stats")
+    if cached is not None:
+        return jsonify(cached)
+    return jsonify({
+        "ok":      False,
+        "status":  "warming",
+        "reason":  "Neptune cache populating",
+        "message": "Cache will populate within 60s of boot. Retry shortly.",
+    }), 200
 
 
 @app.route("/api/neptune/blockscout/address")
@@ -6192,6 +6277,7 @@ def _start_background_threads():
              authority="SYSTEM", outcome="OPEN_FINDING")
     threading.Thread(target=market_loop, daemon=True).start()
     threading.Thread(target=email_scheduler, daemon=True).start()
+    threading.Thread(target=_neptune_refresh_loop, daemon=True).start()
     print("[AUREON] Background threads started — CAOM-001 session OPEN")
 
 if __name__ == "__main__":
