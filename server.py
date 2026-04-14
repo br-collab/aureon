@@ -3204,6 +3204,7 @@ def _neptune_scan():
     # SIGNAL 2: Fear complacent + strong market = add risk
     if fear_level == "COMPLACENT" and term_signal == "CONTANGO":
         # Look for an equity not held or underweight
+        cash_floor = pv * OPERATING_CASH_FLOOR_PCT
         for sym in ["NVDA", "MSFT", "AAPL", "AMZN", "GOOGL", "META"]:
             if sym in held_symbols:
                 continue
@@ -3213,6 +3214,18 @@ def _neptune_scan():
             shares = max(10, int(500_000 / sym_price / 10) * 10)
             notional = int(shares * sym_price)
             if notional < 200_000:
+                continue
+            # Cash floor guard — mirror Thifur-H's _generate_signal check.
+            # A Neptune BUY rec must not breach the operating cash floor
+            # (OPERATING_CASH_FLOOR_PCT of portfolio value) even if approved.
+            if cash - notional < cash_floor:
+                _journal(
+                    "NEPTUNE_REC_SUPPRESSED", "NEPTUNE-SPEAR", sym,
+                    f"BUY {sym} rec suppressed — would breach operating cash floor. "
+                    f"Available: ${cash:,.0f} | Notional: ${notional:,.0f} | "
+                    f"Floor: ${cash_floor:,.0f} | Post-trade cash: ${cash - notional:,.0f}",
+                    authority="SYSTEM", outcome="SUPPRESSED",
+                )
                 continue
             recs.append(_build_neptune_rec(
                 action="BUY", symbol=sym, shares=shares, price=sym_price,
@@ -3287,6 +3300,7 @@ def _neptune_scan():
     # SIGNAL 5: Cash heavy + no fear = deploy capital
     cash_pct = (cash / pv * 100) if pv > 0 else 0
     if cash_pct > 60 and fear_level in ("COMPLACENT", "NEUTRAL") and len(positions) < 5:
+        cash_floor_s5 = pv * OPERATING_CASH_FLOOR_PCT
         for sym in ["SPY", "QQQ"]:
             if sym in held_symbols:
                 continue
@@ -3295,6 +3309,19 @@ def _neptune_scan():
                 continue
             target_notional = int(pv * 0.08)  # 8% of portfolio
             shares = max(100, int(target_notional / sym_price / 100) * 100)
+            notional_s5 = int(shares * sym_price)
+            # Defensive cash-floor guard — the cash_pct > 60 pre-check above
+            # should already guarantee headroom, but mirror the Thifur-H
+            # doctrine so no Neptune BUY path can ever slip past the floor.
+            if cash - notional_s5 < cash_floor_s5:
+                _journal(
+                    "NEPTUNE_REC_SUPPRESSED", "NEPTUNE-SPEAR", sym,
+                    f"BUY {sym} deploy-cash rec suppressed — would breach operating cash floor. "
+                    f"Available: ${cash:,.0f} | Notional: ${notional_s5:,.0f} | "
+                    f"Floor: ${cash_floor_s5:,.0f} | Post-trade cash: ${cash - notional_s5:,.0f}",
+                    authority="SYSTEM", outcome="SUPPRESSED",
+                )
+                continue
             recs.append(_build_neptune_rec(
                 action="BUY", symbol=sym, shares=shares, price=sym_price,
                 asset_class="equities",
