@@ -3841,6 +3841,15 @@ def market_loop():
             except Exception as nex:
                 _log_error("WARN", "neptune_scan", str(nex))
 
+            # Refresh FRED/OFR cache off the request path so /api/compliance
+            # never makes network calls. Functions are cache-aware (30-min TTL)
+            # so most cycles are no-ops; real fetches happen ~every 30 min.
+            try:
+                _macro_refresh = _get_fred_macro_snapshot()
+                _get_ofr_stress_snapshot(_macro_refresh)
+            except Exception as mex:
+                _log_error("WARN", "macro_refresh", str(mex))
+
         except Exception as exc:
             _log_error("WARN", "market_loop", str(exc))
 
@@ -3989,8 +3998,10 @@ def api_macro():
 def api_compliance():
     """Compliance monitor — alerts, drawdown levels, regulatory frameworks."""
     risk_snapshot = _risk_manager_snapshot()
-    macro_snapshot = _get_fred_macro_snapshot()
-    ofr_snapshot = _get_ofr_stress_snapshot(macro_snapshot)
+    # Read FRED/OFR from cache only — never block the request thread on network I/O.
+    # market_loop refreshes these off-thread; fallback values are used until first refresh.
+    macro_snapshot = _fred_cache.get("data") or _fallback_macro_snapshot()
+    ofr_snapshot = _ofr_cache.get("data") or _fallback_ofr_snapshot(macro_snapshot)
     with _lock:
         return jsonify({
             "alerts":        aureon_state["compliance_alerts"],
