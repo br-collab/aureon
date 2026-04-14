@@ -2440,15 +2440,19 @@ main {
       </div>
     </div>
 
-    <!-- Gate decision + recommended rail banner -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+    <!-- Gate decision + recommended rail + recommended chain banner -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
       <div class="npt-inner-card" style="text-align:center">
         <div class="card-label" style="margin-bottom:8px">Gate Decision</div>
-        <div class="npt-metric-value" style="font-size:32px;font-weight:800;letter-spacing:1px" id="cato-gate-decision">--</div>
+        <div class="npt-metric-value" style="font-size:28px;font-weight:800;letter-spacing:1px" id="cato-gate-decision">--</div>
       </div>
       <div class="npt-inner-card" style="text-align:center">
         <div class="card-label" style="margin-bottom:8px">Recommended Rail</div>
-        <div class="npt-metric-value" style="font-size:24px;color:var(--cyan)" id="cato-rail">--</div>
+        <div class="npt-metric-value" style="font-size:20px;color:var(--cyan)" id="cato-rail">--</div>
+      </div>
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">Recommended Chain</div>
+        <div class="npt-metric-value" style="font-size:20px;color:var(--cyan)" id="cato-chain">--</div>
       </div>
     </div>
 
@@ -2469,6 +2473,35 @@ main {
       <div class="npt-inner-card" style="text-align:center">
         <div class="card-label" style="margin-bottom:8px">OFR Stress</div>
         <div class="npt-metric-value" style="font-size:20px" id="cato-ofr">--</div>
+      </div>
+    </div>
+
+    <!-- Multi-chain rail state: one card per chain, compact row -->
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px">
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:6px;font-size:9px">Ethereum L1</div>
+        <div class="npt-metric-value" style="font-size:14px" id="cato-chain-eth">--</div>
+        <div style="font-size:9px;color:var(--dim);margin-top:3px">12s</div>
+      </div>
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:6px;font-size:9px">Base</div>
+        <div class="npt-metric-value" style="font-size:14px" id="cato-chain-base">--</div>
+        <div style="font-size:9px;color:var(--dim);margin-top:3px">2s</div>
+      </div>
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:6px;font-size:9px">Arbitrum</div>
+        <div class="npt-metric-value" style="font-size:14px" id="cato-chain-arb">--</div>
+        <div style="font-size:9px;color:var(--dim);margin-top:3px">2s</div>
+      </div>
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:6px;font-size:9px">Solana</div>
+        <div class="npt-metric-value" style="font-size:14px" id="cato-chain-sol">--</div>
+        <div style="font-size:9px;color:var(--dim);margin-top:3px">400ms</div>
+      </div>
+      <div class="npt-inner-card" style="text-align:center;border-style:dashed;opacity:0.6">
+        <div class="card-label" style="margin-bottom:6px;font-size:9px">Fed L1</div>
+        <div class="npt-metric-value" style="font-size:14px" id="cato-chain-fed">pending</div>
+        <div style="font-size:9px;color:var(--dim);margin-top:3px">PORTS</div>
       </div>
     </div>
 
@@ -2948,10 +2981,11 @@ const API = {
   macro:            '/api/macro',
   decisionJournal:  '/api/decision-journal',
   cascadePreview:   (id) => `/api/cascade-preview/${id}`,
-  // Cato — Verana L0 tokenized-settlement doctrine gate
+  // Cato — Verana L0 tokenized-settlement doctrine gate (v0.2.0 multi-chain)
   catoGate:              '/api/cato/gate',
   catoSettlementCtx:     '/api/cato/settlement-context',
   catoCompareRails:      '/api/cato/compare-rails',
+  catoMultichainGas:     '/api/cato/multichain-gas',
   // Neptune Spear data pipes
   neptuneStatus:       '/api/neptune/status',
   neptuneFlowAlerts:   '/api/neptune/flow-alerts',
@@ -5467,6 +5501,30 @@ function renderCato() {
     const rail = gate.recommended_rail || '--';
     railEl.textContent = rail.toUpperCase().replace(/_/g, ' ');
   }
+
+  // Recommended chain (v0.2.0 multi-chain)
+  const chainEl = document.getElementById('cato-chain');
+  if (chainEl) {
+    const chain = gate.recommended_chain;
+    chainEl.textContent = chain ? chain.toUpperCase() : '—';
+  }
+
+  // Per-chain gas/fee cards — read from gate.chain_state (v0.2.0)
+  const cs = gate.chain_state || {};
+  const setChain = (id, text, color) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    if (color) el.style.color = color;
+  };
+  const fmtGwei = (v) => (v === null || v === undefined) ? '—' : v.toFixed(2) + ' gwei';
+  setChain('cato-chain-eth',  fmtGwei(cs.ethereum?.gas_gwei));
+  setChain('cato-chain-base', fmtGwei(cs.base?.gas_gwei), cs.base?.gas_gwei !== null && cs.base?.gas_gwei !== undefined && cs.base.gas_gwei < 1 ? 'var(--green)' : undefined);
+  setChain('cato-chain-arb',  fmtGwei(cs.arbitrum?.gas_gwei));
+  const solFee = cs.solana?.fee_usd_estimate;
+  setChain('cato-chain-sol',
+    (solFee === null || solFee === undefined) ? '—' : '$' + solFee.toFixed(5),
+    (solFee !== null && solFee !== undefined && solFee < 0.01) ? 'var(--green)' : undefined);
 
   // Settlement posture — pull from gate.inputs first, fall back to ctx
   const POSTURE_COLORS = {

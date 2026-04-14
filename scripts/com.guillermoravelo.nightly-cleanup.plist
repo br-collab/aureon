@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.guillermoravelo.nightly-cleanup</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/guillermoravelo/Desktop/NYC - Take Over/MS Application/Columbia University - MS Technology Management/Project Folder/Project Aureon/Programing/The Grid 3/scripts/nightly_cleanup.sh</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>0</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/guillermoravelo/Library/Logs/nightly_cleanup.launchd.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/guillermoravelo/Library/Logs/nightly_cleanup.launchd.err.log</string>
+</dict>
+</plist>

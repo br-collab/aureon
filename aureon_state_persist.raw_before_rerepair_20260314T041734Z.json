@@ -1,0 +1,1265 @@
+{
+  "positions": [
+    {
+      "symbol": "SPY",
+      "asset_class": "equities",
+      "shares": 28000,
+      "cost": 535.1,
+      "agent": "THIFUR_J"
+    },
+    {
+      "symbol": "AAPL",
+      "asset_class": "equities",
+      "shares": 2200,
+      "cost": 219.5,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "NVDA",
+      "asset_class": "equities",
+      "shares": 800,
+      "cost": 875.3,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "MSFT",
+      "asset_class": "equities",
+      "shares": 2500,
+      "cost": 415.2,
+      "agent": "THIFUR_J"
+    },
+    {
+      "symbol": "EEM",
+      "asset_class": "equities",
+      "shares": 25000,
+      "cost": 43.2,
+      "agent": "THIFUR_J"
+    },
+    {
+      "symbol": "AMZN",
+      "asset_class": "equities",
+      "shares": 2000,
+      "cost": 185.3,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "TLT",
+      "asset_class": "fixed_income",
+      "shares": 60000,
+      "cost": 91.5,
+      "agent": "THIFUR_R"
+    },
+    {
+      "symbol": "HYG",
+      "asset_class": "fixed_income",
+      "shares": 40000,
+      "cost": 78.2,
+      "agent": "THIFUR_R"
+    },
+    {
+      "symbol": "AGG",
+      "asset_class": "fixed_income",
+      "shares": 40000,
+      "cost": 97.4,
+      "agent": "THIFUR_R"
+    },
+    {
+      "symbol": "EUR/USD",
+      "asset_class": "fx",
+      "shares": 3500000,
+      "cost": 1.0842,
+      "agent": "THIFUR_J"
+    },
+    {
+      "symbol": "GBP/USD",
+      "asset_class": "fx",
+      "shares": 2500000,
+      "cost": 1.2651,
+      "agent": "THIFUR_J"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 16000,
+      "cost": 213.4,
+      "agent": "THIFUR_J"
+    },
+    {
+      "symbol": "USO",
+      "asset_class": "commodities",
+      "shares": 22000,
+      "cost": 72.1,
+      "agent": "THIFUR_J"
+    },
+    {
+      "symbol": "BTC",
+      "asset_class": "crypto",
+      "shares": 38,
+      "cost": 67420,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "ETH",
+      "asset_class": "crypto",
+      "shares": 480,
+      "cost": 3510,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "SOL",
+      "asset_class": "crypto",
+      "shares": 4000,
+      "cost": 142,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "MSFT",
+      "asset_class": "equities",
+      "shares": 1200,
+      "cost": 404.82,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "SOL",
+      "asset_class": "crypto",
+      "shares": 3500,
+      "cost": 87.26,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 472.81,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 472.77,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 472.27,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 472.26,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 471.32,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 471.29,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 471.33,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 471.32,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 471.25,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 471.24,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 471.28,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 470.71,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 470.71,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 470.67,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 470.67,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 470.69,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 469.2,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 469.17,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 469.19,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 469.16,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 469.1,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 469.06,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 468.7,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 468.71,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 468.7,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 468.44,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 467.59,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 467.77,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 467.79,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 467.52,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 467.52,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 467.91,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 467.49,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 467.47,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 467.47,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 467.49,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 466.85,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 465.54,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 464.62,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 464.63,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 464.64,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 462.1,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 462.08,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 463.43,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 463.4,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 463.42,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 463.43,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 463.56,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 463.59,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 463.55,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 463.57,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 463.71,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 463.73,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 463.72,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 463.2,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 462.39,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 462.03,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 460.35,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 460.34,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "shares": 2000,
+      "cost": 460.8,
+      "agent": "THIFUR_H"
+    }
+  ],
+  "cash": -54785875.201433,
+  "trades": [
+    {
+      "ts": "2026-03-13T20:17:48.299342+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "63E79A43C8D491C3"
+    },
+    {
+      "ts": "2026-03-13T19:51:29.837379+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "6D5278E5C2A5524C"
+    },
+    {
+      "ts": "2026-03-13T19:51:25.209530+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "5812D711BEDBD223"
+    },
+    {
+      "ts": "2026-03-13T19:40:14.983429+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "88D6A0C30D5274E0"
+    },
+    {
+      "ts": "2026-03-13T19:32:45.045321+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "E3B76B3527119B53"
+    },
+    {
+      "ts": "2026-03-13T19:11:09.678389+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "7053FC9EAE965FA0"
+    },
+    {
+      "ts": "2026-03-13T19:01:02.752733+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "1C17D729625E7E40"
+    },
+    {
+      "ts": "2026-03-13T19:00:58.583463+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "05B99D18DF450F1C"
+    },
+    {
+      "ts": "2026-03-13T19:00:54.301919+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "D3F91D9F96A5A358"
+    },
+    {
+      "ts": "2026-03-13T18:37:29.138942+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "48D345124E3ED522"
+    },
+    {
+      "ts": "2026-03-13T18:37:25.237242+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "67AB4123CF40C274"
+    },
+    {
+      "ts": "2026-03-13T18:37:21.301210+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "AE48861DF33959D6"
+    },
+    {
+      "ts": "2026-03-13T18:37:16.947370+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "7BE1940C60EBDCF9"
+    },
+    {
+      "ts": "2026-03-13T16:45:28.752462+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "E8889CEFC9020A98"
+    },
+    {
+      "ts": "2026-03-13T16:45:24.350651+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "752F4D2E31791AD9"
+    },
+    {
+      "ts": "2026-03-13T16:45:20.333984+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "4C0BB78C62E9EF87"
+    },
+    {
+      "ts": "2026-03-13T16:45:16.319655+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "E8EAA20DFAF3B8E6"
+    },
+    {
+      "ts": "2026-03-13T16:06:25.212561+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "E859753DB259E03B"
+    },
+    {
+      "ts": "2026-03-13T16:06:19.769435+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "A3B5489CB8038C76"
+    },
+    {
+      "ts": "2026-03-13T15:40:54.844090+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "71B9F1B8277D6688"
+    },
+    {
+      "ts": "2026-03-13T15:40:50.011889+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "1DC6EF808B1BD096"
+    },
+    {
+      "ts": "2026-03-13T15:40:45.306635+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "FA3FE773A4D81ABF"
+    },
+    {
+      "ts": "2026-03-13T15:19:28.697475+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "F4CBB2F346539264"
+    },
+    {
+      "ts": "2026-03-13T14:40:05.694211+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "BDF1699A5824FB29"
+    },
+    {
+      "ts": "2026-03-13T14:20:24.418233+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "37F4457B0AF8890D"
+    },
+    {
+      "ts": "2026-03-13T14:20:20.498688+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "856D26509FD836D0"
+    },
+    {
+      "ts": "2026-03-13T14:20:15.781673+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "458D371BE8BFEAAE"
+    },
+    {
+      "ts": "2026-03-13T14:20:11.265990+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "85DE34B08BFDD105"
+    },
+    {
+      "ts": "2026-03-12T19:48:43.379303+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "BE226CC4B43BA46B"
+    },
+    {
+      "ts": "2026-03-12T19:27:31.826801+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "8A0DFC66FB1BB225"
+    },
+    {
+      "ts": "2026-03-12T19:27:27.611863+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "6C53F949986B2905"
+    },
+    {
+      "ts": "2026-03-12T19:25:26.110522+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "27A746A40FF2C198"
+    },
+    {
+      "ts": "2026-03-12T19:25:21.512463+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "A2528B72480936A2"
+    },
+    {
+      "ts": "2026-03-12T19:11:07.336466+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "2505F2125221AF8C"
+    },
+    {
+      "ts": "2026-03-12T18:35:27.097948+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "B9D2B2E42C8AE5AB"
+    },
+    {
+      "ts": "2026-03-12T18:25:55.741980+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "EF0D82991A6C6C69"
+    },
+    {
+      "ts": "2026-03-12T18:25:51.307257+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "E64B7AE5CC6AB39C"
+    },
+    {
+      "ts": "2026-03-12T18:25:45.925309+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "4167AB3E67980358"
+    },
+    {
+      "ts": "2026-03-12T18:15:10.909860+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "627119B6D231C3A3"
+    },
+    {
+      "ts": "2026-03-12T18:15:05.661177+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "4BA3C81C31B1658C"
+    },
+    {
+      "ts": "2026-03-12T17:52:30.765301+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "26E26006767685EB"
+    },
+    {
+      "ts": "2026-03-12T17:52:26.113351+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "988DFCEC55FCB456"
+    },
+    {
+      "ts": "2026-03-12T17:52:21.411583+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "297A6B5E24BEE57B"
+    },
+    {
+      "ts": "2026-03-12T17:52:16.588068+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "077D6384611364D2"
+    },
+    {
+      "ts": "2026-03-12T17:10:35.127588+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "CA3B504A255F2406"
+    },
+    {
+      "ts": "2026-03-12T16:56:34.547612+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "3C0DD407AA6730E1"
+    },
+    {
+      "ts": "2026-03-12T16:56:30.535703+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "D6EF2DE202A545CB"
+    },
+    {
+      "ts": "2026-03-12T16:56:25.195988+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "485E2E86BAF30A28"
+    },
+    {
+      "ts": "2026-03-12T16:56:20.763769+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "0F8ABC88AC8993B5"
+    },
+    {
+      "ts": "2026-03-12T16:08:14.074808+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "B64A42A15ADA5D50"
+    },
+    {
+      "ts": "2026-03-12T16:08:09.975476+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "AEA948ADA8850E3D"
+    },
+    {
+      "ts": "2026-03-12T16:08:04.707631+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "4B87FBF2EAA9DF45"
+    },
+    {
+      "ts": "2026-03-12T15:58:21.637732+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "BC4A1F645670F4A9"
+    },
+    {
+      "ts": "2026-03-12T15:58:16.602793+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "B8E2CB766CC72B8E"
+    },
+    {
+      "ts": "2026-03-12T15:58:11.802160+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "8459A26B68EAA4F6"
+    },
+    {
+      "ts": "2026-03-12T15:58:06.227997+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "36799658C1F91AD0"
+    },
+    {
+      "ts": "2026-03-12T14:38:40.873833+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "9F7DDB92D6B82D6E"
+    },
+    {
+      "ts": "2026-03-12T14:38:36.758593+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "A20FF7EF17A5F4F2"
+    },
+    {
+      "ts": "2026-03-12T14:38:32.426794+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "B2AA786C219CA13F"
+    },
+    {
+      "ts": "2026-03-12T14:38:27.920954+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "E34679C43ED5FB29"
+    },
+    {
+      "ts": "2026-03-11T21:35:40.362865+00:00",
+      "action": "BUY",
+      "symbol": "SOL",
+      "asset_class": "crypto",
+      "notional": 497000,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "6229EAD9F7F5A5AA"
+    },
+    {
+      "ts": "2026-03-11T21:35:36.152213+00:00",
+      "action": "BUY",
+      "symbol": "MSFT",
+      "asset_class": "equities",
+      "notional": 498240,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "9B5536C9F116A6FF"
+    }
+  ],
+  "trade_reports": [],
+  "source_documents": [
+    {
+      "document_id": "SRC-C67425B7",
+      "title": "**Investment Thesis \u2013 March 13, 2026**",
+      "source_type": "upload",
+      "source_name": "Investment Thesis #1 - No Risk.docx",
+      "created_ts": "2026-03-14T02:47:35.335057+00:00",
+      "content_hash": "C67425B70B391979",
+      "word_count": 557,
+      "preview": "**Investment Thesis \u2013 March 13, 2026** The ongoing U.S.-Israel war with Iran, now in its third week following initial strikes on February 28, has escalated into a broader regional conflict with significant disruptions to global energy flows",
+      "analysis_summary": "**Investment Thesis \u2013 March 13, 2026** maps to 7 primary factor drivers, stance event-driven, and 3 explicit instrument references.",
+      "governance_status": "outside mandate",
+      "risk_classification": "speculative",
+      "stance": "event-driven",
+      "conviction_score": 5,
+      "factor_count": 7,
+      "linked_source_file": "Investment Thesis #1 - No Risk.docx",
+      "content_text": "**Investment Thesis \u2013 March 13, 2026**\nThe ongoing U.S.-Israel war with Iran, now in its third week following initial strikes on February 28, has escalated into a broader regional conflict with significant disruptions to global energy flows. Iran has effectively restricted transit through the Strait of Hormuz via threats, limited mining (fewer than 10 mines deployed), attacks on commercial vessels (including USVs and drones targeting cargo ships), and public vows from leadership to maintain pressure on the route, which handles roughly 20% of world oil transit. This has driven Brent crude prices toward $98\u2013$100+ per barrel (with recent surges from pre-conflict levels around $70\u2013$75), contributing to heightened market volatility, equity drawdowns, and inflation concerns.\nThe S&P 500 trades in the 6,640\u20136,730 range after recent declines, reflecting risk-off sentiment amid energy cost shocks, supply chain pressures, and uncertainty over conflict duration (U.S. estimates of 4\u20135 weeks vs. potential for prolongation). VIX remains elevated, with defensive rotations favoring utilities and real estate while growth sectors face input cost headwinds. The Federal Reserve maintains the federal funds rate at 3.5\u20133.75%, with low probability of near-term adjustments at the upcoming March meeting, as persistent inflation risks from energy pass-through outweigh softening labor signals.\nKey drivers include:\n- **Geopolitical escalation**: Ongoing strikes, retaliatory actions across the region (including proxy involvement and attacks on Gulf energy infrastructure), and mixed signals on diplomacy or resolution; potential for de-escalation via backchannels, emergency oil reserve releases, or external mediation could reverse commodity pressures.\n- **Energy market dynamics**: Strait disruptions threaten sustained high oil prices, amplifying stagflationary pressures but also supporting energy sector resilience; any reopening or stabilization could trigger sharp commodity mean-reversion.\n- **Monetary and liquidity backdrop**: Fed on hold amid sticky inflation; dovish pivots possible if conflict eases and growth softens further, benefiting rate-sensitive assets, while prolonged tensions risk tighter conditions.\n- **Sector and asset dislocations**: Oversold tech/growth names (e.g., NVDA, MSFT) compressed on cost fears and capex risks; energy outperforming but potentially vulnerable to resolution; EM equities and crypto showing correlated weakness amid dollar strength.\n- **Sentiment and positioning**: Elevated outflows, bearish retail sentiment, and institutional cash on sidelines set up for potential sharp reversals on positive catalysts.\nRealistic scenarios:\n- **Protracted disruption** \u2014 Conflict extends beyond initial timelines, with continued Hormuz restrictions and regional spillovers driving further equity downside (potential 10\u201320% additional drawdown from current levels), higher-for-longer inflation, and commodity spikes favoring defensive/energy hedges and volatility exposure.\n- **Resolution catalyst** \u2014 Diplomatic progress, U.S./allied interventions to reopen shipping lanes, or Iranian concessions lead to relief rally, with rapid commodity pullback, liquidity inflows to oversold growth/tech, and broad-market snapback (15\u201325%+ upside in select sectors within weeks).\n- **Escalation tail** \u2014 Wider involvement (e.g., Gulf state retaliation, mass mining, or direct U.S. ground commitments) exacerbates global shocks, risking deeper recessionary signals and tail-risk hedges.\nTrade considerations: Focus on event-driven asymmetry via defined-risk structures (e.g., call spreads on quality large-caps like NVDA/MSFT for upside convexity, puts on energy proxies like XLE for protection), paired with volatility products or commodity-linked positions. Incorporate tight stops, real-time monitoring of oil futures, diplomatic/State Department developments, and VIX term structure. Maintain disciplined position sizing aligned with overall risk framework, emphasizing scenario-dependent exits and hedge adjustments. This setup captures high-impact potential from geopolitical inflection points in a disrupted but fundamentally responsive market environment."
+    }
+  ],
+  "authority_log": [
+    {
+      "id": "HAD-SRC-25B7",
+      "ts": "2026-03-14T02:47:35.335409+00:00",
+      "tier": "Mentat L1",
+      "type": "Source Document Registered \u00b7 UPLOAD",
+      "authority": "Aureon Thesis Registry",
+      "outcome": "SRC-C67425B7 \u00b7 outside mandate",
+      "hash": "C67425B70B391979"
+    },
+    {
+      "id": "HAD-5172",
+      "ts": "2026-03-14T02:30:21.136070+00:00",
+      "tier": "Tier 1",
+      "type": "Trade REJECTED: BUY SOL",
+      "authority": "br@ravelobizdev.com",
+      "outcome": "REJECTED",
+      "hash": "0DF1E83981B114B1"
+    },
+    {
+      "id": "HAD-8943",
+      "ts": "2026-03-14T02:30:19.893784+00:00",
+      "tier": "Tier 1",
+      "type": "Trade REJECTED: BUY MSFT",
+      "authority": "br@ravelobizdev.com",
+      "outcome": "REJECTED",
+      "hash": "CC598C413C3416BB"
+    },
+    {
+      "id": "HAD-2951",
+      "ts": "2026-03-14T02:21:10.852764+00:00",
+      "tier": "Tier 1",
+      "type": "Trade REJECTED: BUY SOL",
+      "authority": "br@ravelobizdev.com",
+      "outcome": "REJECTED",
+      "hash": "0DF1E83981B114B1"
+    },
+    {
+      "id": "HAD-8943",
+      "ts": "2026-03-14T02:21:09.669999+00:00",
+      "tier": "Tier 1",
+      "type": "Trade REJECTED: BUY MSFT",
+      "authority": "br@ravelobizdev.com",
+      "outcome": "REJECTED",
+      "hash": "CC598C413C3416BB"
+    },
+    {
+      "id": "HAD-6819",
+      "ts": "2026-03-14T00:27:04.338645+00:00",
+      "tier": "Tier 1",
+      "type": "Trade REJECTED: BUY SOL",
+      "authority": "br@ravelobizdev.com",
+      "outcome": "REJECTED",
+      "hash": "0DF1E83981B114B1"
+    },
+    {
+      "id": "HAD-7845",
+      "ts": "2026-03-14T00:27:03.263132+00:00",
+      "tier": "Tier 1",
+      "type": "Trade REJECTED: BUY MSFT",
+      "authority": "br@ravelobizdev.com",
+      "outcome": "REJECTED",
+      "hash": "CC598C413C3416BB"
+    }
+  ],
+  "compliance_alerts": [],
+  "alert_history": [],
+  "mmf_balance": 0.0,
+  "mmf_yield_accrued": 0.0,
+  "sweep_log": [],
+  "saved_at": "2026-03-14T02:47:35.335562+00:00"
+}

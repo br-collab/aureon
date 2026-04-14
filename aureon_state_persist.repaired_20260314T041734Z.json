@@ -1,0 +1,318 @@
+{
+  "positions": [
+    {
+      "symbol": "SPY",
+      "asset_class": "equities",
+      "shares": 28000,
+      "cost": 535.1,
+      "agent": "THIFUR_J"
+    },
+    {
+      "symbol": "AAPL",
+      "asset_class": "equities",
+      "shares": 2200,
+      "cost": 219.5,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "NVDA",
+      "asset_class": "equities",
+      "shares": 800,
+      "cost": 875.3,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "MSFT",
+      "asset_class": "equities",
+      "shares": 2500,
+      "cost": 415.2,
+      "agent": "THIFUR_J"
+    },
+    {
+      "symbol": "EEM",
+      "asset_class": "equities",
+      "shares": 25000,
+      "cost": 43.2,
+      "agent": "THIFUR_J"
+    },
+    {
+      "symbol": "AMZN",
+      "asset_class": "equities",
+      "shares": 2000,
+      "cost": 185.3,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "TLT",
+      "asset_class": "fixed_income",
+      "shares": 60000,
+      "cost": 91.5,
+      "agent": "THIFUR_R"
+    },
+    {
+      "symbol": "HYG",
+      "asset_class": "fixed_income",
+      "shares": 40000,
+      "cost": 78.2,
+      "agent": "THIFUR_R"
+    },
+    {
+      "symbol": "AGG",
+      "asset_class": "fixed_income",
+      "shares": 40000,
+      "cost": 97.4,
+      "agent": "THIFUR_R"
+    },
+    {
+      "symbol": "EUR/USD",
+      "asset_class": "fx",
+      "shares": 3500000,
+      "cost": 1.0842,
+      "agent": "THIFUR_J"
+    },
+    {
+      "symbol": "GBP/USD",
+      "asset_class": "fx",
+      "shares": 2500000,
+      "cost": 1.2651,
+      "agent": "THIFUR_J"
+    },
+    {
+      "symbol": "USO",
+      "asset_class": "commodities",
+      "shares": 22000,
+      "cost": 72.1,
+      "agent": "THIFUR_J"
+    },
+    {
+      "symbol": "BTC",
+      "asset_class": "crypto",
+      "shares": 38,
+      "cost": 67420,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "ETH",
+      "asset_class": "crypto",
+      "shares": 480,
+      "cost": 3510,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "SOL",
+      "asset_class": "crypto",
+      "shares": 4000,
+      "cost": 142,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "MSFT",
+      "asset_class": "equities",
+      "shares": 1200,
+      "cost": 404.82,
+      "agent": "THIFUR_H"
+    },
+    {
+      "symbol": "SOL",
+      "asset_class": "crypto",
+      "shares": 3500,
+      "cost": 87.26,
+      "agent": "THIFUR_H"
+    }
+  ],
+  "cash": 8818304.798566997,
+  "trades": [
+    {
+      "ts": "2026-03-12T15:58:21.637732+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "BC4A1F645670F4A9"
+    },
+    {
+      "ts": "2026-03-12T15:58:16.602793+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "B8E2CB766CC72B8E"
+    },
+    {
+      "ts": "2026-03-12T15:58:11.802160+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "8459A26B68EAA4F6"
+    },
+    {
+      "ts": "2026-03-12T15:58:06.227997+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "36799658C1F91AD0"
+    },
+    {
+      "ts": "2026-03-12T14:38:40.873833+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "9F7DDB92D6B82D6E"
+    },
+    {
+      "ts": "2026-03-12T14:38:36.758593+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "A20FF7EF17A5F4F2"
+    },
+    {
+      "ts": "2026-03-12T14:38:32.426794+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "B2AA786C219CA13F"
+    },
+    {
+      "ts": "2026-03-12T14:38:27.920954+00:00",
+      "action": "SELL",
+      "symbol": "GLD",
+      "asset_class": "commodities",
+      "notional": 426800,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "E34679C43ED5FB29"
+    },
+    {
+      "ts": "2026-03-11T21:35:40.362865+00:00",
+      "action": "BUY",
+      "symbol": "SOL",
+      "asset_class": "crypto",
+      "notional": 497000,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "6229EAD9F7F5A5AA"
+    },
+    {
+      "ts": "2026-03-11T21:35:36.152213+00:00",
+      "action": "BUY",
+      "symbol": "MSFT",
+      "asset_class": "equities",
+      "notional": 498240,
+      "agent": "THIFUR_H",
+      "human_approved": true,
+      "hash": "9B5536C9F116A6FF"
+    }
+  ],
+  "trade_reports": [],
+  "source_documents": [
+    {
+      "document_id": "SRC-C67425B7",
+      "title": "**Investment Thesis \u2013 March 13, 2026**",
+      "source_type": "upload",
+      "source_name": "Investment Thesis #1 - No Risk.docx",
+      "created_ts": "2026-03-14T02:47:35.335057+00:00",
+      "content_hash": "C67425B70B391979",
+      "word_count": 557,
+      "preview": "**Investment Thesis \u2013 March 13, 2026** The ongoing U.S.-Israel war with Iran, now in its third week following initial strikes on February 28, has escalated into a broader regional conflict with significant disruptions to global energy flows",
+      "analysis_summary": "**Investment Thesis \u2013 March 13, 2026** maps to 7 primary factor drivers, stance event-driven, and 3 explicit instrument references.",
+      "governance_status": "outside mandate",
+      "risk_classification": "speculative",
+      "stance": "event-driven",
+      "conviction_score": 5,
+      "factor_count": 7,
+      "linked_source_file": "Investment Thesis #1 - No Risk.docx",
+      "content_text": "**Investment Thesis \u2013 March 13, 2026**\nThe ongoing U.S.-Israel war with Iran, now in its third week following initial strikes on February 28, has escalated into a broader regional conflict with significant disruptions to global energy flows. Iran has effectively restricted transit through the Strait of Hormuz via threats, limited mining (fewer than 10 mines deployed), attacks on commercial vessels (including USVs and drones targeting cargo ships), and public vows from leadership to maintain pressure on the route, which handles roughly 20% of world oil transit. This has driven Brent crude prices toward $98\u2013$100+ per barrel (with recent surges from pre-conflict levels around $70\u2013$75), contributing to heightened market volatility, equity drawdowns, and inflation concerns.\nThe S&P 500 trades in the 6,640\u20136,730 range after recent declines, reflecting risk-off sentiment amid energy cost shocks, supply chain pressures, and uncertainty over conflict duration (U.S. estimates of 4\u20135 weeks vs. potential for prolongation). VIX remains elevated, with defensive rotations favoring utilities and real estate while growth sectors face input cost headwinds. The Federal Reserve maintains the federal funds rate at 3.5\u20133.75%, with low probability of near-term adjustments at the upcoming March meeting, as persistent inflation risks from energy pass-through outweigh softening labor signals.\nKey drivers include:\n- **Geopolitical escalation**: Ongoing strikes, retaliatory actions across the region (including proxy involvement and attacks on Gulf energy infrastructure), and mixed signals on diplomacy or resolution; potential for de-escalation via backchannels, emergency oil reserve releases, or external mediation could reverse commodity pressures.\n- **Energy market dynamics**: Strait disruptions threaten sustained high oil prices, amplifying stagflationary pressures but also supporting energy sector resilience; any reopening or stabilization could trigger sharp commodity mean-reversion.\n- **Monetary and liquidity backdrop**: Fed on hold amid sticky inflation; dovish pivots possible if conflict eases and growth softens further, benefiting rate-sensitive assets, while prolonged tensions risk tighter conditions.\n- **Sector and asset dislocations**: Oversold tech/growth names (e.g., NVDA, MSFT) compressed on cost fears and capex risks; energy outperforming but potentially vulnerable to resolution; EM equities and crypto showing correlated weakness amid dollar strength.\n- **Sentiment and positioning**: Elevated outflows, bearish retail sentiment, and institutional cash on sidelines set up for potential sharp reversals on positive catalysts.\nRealistic scenarios:\n- **Protracted disruption** \u2014 Conflict extends beyond initial timelines, with continued Hormuz restrictions and regional spillovers driving further equity downside (potential 10\u201320% additional drawdown from current levels), higher-for-longer inflation, and commodity spikes favoring defensive/energy hedges and volatility exposure.\n- **Resolution catalyst** \u2014 Diplomatic progress, U.S./allied interventions to reopen shipping lanes, or Iranian concessions lead to relief rally, with rapid commodity pullback, liquidity inflows to oversold growth/tech, and broad-market snapback (15\u201325%+ upside in select sectors within weeks).\n- **Escalation tail** \u2014 Wider involvement (e.g., Gulf state retaliation, mass mining, or direct U.S. ground commitments) exacerbates global shocks, risking deeper recessionary signals and tail-risk hedges.\nTrade considerations: Focus on event-driven asymmetry via defined-risk structures (e.g., call spreads on quality large-caps like NVDA/MSFT for upside convexity, puts on energy proxies like XLE for protection), paired with volatility products or commodity-linked positions. Incorporate tight stops, real-time monitoring of oil futures, diplomatic/State Department developments, and VIX term structure. Maintain disciplined position sizing aligned with overall risk framework, emphasizing scenario-dependent exits and hedge adjustments. This setup captures high-impact potential from geopolitical inflection points in a disrupted but fundamentally responsive market environment."
+    }
+  ],
+  "authority_log": [
+    {
+      "id": "HAD-SRC-25B7",
+      "ts": "2026-03-14T02:47:35.335409+00:00",
+      "tier": "Mentat L1",
+      "type": "Source Document Registered \u00b7 UPLOAD",
+      "authority": "Aureon Thesis Registry",
+      "outcome": "SRC-C67425B7 \u00b7 outside mandate",
+      "hash": "C67425B70B391979"
+    },
+    {
+      "id": "HAD-5172",
+      "ts": "2026-03-14T02:30:21.136070+00:00",
+      "tier": "Tier 1",
+      "type": "Trade REJECTED: BUY SOL",
+      "authority": "br@ravelobizdev.com",
+      "outcome": "REJECTED",
+      "hash": "0DF1E83981B114B1"
+    },
+    {
+      "id": "HAD-8943",
+      "ts": "2026-03-14T02:30:19.893784+00:00",
+      "tier": "Tier 1",
+      "type": "Trade REJECTED: BUY MSFT",
+      "authority": "br@ravelobizdev.com",
+      "outcome": "REJECTED",
+      "hash": "CC598C413C3416BB"
+    },
+    {
+      "id": "HAD-2951",
+      "ts": "2026-03-14T02:21:10.852764+00:00",
+      "tier": "Tier 1",
+      "type": "Trade REJECTED: BUY SOL",
+      "authority": "br@ravelobizdev.com",
+      "outcome": "REJECTED",
+      "hash": "0DF1E83981B114B1"
+    },
+    {
+      "id": "HAD-8943",
+      "ts": "2026-03-14T02:21:09.669999+00:00",
+      "tier": "Tier 1",
+      "type": "Trade REJECTED: BUY MSFT",
+      "authority": "br@ravelobizdev.com",
+      "outcome": "REJECTED",
+      "hash": "CC598C413C3416BB"
+    },
+    {
+      "id": "HAD-6819",
+      "ts": "2026-03-14T00:27:04.338645+00:00",
+      "tier": "Tier 1",
+      "type": "Trade REJECTED: BUY SOL",
+      "authority": "br@ravelobizdev.com",
+      "outcome": "REJECTED",
+      "hash": "0DF1E83981B114B1"
+    },
+    {
+      "id": "HAD-7845",
+      "ts": "2026-03-14T00:27:03.263132+00:00",
+      "tier": "Tier 1",
+      "type": "Trade REJECTED: BUY MSFT",
+      "authority": "br@ravelobizdev.com",
+      "outcome": "REJECTED",
+      "hash": "CC598C413C3416BB"
+    }
+  ],
+  "compliance_alerts": [],
+  "alert_history": [],
+  "mmf_balance": 0.0,
+  "mmf_yield_accrued": 0.0,
+  "sweep_log": [],
+  "saved_at": "2026-03-14T04:17:34.279636+00:00"
+}

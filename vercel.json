@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "name": "aureon-dashboard",
+  "builds": [
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "https://aureon-production.up.railway.app/api/$1",
+      "headers": {
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "env": {
+    "RAILWAY_API_URL": "https://aureon-production.up.railway.app"
+  }
+}
