@@ -2428,6 +2428,64 @@ main {
     </div>
   </div>
 
+  <!-- ── CATO — VERANA L0 SETTLEMENT GATE ───────────── -->
+  <div class="neptune-section-label">Cato — Verana L0 Settlement Gate</div>
+  <div class="card" style="padding:20px 24px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+      <div class="card-label" style="margin-bottom:0">Tokenized Settlement Doctrine Gate</div>
+      <span class="mcp-uri-tag" style="font-size:9px;padding:2px 6px">Duffie 2025 · PORTS</span>
+      <span class="mcp-tool-tag" style="font-size:9px;padding:2px 6px">FICC · experimental</span>
+      <div style="margin-left:auto;font-size:10px;color:var(--dim)">
+        cache <span id="cato-age">--</span>
+      </div>
+    </div>
+
+    <!-- Gate decision + recommended rail banner -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">Gate Decision</div>
+        <div class="npt-metric-value" style="font-size:32px;font-weight:800;letter-spacing:1px" id="cato-gate-decision">--</div>
+      </div>
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">Recommended Rail</div>
+        <div class="npt-metric-value" style="font-size:24px;color:var(--cyan)" id="cato-rail">--</div>
+      </div>
+    </div>
+
+    <!-- Live inputs grid: posture, SOFR, gas, OFR -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px">
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">Settlement Posture</div>
+        <div class="npt-metric-value" style="font-size:14px" id="cato-posture">--</div>
+      </div>
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">SOFR</div>
+        <div class="npt-metric-value" style="font-size:20px" id="cato-sofr">--</div>
+      </div>
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">ETH Gas (Gwei)</div>
+        <div class="npt-metric-value" style="font-size:20px" id="cato-gas">--</div>
+      </div>
+      <div class="npt-inner-card" style="text-align:center">
+        <div class="card-label" style="margin-bottom:8px">OFR Stress</div>
+        <div class="npt-metric-value" style="font-size:20px" id="cato-ofr">--</div>
+      </div>
+    </div>
+
+    <!-- Doctrine reasoning -->
+    <div style="margin-bottom:10px">
+      <div class="card-label" style="margin-bottom:8px">Doctrine Reasoning</div>
+      <div id="cato-reasons" style="padding:10px 12px;background:rgba(255,255,255,0.02);border-radius:6px;border-left:2px solid var(--border2)">
+        <div style="font-size:11px;color:var(--dim)">Awaiting gate data...</div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="font-size:10px;color:var(--dim);border-top:1px solid var(--border2);padding-top:10px;letter-spacing:.3px">
+      <span id="cato-doctrine">Verana L0 — Cato settlement gate</span> · ESCALATE &gt; 1.0 OFR · HOLD &gt; 0.5 OFR OR &gt; 50 gwei · PROCEED otherwise
+    </div>
+  </div>
+
   <!-- ── VERANA L0 MCP SERVER ────────────────────────── -->
   <div class="neptune-section-label">MCP Server</div>
   <div class="card" style="padding:20px 24px;margin-bottom:20px">
@@ -5386,6 +5444,72 @@ async function fetchCato() {
   } catch (e) { /* silent — Cato is advisory, never blocks */ }
 }
 
+function renderCato() {
+  const gate = state.catoGate;
+  const ctx = state.catoContext;
+  if (!gate) return;
+
+  // Gate decision banner — color-coded per doctrine
+  const DECISION_COLORS = {
+    PROCEED:  'var(--green)',
+    HOLD:     'var(--yellow)',
+    ESCALATE: 'var(--red)',
+  };
+  const decisionEl = document.getElementById('cato-gate-decision');
+  if (decisionEl) {
+    decisionEl.textContent = gate.gate_decision || '--';
+    decisionEl.style.color = DECISION_COLORS[gate.gate_decision] || 'var(--dim)';
+  }
+
+  // Recommended rail
+  const railEl = document.getElementById('cato-rail');
+  if (railEl) {
+    const rail = gate.recommended_rail || '--';
+    railEl.textContent = rail.toUpperCase().replace(/_/g, ' ');
+  }
+
+  // Settlement posture — pull from gate.inputs first, fall back to ctx
+  const POSTURE_COLORS = {
+    favorable: 'var(--green)',
+    monitor:   'var(--yellow)',
+    elevated:  'var(--red)',
+  };
+  const postureEl = document.getElementById('cato-posture');
+  if (postureEl) {
+    const posture = gate.inputs?.settlement_posture || ctx?.settlement_posture || null;
+    postureEl.textContent = posture ? posture.toUpperCase() : '--';
+    postureEl.style.color = POSTURE_COLORS[posture] || 'var(--dim)';
+  }
+
+  // Live inputs — SOFR, gas, OFR
+  const fmt = (val, suffix = '', digits = 2) =>
+    (val === null || val === undefined || Number.isNaN(val)) ? '--' : val.toFixed(digits) + suffix;
+  const sofrEl = document.getElementById('cato-sofr');
+  if (sofrEl) sofrEl.textContent = fmt(gate.inputs?.sofr_rate, '%');
+  const gasEl = document.getElementById('cato-gas');
+  if (gasEl) gasEl.textContent = fmt(gate.inputs?.gas_gwei, '');
+  const ofrEl = document.getElementById('cato-ofr');
+  if (ofrEl) ofrEl.textContent = fmt(gate.inputs?.ofr_stress, '');
+
+  // Doctrine reasoning list
+  const reasonsEl = document.getElementById('cato-reasons');
+  if (reasonsEl) {
+    const reasons = gate.reasons || [];
+    reasonsEl.innerHTML = reasons.length > 0
+      ? reasons.map(r => `<div style="font-size:11px;color:var(--text);margin-bottom:4px;line-height:1.5">· ${r}</div>`).join('')
+      : '<div style="font-size:11px;color:var(--dim)">No reasons reported</div>';
+  }
+
+  // Footer doctrine line + cache age
+  const docEl = document.getElementById('cato-doctrine');
+  if (docEl && gate.doctrine) docEl.textContent = gate.doctrine;
+  const ageEl = document.getElementById('cato-age');
+  if (ageEl) {
+    const age = gate.cache_age_seconds;
+    ageEl.textContent = (age === null || age === undefined) ? '--' : Math.round(age) + 's';
+  }
+}
+
 async function slowTick() {
   // Core widgets — must complete fast for the main dashboard to render.
   await Promise.allSettled([
@@ -5400,6 +5524,7 @@ async function slowTick() {
   // so the main poll loop never waits on Neptune.
   fetchNeptune().catch(() => {});
   renderGovernance();
+  renderCato();
 
   // Compliance tab
   const alertCount = state.alerts.filter(a => !a.resolved).length;
