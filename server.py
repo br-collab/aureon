@@ -1925,6 +1925,20 @@ _CATO_SOLANA_RPC = "https://api.mainnet-beta.solana.com"
 _CATO_COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price"
 _CATO_ETH_PRICE_FALLBACK = 3500.0   # USD per ETH — mirror cato_client.ETH_PRICE_FALLBACK
 _CATO_SOL_PRICE_FALLBACK = 150.0    # USD per SOL — mirror cato_client.SOL_PRICE_FALLBACK
+
+# v0.2.3 sticky last-known-good price cache. When CoinGecko fails
+# transiently (rate limit, network blip), _cato_fetch_coingecko_prices
+# returns the previous live values from this dict instead of the
+# static fallback constants. Only on cold boot (no prior live fetch
+# ever succeeded) does it fall all the way through to the static
+# constants. This eliminates the "$3,500 on a trading desk review"
+# failure mode where a single failed refresh cycle flips the
+# displayed price to the hardcoded fallback.
+_cato_last_live_prices = {
+    "eth": None,     # USD per ETH, last successful CoinGecko fetch
+    "sol": None,     # USD per SOL, last successful CoinGecko fetch
+    "ts": 0.0,       # unix timestamp of the last successful fetch
+}
 _CATO_CHAIN_SPEED = {
     "ethereum": "12s",
     "base":     "2s",
@@ -2160,13 +2174,23 @@ def _neptune_data_cache_set(key, data):
 def _cato_fetch_coingecko_prices():
     """
     Live ETH and SOL USD prices from the free CoinGecko public API.
-    No auth required. Mirrors the Cato MCP server v0.2.1 getLivePrices()
-    function bit-for-bit.
+    No auth required. Mirrors the Cato MCP server getLivePrices() function.
 
-    Returns {"eth", "sol", "source", "timestamp", "fallback_used", "note"}.
-    On any failure (timeout, rate limit, malformed response) returns the
-    static fallback constants with fallback_used=True so the caller
-    surfaces the degraded state in the output's price_sources block.
+    v0.2.3: sticky last-known-good cache. Three possible result states:
+
+      1. coingecko_public  — fresh fetch succeeded, returning live values
+         and updating _cato_last_live_prices for future sticky reads.
+      2. coingecko_stale   — fresh fetch failed but we have a prior
+         successful live value in _cato_last_live_prices. Return that
+         value so the displayed price stays realistic instead of
+         flipping to $3,500. Marked fallback_used=True so the dashboard
+         tile still shows the yellow ⚠ badge (observable degraded state).
+      3. static_fallback   — cold boot, no prior live fetch, AND CoinGecko
+         is unreachable. Only hit on the first refresh cycle after boot
+         when CoinGecko is down. Should be rare in practice.
+
+    Returns {"eth", "sol", "source", "timestamp", "fallback_used",
+             "note", "stale_age_seconds"?}.
     5-second timeout; all errors logged.
     """
     url = (
@@ -2176,36 +2200,61 @@ def _cato_fetch_coingecko_prices():
     try:
         req = urllib.request.Request(
             url,
-            headers={"User-Agent": "Aureon-Cato/0.2.1 (in-process)"},
+            headers={"User-Agent": "Aureon-Cato/0.2.3 (in-process)"},
         )
         with urllib.request.urlopen(req, timeout=5) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
         eth_usd = payload.get("ethereum", {}).get("usd")
         sol_usd = payload.get("solana", {}).get("usd")
-        fallback_used = eth_usd is None or sol_usd is None
-        return {
-            "eth": float(eth_usd) if eth_usd is not None else _CATO_ETH_PRICE_FALLBACK,
-            "sol": float(sol_usd) if sol_usd is not None else _CATO_SOL_PRICE_FALLBACK,
-            "source": "coingecko_partial_fallback" if fallback_used else "coingecko_public",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "fallback_used": fallback_used,
-            "note": (
-                "Live prices via CoinGecko public API. For institutional "
-                "deployment use a licensed price feed (Bloomberg BVAL, "
-                "Refinitiv, Chainlink Price Feeds)."
-            ),
-        }
+        if eth_usd is not None and sol_usd is not None:
+            eth_f = float(eth_usd)
+            sol_f = float(sol_usd)
+            # Sticky cache update — remember these for future transient failures.
+            _cato_last_live_prices["eth"] = eth_f
+            _cato_last_live_prices["sol"] = sol_f
+            _cato_last_live_prices["ts"] = time.time()
+            return {
+                "eth": eth_f,
+                "sol": sol_f,
+                "source": "coingecko_public",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "fallback_used": False,
+                "note": (
+                    "Live prices via CoinGecko public API. For institutional "
+                    "deployment use a licensed price feed (Bloomberg BVAL, "
+                    "Refinitiv, Chainlink Price Feeds)."
+                ),
+            }
+        # Partial data from CoinGecko (missing one currency) — treat as failure.
+        raise ValueError("CoinGecko response missing ethereum or solana field")
     except Exception as exc:
         _log_error("WARN", "cato_refresh:coingecko", str(exc))
+
+    # Failure path — prefer sticky last-known-good over static constants.
+    if _cato_last_live_prices["eth"] is not None and _cato_last_live_prices["sol"] is not None:
+        stale_age = round(time.time() - _cato_last_live_prices["ts"], 1)
         return {
-            "eth": _CATO_ETH_PRICE_FALLBACK,
-            "sol": _CATO_SOL_PRICE_FALLBACK,
-            "source": "static_fallback",
+            "eth": _cato_last_live_prices["eth"],
+            "sol": _cato_last_live_prices["sol"],
+            "source": "coingecko_stale",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "fallback_used": True,
-            "error": str(exc),
-            "note": "CoinGecko unreachable. Using Cato static fallback prices.",
+            "stale_age_seconds": stale_age,
+            "note": (
+                f"Last-known-good CoinGecko price from {stale_age}s ago. "
+                f"Next refresh cycle will retry."
+            ),
         }
+
+    # Cold boot + CoinGecko unreachable — only path to static constants.
+    return {
+        "eth": _CATO_ETH_PRICE_FALLBACK,
+        "sol": _CATO_SOL_PRICE_FALLBACK,
+        "source": "static_fallback",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "fallback_used": True,
+        "note": "CoinGecko unreachable and no sticky cache (cold boot). Using Cato static fallback prices.",
+    }
 
 
 def _cato_fetch_blockscout_stats(url):
