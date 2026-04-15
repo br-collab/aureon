@@ -7003,6 +7003,27 @@ def framework_brief():
       </div>
     </section>
 
+    <!-- ═══════════════════════════════════════════════ OPENING PREAMBLE -->
+    <section class="panel">
+      <p>
+        In the military, governance is not bureaucracy &mdash; it is discipline. And
+        discipline is what wins the small battles that win the larger war. Aureon was built
+        on that principle. The doctrine came before the technology. The control layer was
+        designed before the execution layer. Every threshold, every authority tier, every
+        audit record exists because the rules of engagement were written before crossing
+        the line of departure &mdash; not after contact.
+      </p>
+      <p>
+        Most financial technology is built the opposite way. Execution first. Governance
+        retrofitted when regulators force it. That approach works until markets change
+        faster than institutions can adapt. When 24/7 continuous settlement becomes reality
+        &mdash; tokenized Treasuries clearing on-chain around the clock, PORTS live, the
+        GENIUS Act in effect &mdash; every system that wasn&rsquo;t built for it will show
+        the seams. Aureon won&rsquo;t. The doctrine doesn&rsquo;t change when the rails
+        change. That is the structural advantage of building governance first.
+      </p>
+    </section>
+
     <!-- ═══════════════════════════════════════════════ WHAT IT IS -->
     <section class="panel">
       <div class="eyebrow">What It Is</div>
