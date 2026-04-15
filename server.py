@@ -6638,141 +6638,718 @@ def api_blockscout_onchain_packet():
 
 @app.route("/framework-brief")
 def framework_brief():
-    """Executive briefing page for CTOs, CIOs, Chief Risk Managers, and investors."""
+    """Executive briefing page for CTOs, CIOs, Chief Risk Managers, and investors.
+    Matches Aureon_Framework_Brief_v2.docx, April 2026 rebuild."""
     html = """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Aureon Framework Brief</title>
+  <title>Aureon Framework Brief — Project Aureon / The Grid 3</title>
+  <meta name="description" content="Project Aureon / The Grid 3 — doctrine-governed AI-augmented financial operating system. Pre-trade governance, settlement intelligence, human authority.">
   <style>
     :root {
-      --bg: #07111f;
-      --panel: #0d1a2f;
-      --panel2: #11223e;
-      --text: #eef4ff;
-      --muted: #93a4bf;
-      --cyan: #00d4ff;
-      --blue: #5da2ff;
-      --green: #10b981;
-      --yellow: #f59e0b;
-      --border: rgba(93,162,255,.16);
+      --navy:        #0D1F3C;
+      --navy-deep:   #081426;
+      --navy-panel:  #112745;
+      --navy-edge:   #1A3356;
+      --gold:        #B8972A;
+      --gold-soft:   #D4B64A;
+      --gold-dim:    rgba(184,151,42,.22);
+      --text:        #F0F4FB;
+      --muted:       #A7B5CC;
+      --dim:         #7A8AA3;
+      --border:      rgba(184,151,42,.22);
+      --border-soft: rgba(255,255,255,.08);
+      --green:       #10B981;
+      --red:         #EF4444;
+      --amber:       #F59E0B;
     }
     * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
     body {
-      margin: 0;
-      font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+      font-family: "Inter", "Segoe UI", Helvetica, Arial, sans-serif;
       background:
-        radial-gradient(circle at top left, rgba(0,212,255,.14), transparent 28%),
-        linear-gradient(180deg, #08121f 0%, #07111f 100%);
+        radial-gradient(circle at 15% 0%, rgba(184,151,42,.08), transparent 35%),
+        radial-gradient(circle at 85% 100%, rgba(184,151,42,.05), transparent 40%),
+        linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 48px 24px 64px; }
+
+    /* ── Cover ─────────────────────────────────────────── */
+    .cover {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 44px 40px 36px;
+      background: linear-gradient(180deg, rgba(17,39,69,.92), rgba(8,20,38,.92));
+      box-shadow: 0 20px 70px rgba(0,0,0,.35);
+      margin-bottom: 32px;
+    }
+    .eyebrow {
+      color: var(--gold);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .26em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .cover h1 {
+      margin: 0 0 6px;
+      font-size: clamp(32px, 5.4vw, 54px);
+      font-weight: 800;
+      letter-spacing: -.01em;
+      line-height: 1.05;
       color: var(--text);
     }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 48px 24px 64px; }
-    .hero, .panel {
-      background: linear-gradient(180deg, rgba(13,26,47,.98), rgba(9,19,34,.98));
+    .cover-sub {
+      font-size: clamp(18px, 2.4vw, 22px);
+      color: var(--gold-soft);
+      font-weight: 600;
+      margin: 0 0 18px;
+      letter-spacing: .02em;
+    }
+    .cover-tagline {
+      max-width: 820px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.75;
+      margin: 0 0 28px;
+    }
+    .status-strip {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0;
       border: 1px solid var(--border);
-      border-radius: 18px;
-      box-shadow: 0 18px 60px rgba(0,0,0,.28);
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(8,20,38,.45);
     }
-    .hero { padding: 32px; margin-bottom: 20px; }
-    .kicker { color: var(--cyan); font-size: 11px; letter-spacing: .22em; text-transform: uppercase; }
-    h1 { margin: 10px 0 10px; font-size: clamp(34px, 6vw, 58px); line-height: 1.02; }
-    .sub { max-width: 760px; color: var(--muted); font-size: 17px; line-height: 1.75; }
-    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 18px; }
-    .panel { padding: 24px; }
-    .span-12 { grid-column: span 12; }
-    .span-6 { grid-column: span 6; }
-    .span-4 { grid-column: span 4; }
-    .eyebrow { color: var(--cyan); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; margin-bottom: 8px; }
-    h2 { margin: 0 0 12px; font-size: 24px; }
-    p, li { color: var(--muted); line-height: 1.7; }
-    ul { margin: 0; padding-left: 18px; }
-    .metric { font-size: 30px; font-weight: 800; margin-bottom: 6px; }
-    .flow {
-      display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 14px;
+    .status-cell {
+      padding: 14px 16px;
+      border-right: 1px solid var(--border-soft);
     }
-    .flow div, .layer {
-      background: rgba(255,255,255,.03);
-      border: 1px solid rgba(255,255,255,.06);
-      border-radius: 14px;
-      padding: 16px;
+    .status-cell:last-child { border-right: none; }
+    .status-label {
+      color: var(--gold);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
     }
-    .layer-title { color: var(--text); font-weight: 700; margin-bottom: 6px; }
-    .foot { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: center; }
-    @media (max-width: 900px) {
-      .span-6, .span-4 { grid-column: span 12; }
-      .flow { grid-template-columns: 1fr; }
+    .status-value {
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .status-value a {
+      color: var(--gold-soft);
+      text-decoration: none;
+      border-bottom: 1px solid var(--gold-dim);
+    }
+    .status-value a:hover { color: var(--gold); }
+
+    /* ── Sections ──────────────────────────────────────── */
+    section.panel {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 36px;
+      background: linear-gradient(180deg, rgba(17,39,69,.88), rgba(8,20,38,.88));
+      box-shadow: 0 14px 50px rgba(0,0,0,.25);
+      margin-bottom: 22px;
+    }
+    section.panel h2 {
+      margin: 0 0 6px;
+      font-size: clamp(22px, 3vw, 28px);
+      color: var(--text);
+      font-weight: 700;
+      letter-spacing: -.005em;
+    }
+    section.panel .lead {
+      color: var(--gold-soft);
+      font-size: 15px;
+      font-weight: 600;
+      margin: 0 0 18px;
+      letter-spacing: .01em;
+    }
+    section.panel p {
+      color: var(--muted);
+      font-size: 15px;
+      margin: 0 0 14px;
+    }
+    section.panel p:last-child { margin-bottom: 0; }
+    section.panel strong { color: var(--text); font-weight: 600; }
+
+    /* ── Tables ────────────────────────────────────────── */
+    .tbl {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 14px 0 6px;
+      font-size: 14px;
+    }
+    .tbl thead th {
+      background: rgba(184,151,42,.10);
+      color: var(--gold);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .tbl tbody td {
+      padding: 14px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border-soft);
+      vertical-align: top;
+      line-height: 1.55;
+    }
+    .tbl tbody tr:last-child td { border-bottom: none; }
+    .tbl tbody td.label {
+      color: var(--text);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .tbl tbody td.mono {
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      font-size: 13px;
+      color: var(--gold-soft);
+      white-space: nowrap;
+    }
+    .tbl tbody td .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .tag.escalate { background: rgba(239,68,68,.16); color: #FCA5A5; }
+    .tag.hold     { background: rgba(245,158,11,.16); color: #FCD34D; }
+    .tag.proceed  { background: rgba(16,185,129,.16); color: #6EE7B7; }
+    .tag.live     { background: rgba(16,185,129,.14); color: #6EE7B7; }
+    .tag.pending  { background: rgba(184,151,42,.18); color: var(--gold-soft); }
+    .tag.caught   { background: rgba(16,185,129,.14); color: #6EE7B7; }
+    .tag.limit    { background: rgba(245,158,11,.14); color: #FCD34D; }
+
+    /* ── Callout ───────────────────────────────────────── */
+    .callout {
+      margin-top: 14px;
+      padding: 14px 18px;
+      border-left: 3px solid var(--gold);
+      background: rgba(184,151,42,.06);
+      border-radius: 0 8px 8px 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+    .callout strong { color: var(--gold-soft); }
+
+    /* ── Role-resonance rows ───────────────────────────── */
+    .role-row {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 16px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .role-row:last-child { border-bottom: none; }
+    .role-role {
+      color: var(--gold);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: .03em;
+    }
+    .role-val {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ── Footer ────────────────────────────────────────── */
+    .foot {
+      margin-top: 28px;
+      padding: 22px 24px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(8,20,38,.55);
+      color: var(--dim);
+      font-size: 11px;
+      text-align: center;
+      line-height: 1.9;
+      letter-spacing: .04em;
+    }
+    .foot a {
+      color: var(--gold-soft);
+      text-decoration: none;
+      border-bottom: 1px solid var(--gold-dim);
+    }
+    .foot a:hover { color: var(--gold); }
+    .foot-sep { color: var(--dim); margin: 0 10px; }
+
+    /* ── Mobile ────────────────────────────────────────── */
+    @media (max-width: 820px) {
+      .wrap { padding: 28px 16px 44px; }
+      .cover { padding: 32px 22px 26px; }
+      section.panel { padding: 24px 22px; }
+      .status-strip { grid-template-columns: 1fr; }
+      .status-cell { border-right: none; border-bottom: 1px solid var(--border-soft); }
+      .status-cell:last-child { border-bottom: none; }
+      .tbl, .tbl thead, .tbl tbody, .tbl tr, .tbl th, .tbl td { display: block; }
+      .tbl thead { display: none; }
+      .tbl tbody tr {
+        border: 1px solid var(--border-soft);
+        border-radius: 10px;
+        margin-bottom: 12px;
+        padding: 4px 0;
+      }
+      .tbl tbody td {
+        border-bottom: 1px dashed var(--border-soft);
+        padding: 10px 14px;
+      }
+      .tbl tbody td:last-child { border-bottom: none; }
+      .tbl tbody td::before {
+        content: attr(data-label);
+        display: block;
+        color: var(--gold);
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+      }
+      .tbl tbody td.mono { white-space: normal; }
+      .role-row { grid-template-columns: 1fr; gap: 4px; }
+    }
+
+    /* ── Print / PDF ───────────────────────────────────── */
+    @media print {
+      body {
+        background: #ffffff;
+        color: #0D1F3C;
+      }
+      .wrap { max-width: 100%; padding: 20px 24px; }
+      .cover, section.panel, .foot {
+        background: #ffffff !important;
+        border: 1px solid #0D1F3C !important;
+        box-shadow: none !important;
+        page-break-inside: avoid;
+        margin-bottom: 16px;
+      }
+      .cover h1, section.panel h2, .cover-sub, section.panel .lead {
+        color: #0D1F3C !important;
+      }
+      .eyebrow, .status-label, .tbl thead th, .role-role, .foot a, .callout strong {
+        color: #8A6F1A !important;
+      }
+      p, li, .cover-tagline, .status-value, .tbl tbody td, .foot, .role-val, .callout {
+        color: #334155 !important;
+      }
+      .tbl thead th { background: #F5EFD8 !important; }
+      .tbl, .status-strip { border-color: #0D1F3C !important; }
+      a { color: #8A6F1A !important; }
+      .tag.escalate { background: #FEE2E2 !important; color: #991B1B !important; }
+      .tag.hold     { background: #FEF3C7 !important; color: #92400E !important; }
+      .tag.proceed, .tag.live, .tag.caught { background: #D1FAE5 !important; color: #065F46 !important; }
+      .tag.pending  { background: #FEF3C7 !important; color: #92400E !important; }
+      .tag.limit    { background: #FEF3C7 !important; color: #92400E !important; }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <section class="hero">
-      <div class="kicker">Aureon Executive Brief</div>
-      <h1>Pre-Trade Governance for AI-Assisted Investment Systems</h1>
-      <div class="sub">
-        Aureon is designed to sit between signal generation and execution infrastructure.
-        Its role is to validate doctrine, risk, compliance, and human authority before a trade becomes a portfolio event.
-      </div>
-    </section>
 
-    <section class="grid">
-      <div class="panel span-4">
-        <div class="eyebrow">What It Is</div>
-        <div class="metric">Governance Layer</div>
-        <p>Aureon is not a broker, OMS, or portfolio management replacement in this prototype. It is the control layer that makes AI-assisted decisions explainable, reviewable, and auditable before execution.</p>
-      </div>
-      <div class="panel span-4">
-        <div class="eyebrow">Core Outcome</div>
-        <div class="metric">Decision Accountability</div>
-        <p>Every trade can be reconstructed as a lifecycle package: signal, doctrine check, risk review, compliance validation, human approval, execution, and settlement evidence.</p>
-      </div>
-      <div class="panel span-4">
-        <div class="eyebrow">Why It Matters</div>
-        <div class="metric">Smarter, Not Noisier</div>
-        <p>The product direction is to make financial systems more intelligent by structuring intent and governance, not by adding disconnected workflow complexity.</p>
-      </div>
-
-      <div class="panel span-12">
-        <div class="eyebrow">Lifecycle</div>
-        <h2>How Aureon Works</h2>
-        <div class="flow">
-          <div><strong>1. Signal or Thesis Input</strong><br><span>Market signal, portfolio drift, or future thesis-driven memo input.</span></div>
-          <div><strong>2. Doctrine Validation</strong><br><span>Rules, thresholds, and architecture-level governance are checked first.</span></div>
-          <div><strong>3. Risk + Compliance Review</strong><br><span>Risk boundaries and regulatory frameworks are evaluated visibly.</span></div>
-          <div><strong>4. Human Authority</strong><br><span>Material actions require explicit human approval and lineage stamping.</span></div>
-          <div><strong>5. Execution + Replay</strong><br><span>Execution, settlement, and audit artifacts become replayable records.</span></div>
+    <!-- ═══════════════════════════════════════════════ COVER -->
+    <section class="cover">
+      <div class="eyebrow">Aureon Executive Brief</div>
+      <h1>Project Aureon</h1>
+      <div class="cover-sub">The Grid 3</div>
+      <p class="cover-tagline">
+        Doctrine-governed AI-augmented financial operating system. Pre-trade governance,
+        settlement intelligence, and human authority — built before the technology, so the
+        technology is built to the doctrine.
+      </p>
+      <div class="status-strip">
+        <div class="status-cell">
+          <div class="status-label">Prepared by</div>
+          <div class="status-value">Guillermo &ldquo;Bill&rdquo; Ravelo &middot; Ravelo Strategic Solutions LLC</div>
+        </div>
+        <div class="status-cell">
+          <div class="status-label">Academic</div>
+          <div class="status-value">Columbia University M.S. Technology Management</div>
+        </div>
+        <div class="status-cell">
+          <div class="status-label">Status</div>
+          <div class="status-value">Paper trading &middot; approaching institutional testing &middot; no real capital at risk</div>
+        </div>
+        <div class="status-cell">
+          <div class="status-label">Version</div>
+          <div class="status-value">April 2026 &middot; Doctrine v1.3 &middot; Cato v0.2.2</div>
+        </div>
+        <div class="status-cell">
+          <div class="status-label">Live</div>
+          <div class="status-value"><a href="https://aureon-production.up.railway.app">aureon-production.up.railway.app</a></div>
         </div>
       </div>
+    </section>
 
-      <div class="panel span-6">
-        <div class="eyebrow">Architecture</div>
-        <h2>Four-Layer Governance Stack</h2>
-        <div class="layer"><div class="layer-title">Layer 0 - Verana</div><p>Network governance, vendor and counterparty boundaries, jurisdictional escalation, and system-wide control posture.</p></div>
-        <div class="layer"><div class="layer-title">Layer 1 - Mentat</div><p>Doctrine interpretation, strategic intelligence, and policy logic that defines how the system should reason.</p></div>
-        <div class="layer"><div class="layer-title">Layer 2 - Kaladan</div><p>Lifecycle orchestration across routing, treasury, settlement, and compliance artifacts.</p></div>
-        <div class="layer"><div class="layer-title">Layer 3 - Thifur</div><p>Bounded execution agents that can recommend or perform actions within doctrine-defined authority.</p></div>
+    <!-- ═══════════════════════════════════════════════ WHAT IT IS -->
+    <section class="panel">
+      <div class="eyebrow">What It Is</div>
+      <h2>Governance before execution. Every time.</h2>
+      <div class="lead">The control layer that makes AI-assisted decisions explainable, reviewable, and auditable.</div>
+      <p>
+        Aureon sits between signal generation and OMS/EMS execution infrastructure. Its role
+        is to validate doctrine, risk, compliance, and human authority before a trade becomes
+        a portfolio event. It is not a broker, an OMS, or a portfolio management replacement.
+        It is the control layer that makes AI-assisted decisions explainable, reviewable, and
+        auditable.
+      </p>
+      <p>
+        Every decision carries an immutable audit lineage: signal origin, doctrine check,
+        risk evaluation, compliance gate, human authority stamp, execution confirmation, and
+        settlement evidence. The full lifecycle can be reconstructed on demand for any trade,
+        at any granularity, within the 10-year retention window.
+      </p>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ WHY NOW -->
+    <section class="panel">
+      <div class="eyebrow">Why Now</div>
+      <h2>AI is entering capital markets without governance frameworks.</h2>
+      <div class="lead">Tokenization, AI execution, and new payment rails are converging rapidly.</div>
+      <p>
+        BlackRock BUIDL is live on nine chains with more than $2B AUM. Franklin Templeton
+        BENJI runs on ten chains. JPMorgan arranged the first on-chain commercial paper
+        issuance on Solana in December 2025. The CFTC confirmed tokenized assets as eligible
+        derivatives collateral in December 2025. The GENIUS Act is moving through the
+        legislative pipeline.
+      </p>
+      <p>
+        None of the live institutional products has publicly documented a complete governance
+        model &mdash; continuous compliance surveillance, human-in-the-loop gate framework,
+        and an immutable audit chain &mdash; that a trustee, a rating agency, or a regulator
+        can actually rely on. That is the gap Aureon addresses. The tokenized settlement
+        market is at $12.88B and accelerating. <strong>The governance layer is not commoditized.</strong>
+      </p>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ ARCHITECTURE -->
+    <section class="panel">
+      <div class="eyebrow">Architecture</div>
+      <h2>Six-layer doctrine stack. Doctrine at every altitude.</h2>
+      <div class="lead">The stack is not a pipeline. Each layer holds doctrine authority for its domain.</div>
+      <p>Agents advise. The operator decides. Nothing executes without governed approval.</p>
+      <table class="tbl">
+        <thead>
+          <tr><th>Layer</th><th>Altitude</th><th>Role</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label" data-label="Layer">Neptune Spear</td>
+            <td class="mono" data-label="Altitude">50,000 ft</td>
+            <td data-label="Role">Alpha origination &mdash; advisory only, never executes. Cato lives here as the Verana L0 settlement gate.</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Layer">Mentat</td>
+            <td class="mono" data-label="Altitude">30,000 ft</td>
+            <td data-label="Role">Decision intelligence, scenario support, doctrine truth evaluation.</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Layer">Kaladan</td>
+            <td class="mono" data-label="Altitude">10,000 ft</td>
+            <td data-label="Role">Lifecycle orchestration &mdash; routing, treasury, settlement, compliance artifacts.</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Layer">Thifur-C2</td>
+            <td class="mono" data-label="Altitude">1,000 ft</td>
+            <td data-label="Role">Command &amp; Control coordination, lineage assembly, unified risk picture.</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Layer">Thifur R / J / H</td>
+            <td class="mono" data-label="Altitude">500 ft</td>
+            <td data-label="Role">R: deterministic execution. J: bounded autonomy. H: adaptive &mdash; declared, not yet activated.</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Layer">Verana L0</td>
+            <td class="mono" data-label="Altitude">Ground</td>
+            <td data-label="Role">Network registry, compliance enforcement, MCP server, session control, Cato doctrine gate.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ CAOM-001 -->
+    <section class="panel">
+      <div class="eyebrow">Governance Framework</div>
+      <h2>CAOM-001 &mdash; Consolidated Authority Operating Mode</h2>
+      <div class="lead">All three human authority tiers mapped to a single operator for the proof-of-concept phase.</div>
+      <p>
+        Aureon was originally architected for a multi-role institutional environment. CAOM-001
+        (effective April 6, 2026) formally maps all three human authority tiers &mdash;
+        Operational, Governance, and Executive &mdash; to a single operator for the one-man
+        shop proof-of-concept phase. Gates still fire on every decision. The operator&rsquo;s
+        identity satisfies each gate. No agent substitutes for human authority at any tier.
+      </p>
+      <table class="tbl">
+        <tbody>
+          <tr>
+            <td class="label" data-label="Field">Operator</td>
+            <td data-label="Value">Guillermo Ravelo &middot; Ravelo Strategic Solutions LLC &middot; <span class="mono" style="color:var(--gold-soft)">GR-001</span></td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Field">Tiers held</td>
+            <td data-label="Value">Tier 1 (Operational) &middot; Tier 2 (Governance) &middot; Tier 3 (Executive)</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Field">Agents</td>
+            <td data-label="Value">Advisory only &mdash; Mentat, Kaladan, Neptune Spear, Thifur C2 / R / J surface analysis. Operator decides.</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Field">Transition</td>
+            <td data-label="Value">CAOM ends when AUM exceeds $10M, external capital onboards, or institutional staff is hired.</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Field">DSOR</td>
+            <td data-label="Value">Every decision is Decision System of Record stamped: lineage, authority hash, doctrine version, timestamp.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ CATO -->
+    <section class="panel">
+      <div class="eyebrow">Live Proof Point &middot; Neptune Spear / Verana L0</div>
+      <h2>Cato &mdash; Tokenized Settlement Doctrine Gate</h2>
+      <div class="lead">The Verana L0 pre-settlement gate for tokenized institutional repo.</div>
+      <p>
+        Cato answers one question before every settlement: <strong>is atomic on-chain DvP
+        (Delivery versus Payment) viable right now, or should this trade route to FICC?</strong>
+        The gate runs four deterministic checks and emits PROCEED / HOLD / ESCALATE plus a
+        recommended settlement rail.
+      </p>
+      <p>
+        Cato exists in two implementations that must produce bit-for-bit identical decisions
+        for identical inputs: an external open-source MCP server (Node.js, MIT license, 23
+        tools) and an in-process Python twin inside Aureon. <strong>The deterministic parity
+        is what lets regulators trust the gate regardless of caller.</strong> Both are at
+        doctrine version 0.2.2.
+      </p>
+
+      <h3 style="color:var(--gold);font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin:22px 0 4px;">Doctrine Thresholds (v0.2.2)</h3>
+      <table class="tbl">
+        <thead>
+          <tr><th>Input</th><th>Threshold</th><th>Effect</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label" data-label="Input">OFR STLFSI4</td>
+            <td class="mono" data-label="Threshold">&gt; 1.0</td>
+            <td data-label="Effect"><span class="tag escalate">Escalate</span> systemic stress, route to human authority</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Input">OFR STLFSI4</td>
+            <td class="mono" data-label="Threshold">&gt; 0.5</td>
+            <td data-label="Effect"><span class="tag hold">Hold</span> broad stress, route to FICC traditional</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Input">ETH L1 gas</td>
+            <td class="mono" data-label="Threshold">&gt; 50 gwei</td>
+            <td data-label="Effect"><span class="tag hold">Hold</span> L1 congestion, route to FICC traditional</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Input">|SOFR(t) &minus; SOFR(t&minus;1)| &times; 100</td>
+            <td class="mono" data-label="Threshold">&gt; 10 bps</td>
+            <td data-label="Effect"><span class="tag hold">Hold</span> funding-market shock (v0.2.2, Sept 2019 backtest fix)</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Input">All below threshold</td>
+            <td class="mono" data-label="Threshold">&mdash;</td>
+            <td data-label="Effect"><span class="tag proceed">Proceed</span> atomic settlement viable</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 style="color:var(--gold);font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin:24px 0 4px;">Supported Settlement Rails</h3>
+      <table class="tbl">
+        <thead>
+          <tr><th>Rail</th><th>Speed</th><th>Cost (normal state)</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label" data-label="Rail">FICC traditional</td>
+            <td class="mono" data-label="Speed">T+1</td>
+            <td data-label="Cost">~0.5 bps clearing net of 40% netting + SOFR cost of capital</td>
+            <td data-label="Status"><span class="tag live">Live</span></td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Rail">Ethereum L1</td>
+            <td class="mono" data-label="Speed">~12s</td>
+            <td data-label="Cost">~$0.08 / settlement at 0.5 gwei, $2,300 ETH</td>
+            <td data-label="Status"><span class="tag live">Live</span></td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Rail">Base (Ethereum L2)</td>
+            <td class="mono" data-label="Speed">~2s</td>
+            <td data-label="Cost">~$0.001 / settlement at 0.01 gwei</td>
+            <td data-label="Status"><span class="tag live">Live</span></td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Rail">Arbitrum (L2)</td>
+            <td class="mono" data-label="Speed">~2s</td>
+            <td data-label="Cost">~$0.10 / settlement at 0.6 gwei</td>
+            <td data-label="Status"><span class="tag live">Live</span></td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Rail">Solana</td>
+            <td class="mono" data-label="Speed">~400ms</td>
+            <td data-label="Cost">~$0.0004 / settlement at 5,000 lamports</td>
+            <td data-label="Status"><span class="tag live">Live</span></td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Rail">Fed L1 / PORTS</td>
+            <td class="mono" data-label="Speed">Instant</td>
+            <td data-label="Cost">TBD &mdash; sovereign tokenized reserve rail</td>
+            <td data-label="Status"><span class="tag pending">Pending GENIUS Act</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <strong>The governance gate &mdash; not the rail &mdash; is the product.</strong>
+        When the Fed issues tokenized reserves or PORTS ships, Cato routes there. The doctrine
+        doesn&rsquo;t change. The rail does.
       </div>
 
-      <div class="panel span-6">
-        <div class="eyebrow">Audience</div>
-        <h2>Why It Resonates With Leadership</h2>
-        <ul>
-          <li><strong>CTOs:</strong> clear systems boundary between intelligence, control, and execution.</li>
-          <li><strong>CIOs:</strong> better governance around investment decisions before capital is deployed.</li>
-          <li><strong>Chief Risk Managers:</strong> visible pre-trade controls, replayability, and explainability.</li>
-          <li><strong>Investors:</strong> stronger trust model around how AI-assisted actions are governed.</li>
-        </ul>
-      </div>
-
-      <div class="panel span-12">
-        <div class="eyebrow">Positioning</div>
-        <h2>Commercial Framing</h2>
-        <p>Aureon can be framed as a governance overlay above existing OMS infrastructure, a full-stack operating system for greenfield deployment, or a compliance intelligence layer that returns structured audit artifacts. The unifying theme is the same in every mode: governance before execution.</p>
+      <h3 style="color:var(--gold);font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin:24px 0 4px;">SR 11-7 Tier 1 Historical Backtest</h3>
+      <p>
+        Cato v0.2.2 was validated against three canonical stress events using daily SOFR and
+        weekly OFR STLFSI4 from FRED. The backtest is deterministic and fully reproducible.
+      </p>
+      <table class="tbl">
+        <thead>
+          <tr><th>Event</th><th>v0.2.1</th><th>v0.2.2</th><th>Verdict</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label" data-label="Event">March 2020 &mdash; COVID repo freeze</td>
+            <td class="mono" data-label="v0.2.1">100% (20/20)</td>
+            <td class="mono" data-label="v0.2.2">100% (20/20)</td>
+            <td data-label="Verdict"><span class="tag caught">Caught</span> OFR peak 5.657, SOFR &Delta; 84 bps</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Event">September 2019 &mdash; repo spike</td>
+            <td class="mono" data-label="v0.2.1">0% (0/5)</td>
+            <td class="mono" data-label="v0.2.2">80% (4/5)</td>
+            <td data-label="Verdict"><span class="tag caught">Caught after v0.2.2 fix</span> pure funding-market crunch, OFR FSI negative</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Event">March 2023 &mdash; SVB collapse</td>
+            <td class="mono" data-label="v0.2.1">45.5% (5/11)</td>
+            <td class="mono" data-label="v0.2.2">45.5% (5/11)</td>
+            <td data-label="Verdict"><span class="tag limit">Calibration limit</span> slow-moving credit event, not captured by rate / stress signals</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The September 2019 gap &mdash; SOFR moved 282 bps while OFR FSI was negative &mdash;
+        was closed in v0.2.2 by restoring the SOFR 1-day delta trigger dropped in the v0.2.0
+        refactor. SVB is a documented calibration limitation: it requires counterparty-credit
+        signals (HY OAS, bank equity) not currently in the doctrine. <strong>Cato is a
+        market-regime gate, not a counterparty-credit gate.</strong> That is an explicit
+        design choice, not a gap.
+      </p>
+      <div class="callout">
+        <strong>Parity principle.</strong> Any doctrine change &mdash; new threshold, new
+        input, new decision branch &mdash; must land in both codebases in the same commit
+        series. The external MCP server and the in-process Python twin must produce
+        deterministically identical decisions for identical inputs. That is what lets
+        regulators trust the gate regardless of caller.
       </div>
     </section>
 
-    <div class="foot">Project Aureon · Framework Brief · Prepared for CTO, CIO, Chief Risk Manager, and investor discussions</div>
+    <!-- ═══════════════════════════════════════════════ COMMERCIAL FRAMING -->
+    <section class="panel">
+      <div class="eyebrow">Commercial Framing</div>
+      <h2>Three deployment modes. One unifying thesis.</h2>
+      <table class="tbl">
+        <tbody>
+          <tr>
+            <td class="label" data-label="Mode">Governance overlay</td>
+            <td data-label="Description">Drop Aureon above existing OMS infrastructure. Pre-trade gates, compliance surfaces, and DSOR audit artifacts without replacing execution infrastructure.</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Mode">Full-stack OS</td>
+            <td data-label="Description">Greenfield deployment of the complete doctrine stack &mdash; signal origination through settlement &mdash; for a fund or desk building from scratch.</td>
+          </tr>
+          <tr>
+            <td class="label" data-label="Mode">Compliance layer</td>
+            <td data-label="Description">Aureon as a structured audit-artifact engine: every decision returns a replayable governance package for regulatory submission.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ WHY IT RESONATES -->
+    <section class="panel">
+      <div class="eyebrow">Why It Resonates</div>
+      <h2>Leadership-level value by role</h2>
+      <div class="role-row">
+        <div class="role-role">CTO</div>
+        <div class="role-val">Explain the systems boundary between intelligence, control, and execution.</div>
+      </div>
+      <div class="role-row">
+        <div class="role-role">CIO</div>
+        <div class="role-val">Governance around investment decisions before capital is deployed.</div>
+      </div>
+      <div class="role-row">
+        <div class="role-role">Chief Risk Manager</div>
+        <div class="role-val">Visible pre-trade controls, replayability, and explainability on demand.</div>
+      </div>
+      <div class="role-row">
+        <div class="role-role">Compliance</div>
+        <div class="role-val">The SR 11-7 model risk framework applied to AI-assisted systems before regulators require it.</div>
+      </div>
+      <div class="role-row">
+        <div class="role-role">Investors</div>
+        <div class="role-val">Stronger trust model around how AI-assisted actions are governed at every layer.</div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ ACADEMIC FOUNDATION -->
+    <section class="panel">
+      <div class="eyebrow">Academic Foundation</div>
+      <h2>Duffie (2025) &mdash; &ldquo;The Case for PORTS&rdquo;, Brookings Institution</h2>
+      <p>
+        Cato&rsquo;s tokenized settlement architecture is a working reference implementation
+        of the governance layer Duffie proposes in this paper. The <span class="mono" style="color:var(--gold-soft)">fed_l1</span>
+        placeholder slot in every Cato <span class="mono" style="color:var(--gold-soft)">chain_state</span>
+        response is reserved for the sovereign tokenized reserve rail Duffie&rsquo;s PORTS
+        framework describes. <strong>The doctrine doesn&rsquo;t change when PORTS ships. The
+        route does.</strong>
+      </p>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ FOOTER -->
+    <div class="foot">
+      Project Aureon &middot; The Grid 3 &middot; Framework Brief &middot; April 2026
+      <span class="foot-sep">&middot;</span>
+      Paper trading &mdash; no real capital at risk &mdash; approaching institutional testing
+      <br>
+      Live: <a href="https://aureon-production.up.railway.app">aureon-production.up.railway.app</a>
+      <span class="foot-sep">&middot;</span>
+      Cato MCP: <a href="https://github.com/br-collab/Cato---FICC-MCP">github.com/br-collab/Cato---FICC-MCP</a>
+    </div>
+
   </div>
 </body>
 </html>"""
