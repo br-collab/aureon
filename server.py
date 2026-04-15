@@ -6639,255 +6639,442 @@ def api_blockscout_onchain_packet():
 @app.route("/framework-brief")
 def framework_brief():
     """Executive briefing page for CTOs, CIOs, Chief Risk Managers, and investors.
-    Matches Aureon_Framework_Brief_v2.docx, April 2026 rebuild."""
+    Dark navy aesthetic with document-grade layout — matches PDF structure."""
     html = """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Aureon Framework Brief — Project Aureon / The Grid 3</title>
-  <meta name="description" content="Project Aureon / The Grid 3 — doctrine-governed AI-augmented financial operating system. Pre-trade governance, settlement intelligence, human authority.">
+  <meta name="description" content="Project Aureon / The Grid 3 — doctrine-governed AI-augmented financial operating system.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --navy:        #0D1F3C;
-      --navy-deep:   #081426;
-      --navy-panel:  #112745;
-      --navy-edge:   #1A3356;
-      --gold:        #B8972A;
-      --gold-soft:   #D4B64A;
-      --gold-dim:    rgba(184,151,42,.22);
-      --text:        #F0F4FB;
-      --muted:       #A7B5CC;
-      --dim:         #7A8AA3;
-      --border:      rgba(184,151,42,.22);
-      --border-soft: rgba(255,255,255,.08);
-      --green:       #10B981;
-      --red:         #EF4444;
-      --amber:       #F59E0B;
+      --navy:        #0A1929;
+      --navy-deep:   #060F1A;
+      --navy-panel:  #0D2137;
+      --navy-edge:   #112B47;
+      --navy-line:   #1A3A5C;
+      --gold:        #C9A84C;
+      --gold-soft:   #E0C070;
+      --gold-dim:    rgba(201,168,76,.18);
+      --gold-bg:     rgba(201,168,76,.06);
+      --text:        #EDF2F9;
+      --muted:       #9BB0C9;
+      --dim:         #5E7A96;
+      --border:      rgba(201,168,76,.20);
+      --border-soft: rgba(255,255,255,.06);
+      --green:       #2DD4A0;
+      --red:         #F07070;
+      --amber:       #F0B040;
     }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; }
-    body {
-      font-family: "Inter", "Segoe UI", Helvetica, Arial, sans-serif;
-      background:
-        radial-gradient(circle at 15% 0%, rgba(184,151,42,.08), transparent 35%),
-        radial-gradient(circle at 85% 100%, rgba(184,151,42,.05), transparent 40%),
-        linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%);
-      color: var(--text);
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-    }
-    .wrap { max-width: 1040px; margin: 0 auto; padding: 48px 24px 64px; }
 
-    /* ── Cover ─────────────────────────────────────────── */
-    .cover {
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      overflow-x: hidden;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--navy-deep);
+      background-image:
+        radial-gradient(ellipse 60% 40% at 10% 0%, rgba(201,168,76,.06) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 50% at 90% 100%, rgba(13,33,55,.8) 0%, transparent 60%);
+      color: var(--text);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ── Layout ──────────────────────────────────────── */
+    .page {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 56px 32px 80px;
+      width: 100%;
+    }
+
+    /* ── Nav bar ──────────────────────────────────────── */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(6,15,26,.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 52px;
+    }
+    .topbar-brand {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--gold);
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      text-decoration: none;
+    }
+    .topbar-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: var(--gold-bg);
       border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 44px 40px 36px;
-      background: linear-gradient(180deg, rgba(17,39,69,.92), rgba(8,20,38,.92));
-      box-shadow: 0 20px 70px rgba(0,0,0,.35);
-      margin-bottom: 32px;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--gold-soft);
+      letter-spacing: .06em;
+      text-decoration: none;
+      transition: background .15s, border-color .15s;
+    }
+    .topbar-cta:hover {
+      background: rgba(201,168,76,.12);
+      border-color: var(--gold-soft);
+    }
+
+    /* ── Cover ───────────────────────────────────────── */
+    .cover {
+      padding: 52px 0 44px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 48px;
     }
     .eyebrow {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      font-weight: 500;
       color: var(--gold);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: .26em;
+      letter-spacing: .32em;
       text-transform: uppercase;
-      margin-bottom: 18px;
+      margin-bottom: 20px;
     }
     .cover h1 {
-      margin: 0 0 6px;
-      font-size: clamp(32px, 5.4vw, 54px);
-      font-weight: 800;
-      letter-spacing: -.01em;
-      line-height: 1.05;
+      margin: 0 0 4px;
+      font-size: clamp(38px, 6vw, 60px);
+      font-weight: 700;
+      letter-spacing: -.02em;
+      line-height: 1.0;
       color: var(--text);
     }
     .cover-sub {
-      font-size: clamp(18px, 2.4vw, 22px);
+      font-size: clamp(16px, 2.2vw, 20px);
       color: var(--gold-soft);
-      font-weight: 600;
-      margin: 0 0 18px;
+      font-weight: 400;
+      font-style: italic;
+      margin: 0 0 20px;
       letter-spacing: .02em;
     }
     .cover-tagline {
-      max-width: 820px;
+      max-width: 720px;
       color: var(--muted);
-      font-size: 16px;
-      line-height: 1.75;
-      margin: 0 0 28px;
+      font-size: 15px;
+      line-height: 1.8;
+      margin: 0 0 36px;
+      font-weight: 300;
     }
-    .status-strip {
+
+    /* ── Meta strip ──────────────────────────────────── */
+    .meta-strip {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
-      gap: 0;
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 8px;
       overflow: hidden;
-      background: rgba(8,20,38,.45);
     }
-    .status-cell {
-      padding: 14px 16px;
+    .meta-cell {
+      padding: 14px 18px;
       border-right: 1px solid var(--border-soft);
     }
-    .status-cell:last-child { border-right: none; }
-    .status-label {
-      color: var(--gold);
+    .meta-cell:last-child { border-right: none; }
+    .meta-label {
+      font-family: "IBM Plex Mono", monospace;
       font-size: 9px;
-      font-weight: 700;
-      letter-spacing: .18em;
+      font-weight: 500;
+      color: var(--gold);
+      letter-spacing: .22em;
       text-transform: uppercase;
       margin-bottom: 6px;
     }
-    .status-value {
-      color: var(--text);
+    .meta-value {
       font-size: 12px;
-      font-weight: 500;
-      line-height: 1.45;
-      word-break: break-word;
+      color: var(--muted);
+      line-height: 1.5;
+      font-weight: 400;
     }
-    .status-value a {
+    .meta-value a {
       color: var(--gold-soft);
       text-decoration: none;
       border-bottom: 1px solid var(--gold-dim);
     }
-    .status-value a:hover { color: var(--gold); }
+    .meta-value a:hover { color: var(--gold); }
 
-    /* ── Sections ──────────────────────────────────────── */
-    section.panel {
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 32px 36px;
-      background: linear-gradient(180deg, rgba(17,39,69,.88), rgba(8,20,38,.88));
-      box-shadow: 0 14px 50px rgba(0,0,0,.25);
-      margin-bottom: 22px;
+    /* ── Section structure ───────────────────────────── */
+    .section {
+      margin-bottom: 52px;
     }
-    section.panel h2 {
-      margin: 0 0 6px;
-      font-size: clamp(22px, 3vw, 28px);
-      color: var(--text);
-      font-weight: 700;
-      letter-spacing: -.005em;
-    }
-    section.panel .lead {
-      color: var(--gold-soft);
-      font-size: 15px;
-      font-weight: 600;
-      margin: 0 0 18px;
-      letter-spacing: .01em;
-    }
-    section.panel p {
-      color: var(--muted);
-      font-size: 15px;
-      margin: 0 0 14px;
-    }
-    section.panel p:last-child { margin-bottom: 0; }
-    section.panel strong { color: var(--text); font-weight: 600; }
-
-    /* ── Tables ────────────────────────────────────────── */
-    .tbl {
-      width: 100%;
-      border-collapse: collapse;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-      margin: 14px 0 6px;
-      font-size: 14px;
-    }
-    .tbl thead th {
-      background: rgba(184,151,42,.10);
-      color: var(--gold);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: .14em;
-      text-transform: uppercase;
-      padding: 12px 14px;
-      text-align: left;
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      gap: 18px;
+      margin-bottom: 24px;
+      padding-bottom: 14px;
       border-bottom: 1px solid var(--border);
     }
+    .section-eyebrow {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--gold);
+      letter-spacing: .28em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      padding-top: 4px;
+    }
+    .section h2 {
+      margin: 0;
+      font-size: clamp(18px, 2.5vw, 22px);
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -.01em;
+      line-height: 1.2;
+    }
+    .section .lead {
+      color: var(--gold-soft);
+      font-size: 14px;
+      font-weight: 400;
+      margin: -12px 0 20px;
+      font-style: italic;
+    }
+    .section p {
+      color: var(--muted);
+      font-size: 14.5px;
+      margin: 0 0 14px;
+      line-height: 1.75;
+      font-weight: 300;
+    }
+    .section p:last-child { margin-bottom: 0; }
+    .section p strong { color: var(--text); font-weight: 600; }
+
+    /* ── Sub-section label ───────────────────────────── */
+    .sub-label {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--gold);
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      margin: 28px 0 10px;
+    }
+
+    /* ── Tables ──────────────────────────────────────── */
+    .tbl-wrap {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin: 12px 0 6px;
+    }
+    .tbl {
+      width: 100%;
+      min-width: 480px;
+      border-collapse: collapse;
+      font-size: 13.5px;
+    }
+    .tbl thead th {
+      background: var(--gold-bg);
+      color: var(--gold);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      padding: 11px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
     .tbl tbody td {
-      padding: 14px;
+      padding: 13px 16px;
       color: var(--muted);
       border-bottom: 1px solid var(--border-soft);
       vertical-align: top;
-      line-height: 1.55;
+      line-height: 1.6;
+      font-weight: 300;
     }
     .tbl tbody tr:last-child td { border-bottom: none; }
-    .tbl tbody td.label {
+    .tbl tbody td.lbl {
       color: var(--text);
-      font-weight: 600;
+      font-weight: 500;
       white-space: nowrap;
+      font-size: 13px;
     }
     .tbl tbody td.mono {
-      font-family: "SF Mono", Menlo, Consolas, monospace;
-      font-size: 13px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
       color: var(--gold-soft);
       white-space: nowrap;
     }
-    .tbl tbody td .tag {
+    .tag {
       display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: .06em;
+      padding: 2px 9px;
+      border-radius: 3px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: .08em;
       text-transform: uppercase;
     }
-    .tag.escalate { background: rgba(239,68,68,.16); color: #FCA5A5; }
-    .tag.hold     { background: rgba(245,158,11,.16); color: #FCD34D; }
-    .tag.proceed  { background: rgba(16,185,129,.16); color: #6EE7B7; }
-    .tag.live     { background: rgba(16,185,129,.14); color: #6EE7B7; }
-    .tag.pending  { background: rgba(184,151,42,.18); color: var(--gold-soft); }
-    .tag.caught   { background: rgba(16,185,129,.14); color: #6EE7B7; }
-    .tag.limit    { background: rgba(245,158,11,.14); color: #FCD34D; }
+    .tag.escalate { background: rgba(240,112,112,.14); color: #F5A0A0; }
+    .tag.hold     { background: rgba(240,176,64,.14);  color: #F0C878; }
+    .tag.proceed  { background: rgba(45,212,160,.12);  color: #6EE7B7; }
+    .tag.live     { background: rgba(45,212,160,.12);  color: #6EE7B7; }
+    .tag.pending  { background: rgba(201,168,76,.14);  color: var(--gold-soft); }
+    .tag.caught   { background: rgba(45,212,160,.12);  color: #6EE7B7; }
+    .tag.limit    { background: rgba(240,176,64,.14);  color: #F0C878; }
 
-    /* ── Callout ───────────────────────────────────────── */
+    /* ── Callout ─────────────────────────────────────── */
     .callout {
-      margin-top: 14px;
-      padding: 14px 18px;
-      border-left: 3px solid var(--gold);
-      background: rgba(184,151,42,.06);
-      border-radius: 0 8px 8px 0;
+      margin: 20px 0 6px;
+      padding: 16px 20px;
+      border-left: 2px solid var(--gold);
+      background: var(--gold-bg);
+      border-radius: 0 6px 6px 0;
       color: var(--muted);
-      font-size: 14px;
-      line-height: 1.65;
+      font-size: 13.5px;
+      line-height: 1.7;
+      font-weight: 300;
     }
-    .callout strong { color: var(--gold-soft); }
+    .callout strong { color: var(--gold-soft); font-weight: 500; }
 
-    /* ── Role-resonance rows ───────────────────────────── */
-    .role-row {
+    /* ── KV rows (CAOM / Commercial) ─────────────────── */
+    .kv-block { margin: 12px 0 6px; }
+    .kv-row {
       display: grid;
-      grid-template-columns: 180px 1fr;
+      grid-template-columns: 160px 1fr;
       gap: 16px;
       padding: 12px 0;
       border-bottom: 1px solid var(--border-soft);
+      align-items: baseline;
     }
-    .role-row:last-child { border-bottom: none; }
-    .role-role {
+    .kv-row:last-child { border-bottom: none; }
+    .kv-key {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      font-weight: 500;
       color: var(--gold);
-      font-weight: 700;
-      font-size: 13px;
-      letter-spacing: .03em;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      padding-top: 2px;
     }
-    .role-val {
+    .kv-val {
+      font-size: 13.5px;
       color: var(--muted);
-      font-size: 14px;
-      line-height: 1.6;
+      line-height: 1.65;
+      font-weight: 300;
+    }
+    .kv-val strong { color: var(--text); font-weight: 500; }
+    .kv-val .mono {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      color: var(--gold-soft);
     }
 
-    /* ── Footer ────────────────────────────────────────── */
-    .foot {
-      margin-top: 28px;
-      padding: 22px 24px;
+    /* ── Role resonance ──────────────────────────────── */
+    .role-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border-soft);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      background: rgba(8,20,38,.55);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+    .role-card {
+      background: var(--navy-panel);
+      padding: 18px 20px;
+    }
+    .role-title {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--gold);
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .role-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.65;
+      font-weight: 300;
+    }
+
+    /* ── CTA button ──────────────────────────────────── */
+    .cta-block {
+      margin-top: 48px;
+      padding: 32px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--gold-bg);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .cta-text {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+      font-weight: 300;
+    }
+    .cta-text strong { color: var(--text); font-weight: 500; }
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      background: var(--gold);
+      border-radius: 7px;
+      padding: 12px 22px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--navy-deep);
+      letter-spacing: .04em;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: background .15s, transform .1s;
+    }
+    .cta-btn:hover {
+      background: var(--gold-soft);
+      transform: translateY(-1px);
+    }
+
+    /* ── Footer ──────────────────────────────────────── */
+    .foot {
+      margin-top: 56px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
       color: var(--dim);
       font-size: 11px;
-      text-align: center;
-      line-height: 1.9;
-      letter-spacing: .04em;
+      font-family: "IBM Plex Mono", monospace;
+      letter-spacing: .06em;
     }
     .foot a {
       color: var(--gold-soft);
@@ -6895,116 +7082,101 @@ def framework_brief():
       border-bottom: 1px solid var(--gold-dim);
     }
     .foot a:hover { color: var(--gold); }
-    .foot-sep { color: var(--dim); margin: 0 10px; }
+    .foot-links { display: flex; gap: 20px; flex-wrap: wrap; }
 
-    /* ── Mobile ────────────────────────────────────────── */
-    @media (max-width: 820px) {
-      .wrap { padding: 28px 16px 44px; }
-      .cover { padding: 32px 22px 26px; }
-      section.panel { padding: 24px 22px; }
-      .status-strip { grid-template-columns: 1fr; }
-      .status-cell { border-right: none; border-bottom: 1px solid var(--border-soft); }
-      .status-cell:last-child { border-bottom: none; }
-      .tbl, .tbl thead, .tbl tbody, .tbl tr, .tbl th, .tbl td { display: block; }
-      .tbl thead { display: none; }
-      .tbl tbody tr {
-        border: 1px solid var(--border-soft);
-        border-radius: 10px;
-        margin-bottom: 12px;
-        padding: 4px 0;
+    /* ── Responsive ──────────────────────────────────── */
+    @media (max-width: 1024px) {
+      .meta-strip { grid-template-columns: repeat(3, 1fr); }
+      .meta-cell:nth-child(4),
+      .meta-cell:nth-child(5) {
+        border-top: 1px solid var(--border-soft);
       }
-      .tbl tbody td {
-        border-bottom: 1px dashed var(--border-soft);
-        padding: 10px 14px;
+    }
+    @media (max-width: 720px) {
+      .page { padding: 32px 20px 56px; }
+      .topbar { padding: 0 20px; }
+      .meta-strip { grid-template-columns: 1fr 1fr; }
+      .meta-cell:nth-child(3),
+      .meta-cell:nth-child(4),
+      .meta-cell:nth-child(5) {
+        border-top: 1px solid var(--border-soft);
       }
-      .tbl tbody td:last-child { border-bottom: none; }
-      .tbl tbody td::before {
-        content: attr(data-label);
-        display: block;
-        color: var(--gold);
-        font-size: 9px;
-        font-weight: 700;
-        letter-spacing: .14em;
-        text-transform: uppercase;
-        margin-bottom: 4px;
-      }
-      .tbl tbody td.mono { white-space: normal; }
-      .role-row { grid-template-columns: 1fr; gap: 4px; }
+      .section-header { flex-direction: column; gap: 6px; }
+      .kv-row { grid-template-columns: 1fr; gap: 4px; }
+      .role-grid { grid-template-columns: 1fr; }
+      .cta-block { flex-direction: column; align-items: flex-start; }
+      .foot { flex-direction: column; align-items: flex-start; }
+    }
+    @media (max-width: 480px) {
+      .meta-strip { grid-template-columns: 1fr; }
+      .meta-cell { border-top: 1px solid var(--border-soft) !important; border-right: none !important; }
+      .meta-cell:first-child { border-top: none !important; }
     }
 
-    /* ── Print / PDF ───────────────────────────────────── */
+    /* ── Print ───────────────────────────────────────── */
     @media print {
-      body {
-        background: #ffffff;
-        color: #0D1F3C;
-      }
-      .wrap { max-width: 100%; padding: 20px 24px; }
-      .cover, section.panel, .foot {
-        background: #ffffff !important;
-        border: 1px solid #0D1F3C !important;
-        box-shadow: none !important;
-        page-break-inside: avoid;
-        margin-bottom: 16px;
-      }
-      .cover h1, section.panel h2, .cover-sub, section.panel .lead {
-        color: #0D1F3C !important;
-      }
-      .eyebrow, .status-label, .tbl thead th, .role-role, .foot a, .callout strong {
-        color: #8A6F1A !important;
-      }
-      p, li, .cover-tagline, .status-value, .tbl tbody td, .foot, .role-val, .callout {
-        color: #334155 !important;
-      }
-      .tbl thead th { background: #F5EFD8 !important; }
-      .tbl, .status-strip { border-color: #0D1F3C !important; }
-      a { color: #8A6F1A !important; }
+      body { background: #fff; color: #0A1929; }
+      .topbar { display: none; }
+      .page { max-width: 100%; padding: 20px 28px; }
+      .section h2, .cover h1 { color: #0A1929 !important; }
+      .eyebrow, .section-eyebrow, .meta-label, .kv-key, .sub-label,
+      .role-title, .tbl thead th { color: #8A6F1A !important; }
+      .cover-tagline, .section p, .kv-val, .role-desc,
+      .tbl tbody td, .callout { color: #334155 !important; }
+      .meta-strip, .tbl-wrap, .callout, .role-grid { border-color: #0A1929 !important; }
+      .cta-block { display: none; }
       .tag.escalate { background: #FEE2E2 !important; color: #991B1B !important; }
-      .tag.hold     { background: #FEF3C7 !important; color: #92400E !important; }
+      .tag.hold, .tag.limit, .tag.pending { background: #FEF3C7 !important; color: #92400E !important; }
       .tag.proceed, .tag.live, .tag.caught { background: #D1FAE5 !important; color: #065F46 !important; }
-      .tag.pending  { background: #FEF3C7 !important; color: #92400E !important; }
-      .tag.limit    { background: #FEF3C7 !important; color: #92400E !important; }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
 
-    <!-- ═══════════════════════════════════════════════ COVER -->
-    <section class="cover">
+  <!-- ── Nav ────────────────────────────────────────────── -->
+  <nav class="topbar">
+    <a class="topbar-brand" href="/">&#9650; Aureon Dashboard</a>
+    <a class="topbar-cta" href="/">Open Live System &rarr;</a>
+  </nav>
+
+  <div class="page">
+
+    <!-- ── Cover ──────────────────────────────────────────── -->
+    <header class="cover">
       <div class="eyebrow">Aureon Executive Brief</div>
       <h1>Project Aureon</h1>
       <div class="cover-sub">The Grid 3</div>
       <p class="cover-tagline">
         Doctrine-governed AI-augmented financial operating system. Pre-trade governance,
-        settlement intelligence, and human authority — built before the technology, so the
-        technology is built to the doctrine.
+        settlement intelligence, and human authority &mdash; built before the technology,
+        so the technology is built to the doctrine.
       </p>
-      <div class="status-strip">
-        <div class="status-cell">
-          <div class="status-label">Prepared by</div>
-          <div class="status-value">Guillermo &ldquo;Bill&rdquo; Ravelo &middot; Ravelo Strategic Solutions LLC</div>
+      <div class="meta-strip">
+        <div class="meta-cell">
+          <div class="meta-label">Prepared by</div>
+          <div class="meta-value">Guillermo &ldquo;Bill&rdquo; Ravelo &middot; Ravelo Strategic Solutions LLC</div>
         </div>
-        <div class="status-cell">
-          <div class="status-label">Academic</div>
-          <div class="status-value">Columbia University M.S. Technology Management</div>
+        <div class="meta-cell">
+          <div class="meta-label">Academic</div>
+          <div class="meta-value">Columbia University M.S. Technology Management</div>
         </div>
-        <div class="status-cell">
-          <div class="status-label">Status</div>
-          <div class="status-value">Paper trading &middot; approaching institutional testing &middot; no real capital at risk</div>
+        <div class="meta-cell">
+          <div class="meta-label">Status</div>
+          <div class="meta-value">Paper trading &middot; approaching institutional testing &middot; no real capital at risk</div>
         </div>
-        <div class="status-cell">
-          <div class="status-label">Version</div>
-          <div class="status-value">April 2026 &middot; Doctrine v1.3 &middot; Cato v0.2.2</div>
+        <div class="meta-cell">
+          <div class="meta-label">Version</div>
+          <div class="meta-value">April 2026 &middot; Doctrine v1.3 &middot; Cato v0.2.2</div>
         </div>
-        <div class="status-cell">
-          <div class="status-label">Live</div>
-          <div class="status-value"><a href="https://aureon-production.up.railway.app">aureon-production.up.railway.app</a></div>
+        <div class="meta-cell">
+          <div class="meta-label">Live</div>
+          <div class="meta-value"><a href="https://aureon-production.up.railway.app">aureon-production.up.railway.app</a></div>
         </div>
       </div>
-    </section>
+    </header>
 
-    <!-- ═══════════════════════════════════════════════ OPENING PREAMBLE -->
-    <section class="panel">
+    <!-- ── Opening ────────────────────────────────────────── -->
+    <section class="section">
       <p>
         In the military, governance is not bureaucracy &mdash; it is discipline. And
         discipline is what wins the small battles that win the larger war. Aureon was built
@@ -7024,11 +7196,13 @@ def framework_brief():
       </p>
     </section>
 
-    <!-- ═══════════════════════════════════════════════ WHAT IT IS -->
-    <section class="panel">
-      <div class="eyebrow">What It Is</div>
-      <h2>Governance before execution. Every time.</h2>
-      <div class="lead">The control layer that makes AI-assisted decisions explainable, reviewable, and auditable.</div>
+    <!-- ── What It Is ─────────────────────────────────────── -->
+    <section class="section">
+      <div class="section-header">
+        <span class="section-eyebrow">What It Is</span>
+        <h2>Governance before execution. Every time.</h2>
+      </div>
+      <p class="lead">The control layer that makes AI-assisted decisions explainable, reviewable, and auditable.</p>
       <p>
         Aureon sits between signal generation and OMS/EMS execution infrastructure. Its role
         is to validate doctrine, risk, compliance, and human authority before a trade becomes
@@ -7044,11 +7218,13 @@ def framework_brief():
       </p>
     </section>
 
-    <!-- ═══════════════════════════════════════════════ WHY NOW -->
-    <section class="panel">
-      <div class="eyebrow">Why Now</div>
-      <h2>AI is entering capital markets without governance frameworks.</h2>
-      <div class="lead">Tokenization, AI execution, and new payment rails are converging rapidly.</div>
+    <!-- ── Why Now ────────────────────────────────────────── -->
+    <section class="section">
+      <div class="section-header">
+        <span class="section-eyebrow">Why Now</span>
+        <h2>AI is entering capital markets without governance frameworks.</h2>
+      </div>
+      <p class="lead">Tokenization, AI execution, and new payment rails are converging rapidly.</p>
       <p>
         BlackRock BUIDL is live on nine chains with more than $2B AUM. Franklin Templeton
         BENJI runs on ten chains. JPMorgan arranged the first on-chain commercial paper
@@ -7066,56 +7242,62 @@ def framework_brief():
       </p>
     </section>
 
-    <!-- ═══════════════════════════════════════════════ ARCHITECTURE -->
-    <section class="panel">
-      <div class="eyebrow">Architecture</div>
-      <h2>Six-layer doctrine stack. Doctrine at every altitude.</h2>
-      <div class="lead">The stack is not a pipeline. Each layer holds doctrine authority for its domain.</div>
+    <!-- ── Architecture ───────────────────────────────────── -->
+    <section class="section">
+      <div class="section-header">
+        <span class="section-eyebrow">Architecture</span>
+        <h2>Six-layer doctrine stack. Doctrine at every altitude.</h2>
+      </div>
+      <p class="lead">The stack is not a pipeline. Each layer holds doctrine authority for its domain.</p>
       <p>Agents advise. The operator decides. Nothing executes without governed approval.</p>
-      <table class="tbl">
-        <thead>
-          <tr><th>Layer</th><th>Altitude</th><th>Role</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="label" data-label="Layer">Neptune Spear</td>
-            <td class="mono" data-label="Altitude">50,000 ft</td>
-            <td data-label="Role">Alpha origination &mdash; advisory only, never executes. Cato lives here as the Verana L0 settlement gate.</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Layer">Mentat</td>
-            <td class="mono" data-label="Altitude">30,000 ft</td>
-            <td data-label="Role">Decision intelligence, scenario support, doctrine truth evaluation.</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Layer">Kaladan</td>
-            <td class="mono" data-label="Altitude">10,000 ft</td>
-            <td data-label="Role">Lifecycle orchestration &mdash; routing, treasury, settlement, compliance artifacts.</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Layer">Thifur-C2</td>
-            <td class="mono" data-label="Altitude">1,000 ft</td>
-            <td data-label="Role">Command &amp; Control coordination, lineage assembly, unified risk picture.</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Layer">Thifur R / J / H</td>
-            <td class="mono" data-label="Altitude">500 ft</td>
-            <td data-label="Role">R: deterministic execution. J: bounded autonomy. H: adaptive &mdash; declared, not yet activated.</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Layer">Verana L0</td>
-            <td class="mono" data-label="Altitude">Ground</td>
-            <td data-label="Role">Network registry, compliance enforcement, MCP server, session control, Cato doctrine gate.</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Layer</th><th>Altitude</th><th>Role</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="lbl" data-label="Layer">Neptune Spear</td>
+              <td class="mono" data-label="Altitude">50,000 ft</td>
+              <td data-label="Role">Alpha origination &mdash; advisory only, never executes. Cato lives here as the Verana L0 settlement gate.</td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Layer">Mentat</td>
+              <td class="mono" data-label="Altitude">30,000 ft</td>
+              <td data-label="Role">Decision intelligence, scenario support, doctrine truth evaluation.</td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Layer">Kaladan</td>
+              <td class="mono" data-label="Altitude">10,000 ft</td>
+              <td data-label="Role">Lifecycle orchestration &mdash; routing, treasury, settlement, compliance artifacts.</td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Layer">Thifur-C2</td>
+              <td class="mono" data-label="Altitude">1,000 ft</td>
+              <td data-label="Role">Command &amp; Control coordination, lineage assembly, unified risk picture.</td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Layer">Thifur R / J / H</td>
+              <td class="mono" data-label="Altitude">500 ft</td>
+              <td data-label="Role">R: deterministic execution. J: bounded autonomy. H: adaptive &mdash; declared, not yet activated.</td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Layer">Verana L0</td>
+              <td class="mono" data-label="Altitude">Ground</td>
+              <td data-label="Role">Network registry, compliance enforcement, MCP server, session control, Cato doctrine gate.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
-    <!-- ═══════════════════════════════════════════════ CAOM-001 -->
-    <section class="panel">
-      <div class="eyebrow">Governance Framework</div>
-      <h2>CAOM-001 &mdash; Consolidated Authority Operating Mode</h2>
-      <div class="lead">All three human authority tiers mapped to a single operator for the proof-of-concept phase.</div>
+    <!-- ── CAOM-001 ────────────────────────────────────────── -->
+    <section class="section">
+      <div class="section-header">
+        <span class="section-eyebrow">Governance Framework</span>
+        <h2>CAOM-001 &mdash; Consolidated Authority Operating Mode</h2>
+      </div>
+      <p class="lead">All three human authority tiers mapped to a single operator for the proof-of-concept phase.</p>
       <p>
         Aureon was originally architected for a multi-role institutional environment. CAOM-001
         (effective April 6, 2026) formally maps all three human authority tiers &mdash;
@@ -7123,37 +7305,37 @@ def framework_brief():
         shop proof-of-concept phase. Gates still fire on every decision. The operator&rsquo;s
         identity satisfies each gate. No agent substitutes for human authority at any tier.
       </p>
-      <table class="tbl">
-        <tbody>
-          <tr>
-            <td class="label" data-label="Field">Operator</td>
-            <td data-label="Value">Guillermo Ravelo &middot; Ravelo Strategic Solutions LLC &middot; <span class="mono" style="color:var(--gold-soft)">GR-001</span></td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Field">Tiers held</td>
-            <td data-label="Value">Tier 1 (Operational) &middot; Tier 2 (Governance) &middot; Tier 3 (Executive)</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Field">Agents</td>
-            <td data-label="Value">Advisory only &mdash; Mentat, Kaladan, Neptune Spear, Thifur C2 / R / J surface analysis. Operator decides.</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Field">Transition</td>
-            <td data-label="Value">CAOM ends when AUM exceeds $10M, external capital onboards, or institutional staff is hired.</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Field">DSOR</td>
-            <td data-label="Value">Every decision is Decision System of Record stamped: lineage, authority hash, doctrine version, timestamp.</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="kv-block">
+        <div class="kv-row">
+          <div class="kv-key">Operator</div>
+          <div class="kv-val">Guillermo Ravelo &middot; Ravelo Strategic Solutions LLC &middot; <span class="mono">GR-001</span></div>
+        </div>
+        <div class="kv-row">
+          <div class="kv-key">Tiers held</div>
+          <div class="kv-val">Tier 1 (Operational) &middot; Tier 2 (Governance) &middot; Tier 3 (Executive)</div>
+        </div>
+        <div class="kv-row">
+          <div class="kv-key">Agents</div>
+          <div class="kv-val">Advisory only &mdash; Mentat, Kaladan, Neptune Spear, Thifur C2 / R / J surface analysis. Operator decides.</div>
+        </div>
+        <div class="kv-row">
+          <div class="kv-key">Transition</div>
+          <div class="kv-val">CAOM ends when AUM exceeds $10M, external capital onboards, or institutional staff is hired.</div>
+        </div>
+        <div class="kv-row">
+          <div class="kv-key">DSOR</div>
+          <div class="kv-val">Every decision is Decision System of Record stamped: lineage, authority hash, doctrine version, timestamp.</div>
+        </div>
+      </div>
     </section>
 
-    <!-- ═══════════════════════════════════════════════ CATO -->
-    <section class="panel">
-      <div class="eyebrow">Live Proof Point &middot; Neptune Spear / Verana L0</div>
-      <h2>Cato &mdash; Tokenized Settlement Doctrine Gate</h2>
-      <div class="lead">The Verana L0 pre-settlement gate for tokenized institutional repo.</div>
+    <!-- ── Cato ───────────────────────────────────────────── -->
+    <section class="section">
+      <div class="section-header">
+        <span class="section-eyebrow">Live Proof Point &middot; Neptune Spear / Verana L0</span>
+        <h2>Cato &mdash; Tokenized Settlement Doctrine Gate</h2>
+      </div>
+      <p class="lead">The Verana L0 pre-settlement gate for tokenized institutional repo.</p>
       <p>
         Cato answers one question before every settlement: <strong>is atomic on-chain DvP
         (Delivery versus Payment) viable right now, or should this trade route to FICC?</strong>
@@ -7162,133 +7344,139 @@ def framework_brief():
       </p>
       <p>
         Cato exists in two implementations that must produce bit-for-bit identical decisions
-        for identical inputs: an external open-source MCP server (Node.js, MIT license, 23
-        tools) and an in-process Python twin inside Aureon. <strong>The deterministic parity
-        is what lets regulators trust the gate regardless of caller.</strong> Both are at
-        doctrine version 0.2.2.
+        for identical inputs: an external open-source MCP (Model Context Protocol) server
+        (Node.js, MIT license, 23 tools) and an in-process Python twin inside Aureon.
+        <strong>The deterministic parity is what lets regulators trust the gate regardless
+        of caller.</strong> Both are at doctrine version 0.2.2.
       </p>
 
-      <h3 style="color:var(--gold);font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin:22px 0 4px;">Doctrine Thresholds (v0.2.2)</h3>
-      <table class="tbl">
-        <thead>
-          <tr><th>Input</th><th>Threshold</th><th>Effect</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="label" data-label="Input">OFR STLFSI4</td>
-            <td class="mono" data-label="Threshold">&gt; 1.0</td>
-            <td data-label="Effect"><span class="tag escalate">Escalate</span> systemic stress, route to human authority</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Input">OFR STLFSI4</td>
-            <td class="mono" data-label="Threshold">&gt; 0.5</td>
-            <td data-label="Effect"><span class="tag hold">Hold</span> broad stress, route to FICC traditional</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Input">ETH L1 gas</td>
-            <td class="mono" data-label="Threshold">&gt; 50 gwei</td>
-            <td data-label="Effect"><span class="tag hold">Hold</span> L1 congestion, route to FICC traditional</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Input">|SOFR(t) &minus; SOFR(t&minus;1)| &times; 100</td>
-            <td class="mono" data-label="Threshold">&gt; 10 bps</td>
-            <td data-label="Effect"><span class="tag hold">Hold</span> funding-market shock (v0.2.2, Sept 2019 backtest fix)</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Input">All below threshold</td>
-            <td class="mono" data-label="Threshold">&mdash;</td>
-            <td data-label="Effect"><span class="tag proceed">Proceed</span> atomic settlement viable</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <h3 style="color:var(--gold);font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin:24px 0 4px;">Supported Settlement Rails</h3>
-      <table class="tbl">
-        <thead>
-          <tr><th>Rail</th><th>Speed</th><th>Cost (normal state)</th><th>Status</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="label" data-label="Rail">FICC traditional</td>
-            <td class="mono" data-label="Speed">T+1</td>
-            <td data-label="Cost">~0.5 bps clearing net of 40% netting + SOFR cost of capital</td>
-            <td data-label="Status"><span class="tag live">Live</span></td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Rail">Ethereum L1</td>
-            <td class="mono" data-label="Speed">~12s</td>
-            <td data-label="Cost">~$0.08 / settlement at 0.5 gwei, $2,300 ETH</td>
-            <td data-label="Status"><span class="tag live">Live</span></td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Rail">Base (Ethereum L2)</td>
-            <td class="mono" data-label="Speed">~2s</td>
-            <td data-label="Cost">~$0.001 / settlement at 0.01 gwei</td>
-            <td data-label="Status"><span class="tag live">Live</span></td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Rail">Arbitrum (L2)</td>
-            <td class="mono" data-label="Speed">~2s</td>
-            <td data-label="Cost">~$0.10 / settlement at 0.6 gwei</td>
-            <td data-label="Status"><span class="tag live">Live</span></td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Rail">Solana</td>
-            <td class="mono" data-label="Speed">~400ms</td>
-            <td data-label="Cost">~$0.0004 / settlement at 5,000 lamports</td>
-            <td data-label="Status"><span class="tag live">Live</span></td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Rail">Fed L1 / PORTS</td>
-            <td class="mono" data-label="Speed">Instant</td>
-            <td data-label="Cost">TBD &mdash; sovereign tokenized reserve rail</td>
-            <td data-label="Status"><span class="tag pending">Pending GENIUS Act</span></td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="callout">
-        <strong>The governance gate &mdash; not the rail &mdash; is the product.</strong>
-        When the Fed issues tokenized reserves or PORTS ships, Cato routes there. The doctrine
-        doesn&rsquo;t change. The rail does.
+      <div class="sub-label">Doctrine Thresholds &mdash; v0.2.2</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Input</th><th>Threshold</th><th>Effect</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="lbl" data-label="Input">OFR STLFSI4</td>
+              <td class="mono" data-label="Threshold">&gt; 1.0</td>
+              <td data-label="Effect"><span class="tag escalate">Escalate</span> &nbsp;systemic stress, route to human authority</td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Input">OFR STLFSI4</td>
+              <td class="mono" data-label="Threshold">&gt; 0.5</td>
+              <td data-label="Effect"><span class="tag hold">Hold</span> &nbsp;broad stress, route to FICC traditional</td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Input">ETH L1 gas</td>
+              <td class="mono" data-label="Threshold">&gt; 50 gwei</td>
+              <td data-label="Effect"><span class="tag hold">Hold</span> &nbsp;L1 congestion, route to FICC traditional</td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Input">|SOFR(t) &minus; SOFR(t&minus;1)| &times; 100</td>
+              <td class="mono" data-label="Threshold">&gt; 10 bps</td>
+              <td data-label="Effect"><span class="tag hold">Hold</span> &nbsp;funding-market shock (v0.2.2, Sept 2019 backtest fix)</td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Input">All below threshold</td>
+              <td class="mono" data-label="Threshold">&mdash;</td>
+              <td data-label="Effect"><span class="tag proceed">Proceed</span> &nbsp;atomic settlement viable</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
-      <h3 style="color:var(--gold);font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin:24px 0 4px;">SR 11-7 Tier 1 Historical Backtest</h3>
+      <div class="sub-label">Supported Settlement Rails</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Rail</th><th>Speed</th><th>Cost (normal state)</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="lbl" data-label="Rail">FICC traditional</td>
+              <td class="mono" data-label="Speed">T+1</td>
+              <td data-label="Cost">~0.5 bps clearing net of 40% netting + SOFR cost of capital</td>
+              <td data-label="Status"><span class="tag live">Live</span></td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Rail">Ethereum L1</td>
+              <td class="mono" data-label="Speed">~12s</td>
+              <td data-label="Cost">~$0.08 / settlement at 0.5 gwei, $2,300 ETH</td>
+              <td data-label="Status"><span class="tag live">Live</span></td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Rail">Base (Ethereum L2)</td>
+              <td class="mono" data-label="Speed">~2s</td>
+              <td data-label="Cost">~$0.001 / settlement at 0.01 gwei</td>
+              <td data-label="Status"><span class="tag live">Live</span></td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Rail">Arbitrum (L2)</td>
+              <td class="mono" data-label="Speed">~2s</td>
+              <td data-label="Cost">~$0.10 / settlement at 0.6 gwei</td>
+              <td data-label="Status"><span class="tag live">Live</span></td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Rail">Solana</td>
+              <td class="mono" data-label="Speed">~400ms</td>
+              <td data-label="Cost">~$0.0004 / settlement at 5,000 lamports</td>
+              <td data-label="Status"><span class="tag live">Live</span></td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Rail">Fed L1 / PORTS</td>
+              <td class="mono" data-label="Speed">Instant</td>
+              <td data-label="Cost">TBD &mdash; sovereign tokenized reserve rail</td>
+              <td data-label="Status"><span class="tag pending">Pending GENIUS Act</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <strong>The governance gate &mdash; not the rail &mdash; is the product.</strong>
+        When the Fed issues tokenized reserves or PORTS ships, Cato routes there.
+        The doctrine doesn&rsquo;t change. The rail does.
+      </div>
+
+      <div class="sub-label">SR 11-7 Tier 1 Historical Backtest</div>
       <p>
         Cato v0.2.2 was validated against three canonical stress events using daily SOFR and
         weekly OFR STLFSI4 from FRED. The backtest is deterministic and fully reproducible.
       </p>
-      <table class="tbl">
-        <thead>
-          <tr><th>Event</th><th>v0.2.1</th><th>v0.2.2</th><th>Verdict</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="label" data-label="Event">March 2020 &mdash; COVID repo freeze</td>
-            <td class="mono" data-label="v0.2.1">100% (20/20)</td>
-            <td class="mono" data-label="v0.2.2">100% (20/20)</td>
-            <td data-label="Verdict"><span class="tag caught">Caught</span> OFR peak 5.657, SOFR &Delta; 84 bps</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Event">September 2019 &mdash; repo spike</td>
-            <td class="mono" data-label="v0.2.1">0% (0/5)</td>
-            <td class="mono" data-label="v0.2.2">80% (4/5)</td>
-            <td data-label="Verdict"><span class="tag caught">Caught after v0.2.2 fix</span> pure funding-market crunch, OFR FSI negative</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Event">March 2023 &mdash; SVB collapse</td>
-            <td class="mono" data-label="v0.2.1">45.5% (5/11)</td>
-            <td class="mono" data-label="v0.2.2">45.5% (5/11)</td>
-            <td data-label="Verdict"><span class="tag limit">Calibration limit</span> slow-moving credit event, not captured by rate / stress signals</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Event</th><th>v0.2.1</th><th>v0.2.2</th><th>Verdict</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="lbl" data-label="Event">March 2020 &mdash; COVID repo freeze</td>
+              <td class="mono" data-label="v0.2.1">100% (20/20)</td>
+              <td class="mono" data-label="v0.2.2">100% (20/20)</td>
+              <td data-label="Verdict"><span class="tag caught">Caught</span> &nbsp;OFR peak 5.657, SOFR &Delta; 84 bps</td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Event">September 2019 &mdash; repo spike</td>
+              <td class="mono" data-label="v0.2.1">0% (0/5)</td>
+              <td class="mono" data-label="v0.2.2">80% (4/5)</td>
+              <td data-label="Verdict"><span class="tag caught">Caught after v0.2.2 fix</span> &nbsp;pure funding-market crunch, OFR FSI negative</td>
+            </tr>
+            <tr>
+              <td class="lbl" data-label="Event">March 2023 &mdash; SVB collapse</td>
+              <td class="mono" data-label="v0.2.1">45.5% (5/11)</td>
+              <td class="mono" data-label="v0.2.2">45.5% (5/11)</td>
+              <td data-label="Verdict"><span class="tag limit">Calibration limit</span> &nbsp;slow-moving credit event, not captured by rate / stress signals</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <p>
         The September 2019 gap &mdash; SOFR moved 282 bps while OFR FSI was negative &mdash;
         was closed in v0.2.2 by restoring the SOFR 1-day delta trigger dropped in the v0.2.0
         refactor. SVB is a documented calibration limitation: it requires counterparty-credit
-        signals (HY OAS, bank equity) not currently in the doctrine. <strong>Cato is a
-        market-regime gate, not a counterparty-credit gate.</strong> That is an explicit
-        design choice, not a gap.
+        signals (HY OAS, bank equity) not currently in the doctrine.
+        <strong>Cato is a market-regime gate, not a counterparty-credit gate.</strong>
+        That is an explicit design choice, not a gap.
       </p>
       <div class="callout">
         <strong>Parity principle.</strong> Any doctrine change &mdash; new threshold, new
@@ -7299,83 +7487,100 @@ def framework_brief():
       </div>
     </section>
 
-    <!-- ═══════════════════════════════════════════════ COMMERCIAL FRAMING -->
-    <section class="panel">
-      <div class="eyebrow">Commercial Framing</div>
-      <h2>Three deployment modes. One unifying thesis.</h2>
-      <table class="tbl">
-        <tbody>
-          <tr>
-            <td class="label" data-label="Mode">Governance overlay</td>
-            <td data-label="Description">Drop Aureon above existing OMS infrastructure. Pre-trade gates, compliance surfaces, and DSOR audit artifacts without replacing execution infrastructure.</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Mode">Full-stack OS</td>
-            <td data-label="Description">Greenfield deployment of the complete doctrine stack &mdash; signal origination through settlement &mdash; for a fund or desk building from scratch.</td>
-          </tr>
-          <tr>
-            <td class="label" data-label="Mode">Compliance layer</td>
-            <td data-label="Description">Aureon as a structured audit-artifact engine: every decision returns a replayable governance package for regulatory submission.</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
-
-    <!-- ═══════════════════════════════════════════════ WHY IT RESONATES -->
-    <section class="panel">
-      <div class="eyebrow">Why It Resonates</div>
-      <h2>Leadership-level value by role</h2>
-      <div class="role-row">
-        <div class="role-role">CTO</div>
-        <div class="role-val">Explain the systems boundary between intelligence, control, and execution.</div>
+    <!-- ── Commercial Framing ─────────────────────────────── -->
+    <section class="section">
+      <div class="section-header">
+        <span class="section-eyebrow">Commercial Framing</span>
+        <h2>Three deployment modes. One unifying thesis.</h2>
       </div>
-      <div class="role-row">
-        <div class="role-role">CIO</div>
-        <div class="role-val">Governance around investment decisions before capital is deployed.</div>
-      </div>
-      <div class="role-row">
-        <div class="role-role">Chief Risk Manager</div>
-        <div class="role-val">Visible pre-trade controls, replayability, and explainability on demand.</div>
-      </div>
-      <div class="role-row">
-        <div class="role-role">Compliance</div>
-        <div class="role-val">The SR 11-7 model risk framework applied to AI-assisted systems before regulators require it.</div>
-      </div>
-      <div class="role-row">
-        <div class="role-role">Investors</div>
-        <div class="role-val">Stronger trust model around how AI-assisted actions are governed at every layer.</div>
+      <div class="kv-block">
+        <div class="kv-row">
+          <div class="kv-key">Governance overlay</div>
+          <div class="kv-val">Drop Aureon above existing OMS infrastructure. Pre-trade gates, compliance surfaces, and DSOR audit artifacts without replacing execution infrastructure.</div>
+        </div>
+        <div class="kv-row">
+          <div class="kv-key">Full-stack OS</div>
+          <div class="kv-val">Greenfield deployment of the complete doctrine stack &mdash; signal origination through settlement &mdash; for a fund or desk building from scratch.</div>
+        </div>
+        <div class="kv-row">
+          <div class="kv-key">Compliance layer</div>
+          <div class="kv-val">Aureon as a structured audit-artifact engine: every decision returns a replayable governance package for regulatory submission.</div>
+        </div>
       </div>
     </section>
 
-    <!-- ═══════════════════════════════════════════════ ACADEMIC FOUNDATION -->
-    <section class="panel">
-      <div class="eyebrow">Academic Foundation</div>
-      <h2>Duffie (2025) &mdash; &ldquo;The Case for PORTS&rdquo;, Brookings Institution</h2>
+    <!-- ── Why It Resonates ───────────────────────────────── -->
+    <section class="section">
+      <div class="section-header">
+        <span class="section-eyebrow">Why It Resonates</span>
+        <h2>Leadership-level value by role</h2>
+      </div>
+      <div class="role-grid">
+        <div class="role-card">
+          <div class="role-title">CTO</div>
+          <div class="role-desc">Explain the systems boundary between intelligence, control, and execution.</div>
+        </div>
+        <div class="role-card">
+          <div class="role-title">CIO</div>
+          <div class="role-desc">Governance around investment decisions before capital is deployed.</div>
+        </div>
+        <div class="role-card">
+          <div class="role-title">Chief Risk Manager</div>
+          <div class="role-desc">Visible pre-trade controls, replayability, and explainability on demand.</div>
+        </div>
+        <div class="role-card">
+          <div class="role-title">Compliance</div>
+          <div class="role-desc">The SR 11-7 model risk framework applied to AI-assisted systems before regulators require it.</div>
+        </div>
+        <div class="role-card">
+          <div class="role-title">Investors</div>
+          <div class="role-desc">Stronger trust model around how AI-assisted actions are governed at every layer.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Academic Foundation ────────────────────────────── -->
+    <section class="section">
+      <div class="section-header">
+        <span class="section-eyebrow">Academic Foundation</span>
+        <h2>Duffie (2025) &mdash; &ldquo;The Case for PORTS&rdquo;, Brookings Institution</h2>
+      </div>
       <p>
         Cato&rsquo;s tokenized settlement architecture is a working reference implementation
-        of the governance layer Duffie proposes in this paper. The <span class="mono" style="color:var(--gold-soft)">fed_l1</span>
-        placeholder slot in every Cato <span class="mono" style="color:var(--gold-soft)">chain_state</span>
+        of the governance layer Duffie proposes in this paper. The
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--gold-soft)">fed_l1</span>
+        placeholder slot in every Cato
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--gold-soft)">chain_state</span>
         response is reserved for the sovereign tokenized reserve rail Duffie&rsquo;s PORTS
-        framework describes. <strong>The doctrine doesn&rsquo;t change when PORTS ships. The
-        route does.</strong>
+        framework describes. <strong>The doctrine doesn&rsquo;t change when PORTS ships.
+        The route does.</strong>
       </p>
     </section>
 
-    <!-- ═══════════════════════════════════════════════ FOOTER -->
-    <div class="foot">
-      Project Aureon &middot; The Grid 3 &middot; Framework Brief &middot; April 2026
-      <span class="foot-sep">&middot;</span>
-      Paper trading &mdash; no real capital at risk &mdash; approaching institutional testing
-      <br>
-      Live: <a href="https://aureon-production.up.railway.app">aureon-production.up.railway.app</a>
-      <span class="foot-sep">&middot;</span>
-      Cato MCP: <a href="https://github.com/br-collab/Cato---FICC-MCP">github.com/br-collab/Cato---FICC-MCP</a>
+    <!-- ── CTA ────────────────────────────────────────────── -->
+    <div class="cta-block">
+      <div class="cta-text">
+        <strong>Live system &mdash; paper trading, no real capital at risk.</strong><br>
+        The full governance stack is running. Explore the dashboard to see doctrine gates,
+        compliance artifacts, and the settlement intelligence layer in action.
+      </div>
+      <a class="cta-btn" href="/">Open Live Dashboard &rarr;</a>
     </div>
+
+    <!-- ── Footer ─────────────────────────────────────────── -->
+    <footer class="foot">
+      <span>Project Aureon &middot; The Grid 3 &middot; Framework Brief &middot; April 2026</span>
+      <div class="foot-links">
+        <a href="https://aureon-production.up.railway.app">aureon-production.up.railway.app</a>
+        <a href="https://github.com/br-collab/Cato---FICC-MCP">Cato MCP on GitHub</a>
+      </div>
+    </footer>
 
   </div>
 </body>
 </html>"""
     return Response(html, mimetype="text/html")
+
 
 
 # ─────────────────────────────────────────────────────────────────
