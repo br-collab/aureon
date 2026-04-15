@@ -7036,11 +7036,12 @@ def framework_brief():
         legislative pipeline.
       </p>
       <p>
-        None of the live institutional products has publicly documented a complete governance
-        model &mdash; continuous compliance surveillance, human-in-the-loop gate framework,
-        and an immutable audit chain &mdash; that a trustee, a rating agency, or a regulator
-        can actually rely on. That is the gap Aureon addresses. The tokenized settlement
-        market is at $12.88B and accelerating. <strong>The governance layer is not commoditized.</strong>
+        Tokenized US Treasuries alone reached $12.88B in April 2026, part of a $27B+ total
+        tokenized RWA market growing 300% year-over-year. No live institutional product has
+        publicly documented a complete governance model &mdash; continuous compliance
+        surveillance, human-in-the-loop gate framework, and an immutable audit chain
+        &mdash; that a trustee, a rating agency, or a regulator can actually rely on. That
+        is the gap Aureon addresses. <strong>The governance layer is not commoditized.</strong>
       </p>
     </section>
 
