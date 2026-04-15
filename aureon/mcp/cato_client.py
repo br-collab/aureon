@@ -37,7 +37,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 
-CATO_DOCTRINE_VERSION = "0.2.2"
+CATO_DOCTRINE_VERSION = "0.2.3"
 CATO_GATE_LABEL = f"Verana L0 — Cato settlement gate v{CATO_DOCTRINE_VERSION}"
 
 # Doctrine thresholds (see Duffie 2025, Brookings Institution).
