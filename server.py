@@ -16,7 +16,7 @@ WHAT THIS FILE DOES (plain English):
   - Starts a tiny web server on port 5001
   - Serves index.html as the dashboard
   - Exposes /api/* endpoints that the dashboard calls every few seconds
-  - Simulates a live $100M endowment portfolio (Endowment Series I — Operation Red Wings)
+  - Simulates a live $100M endowment portfolio (Endowment Series I — Argus)
   - Runs the Aureon four-layer doctrine stack (Verana→Mentat→Kaladan→Thifur)
   - Handles human authority decisions (approve / reject trades)
 
@@ -267,7 +267,7 @@ aureon_state = {
     "authority_log":      [],
     "operational_journal": [],   # DA-1594 equivalent — DTG-stamped operational record
     "decision_journal":    [],   # Commander's log — full signal brief + outcome for every HITL decision
-    "neptune_recommendations": [],  # Neptune Spear trade recommendations awaiting operator review
+    "neptune_recommendations": [],  # Atrox trade recommendations awaiting operator review
     "prices":             {},
     "class_totals":       {},
 
@@ -319,9 +319,9 @@ aureon_state = {
             "tier":      "Tier 1 — Human Authority",
             "trigger":   "HUMAN_AUTHORITY",
             "reason":    (
-                "Two doctrine documents registered: Thifur-Neptune Spear (Alpha Generator "
+                "Two doctrine documents registered: Thifur-Atrox (Alpha Generator "
                 "origination agent, Draft 1.0) and Thifur-C2 (Command and Control doctrine, "
-                "Draft 1.0). Neptune Spear added above execution triplet. Authority chain "
+                "Draft 1.0). Atrox added above execution triplet. Authority chain "
                 "formalized: Neptune → Operator → Kaladan → C2 → R/J/H. Five Immutable Stops "
                 "codified in C2 doctrine. CAOM agent advisory updated to reflect Neptune."
             ),
@@ -381,9 +381,9 @@ aureon_state = {
 
     # ── Endowment Thesis — Spending Rate Engine ───────────────────
     # UPMIFA §4 · Tobin intergenerational equity principle
-    # 5% spending rate target · Endowment Series I — Operation Red Wings
+    # 5% spending rate target · Endowment Series I — Argus
     "endowment_thesis": {
-        "series":              "Endowment Series I — Operation Red Wings",
+        "series":              "Endowment Series I — Argus",
         "aum_target":          100_000_000,
         "spending_rate":       0.05,       # 5% of 12-month trailing AUM
         "annual_budget":       5_000_000,  # 5% × $100M
@@ -427,7 +427,7 @@ app._aureon_agents = {
 # They get loaded into aureon_state["positions"] once the stack runs.
 
 INITIAL_POSITIONS = [
-    # ENDOWMENT SERIES I — Operation Red Wings · $100M paper AUM
+    # ENDOWMENT SERIES I — Argus · $100M paper AUM
     # UPMIFA-governed · 5% spending rate · Tobin intergenerational equity principle
     # Targets: Equities 45% · Fixed Income 20% · Real Assets 10% · Absolute Return 8%
 
@@ -3368,7 +3368,7 @@ def _generate_signal():
                 )
 
         _commanders_intent = (
-            f"Endowment Series I — Operation Red Wings. Mandate: preserve intergenerational "
+            f"Endowment Series I — Argus. Mandate: preserve intergenerational "
             f"equity (Tobin principle), 5% spending rate, UPMIFA §4 compliance. "
             f"{asset_class.replace('_',' ').title()} is {_direction} by "
             f"{abs(_drift_pct):.1f}% vs the {_target_pct:.0f}% doctrine target. "
@@ -3398,7 +3398,7 @@ def _generate_signal():
         )
     else:
         _commanders_intent = (
-            f"Endowment Series I — Operation Red Wings. No asset class exceeds the 4% "
+            f"Endowment Series I — Argus. No asset class exceeds the 4% "
             f"rebalance threshold. Thifur-H surfacing opportunistic alpha within doctrine bounds. "
             f"Mandate: optimize risk-adjusted return while preserving intergenerational equity."
         )
@@ -3492,7 +3492,7 @@ NEPTUNE_WATCHLIST = {
 
 def _neptune_scan():
     """
-    Neptune Spear origination scan.
+    Atrox origination scan.
 
     Reads live pipe data and market state to generate structured trade
     recommendations. Each recommendation includes a thesis, risk framing,
@@ -3752,11 +3752,11 @@ def _build_neptune_rec(action, symbol, shares, price, asset_class, thesis,
         "signal_sources":  signal_sources,    # pipe IDs that contributed
         "risk_factors":    risk_factors,
         "signal_brief": {
-            "commanders_intent": f"Neptune Spear: {thesis}",
+            "commanders_intent": f"Atrox: {thesis}",
             "first_order":       first_order,
             "second_order":      second_order,
             "third_order":       third_order,
-            "doctrine_reference": "Neptune Spear — Advisory only, CAOM-001 approval required",
+            "doctrine_reference": "Atrox — Advisory only, CAOM-001 approval required",
             "signal_timestamp":   ts,
         },
         "status":          "ACTIVE",         # ACTIVE → PROMOTED | DISMISSED
@@ -4121,17 +4121,17 @@ def _register_doctrine_documents():
     appear as a distinct class from uploaded thesis memos.
 
     Documents registered:
-      - Thifur-Neptune Spear Draft 1.0 (Alpha Generator doctrine)
+      - Thifur-Atrox Draft 1.0 (Alpha Generator doctrine)
       - Thifur-C2 Draft 1.0 (Command and Control doctrine)
     """
     neptune_text = get_neptune_source_document_text()
     _register_source_document(
-        title       = "Thifur-Neptune Spear — Alpha Generator Doctrine (Draft 1.0)",
+        title       = "Thifur-Atrox — Alpha Generator Doctrine (Draft 1.0)",
         source_type = "doctrine",
         source_name = "Thifur-Neptune-Spear-Doctrine.docx",
         content_text = neptune_text,
         analysis    = {
-            "title":              "Thifur-Neptune Spear — Alpha Generator Doctrine",
+            "title":              "Thifur-Atrox — Alpha Generator Doctrine",
             "summary":            (
                 "Origination intelligence agent above the Thifur execution triplet. "
                 "Generates investment theses, market intelligence, and product "
@@ -4169,7 +4169,7 @@ def _register_doctrine_documents():
             "source_file":        "Thifur-C2-Doctrine.docx",
         },
     )
-    print("[AUREON] Doctrine knowledge base: Thifur-Neptune Spear + Thifur-C2 registered")
+    print("[AUREON] Doctrine knowledge base: Thifur-Atrox + Thifur-C2 registered")
 
 
 def run_doctrine_stack():
@@ -4260,7 +4260,7 @@ def run_doctrine_stack():
     print(f"[AUREON] Portfolio: {n_pos} positions | Cash: ${aureon_state['cash']:,.0f}")
 
     # ── Register doctrine documents in knowledge base ──────────────
-    # Thifur-Neptune Spear and Thifur-C2 doctrine are auto-ingested
+    # Thifur-Atrox and Thifur-C2 doctrine are auto-ingested
     # at every startup so they are always present in source_documents.
     _register_doctrine_documents()
 
@@ -4270,7 +4270,7 @@ def run_doctrine_stack():
     init_mcp(aureon_state, _lock, OFAC_BLOCKED_ISINS)
     print("[AUREON] MCP server initialized — Phase 1 Verana L0 — POST /mcp")
 
-    # ── Initialize Neptune Spear data pipes ───────────────────────
+    # ── Initialize Atrox data pipes ───────────────────────
     # All five pipes initialize at startup. CBOE + EDGAR require no
     # credentials and are always live. Unusual Whales, Tradier, and
     # Alpaca degrade gracefully until tokens are added to env vars.
@@ -4322,7 +4322,7 @@ def market_loop():
             if _market_is_open() and random.random() < 0.033:
                 _generate_signal()
 
-            # Neptune Spear origination scan (every NEPTUNE_SCAN_INTERVAL)
+            # Atrox origination scan (every NEPTUNE_SCAN_INTERVAL)
             try:
                 _neptune_scan()
             except Exception as nex:
@@ -5833,18 +5833,15 @@ def _compute_settlement_status(trade):
 
 def _build_settlement_pipeline():
     """
-    Assign settlement states to trades based on age.
-    Instructed < 3 min → Matched < 8 min → Cash Settled < 20 min → Fully Settled
-    Only the most recent 30 trades are tracked in the pipeline.
+    In-flight settlement pipeline — only trades not yet fully settled.
+    FULLY_SETTLED trades graduate to the Settled Trade Repository
+    (built by _build_settled_repository).  Most recent 30 trades scanned.
 
     Settlement lifecycle rules (aligned with institutional OMS standards):
-      T+0  Crypto (BTC, ETH, SOL) — on-chain finality, intraday settlement allowed.
-           INSTRUCTED < 3 min → MATCHED < 8 min → CASH_SETTLED < 20 min → FULLY_SETTLED
-
-      T+1  All other asset classes (equities, FX, fixed income) — SEC Rule 15c6-1
-           (effective May 28 2024) and standard FX/FI conventions.
-           INSTRUCTED < 3 min → MATCHED < 10 min → CASH_SETTLED (affirmed, awaiting T+1)
-           FULLY_SETTLED only after next business day 17:30 ET cutoff.
+      T+0  Crypto (BTC, ETH, SOL) — on-chain finality, intraday settlement.
+           INSTRUCTED < 3 min → MATCHED < 8 min → CASH_SETTLED < 20 min → out
+      T+1  All other asset classes — SEC Rule 15c6-1 (eff. May 28 2024).
+           INSTRUCTED < 3 min → MATCHED < 10 min → CASH_SETTLED (awaiting T+1) → out
     """
     pipeline = []
 
@@ -5852,6 +5849,9 @@ def _build_settlement_pipeline():
         for t in aureon_state["trades"][-30:]:
             symbol = t.get("symbol", "")
             status = _compute_settlement_status(t)
+
+            if status["state"] == "FULLY_SETTLED":
+                continue
 
             pipeline.append({
                 "id":         t.get("hash", "")[:8] or t["ts"][-8:],
@@ -5928,12 +5928,13 @@ def api_treasury():
     state_counts = {"INSTRUCTED": 0, "MATCHED": 0, "CASH_SETTLED": 0, "FULLY_SETTLED": 0}
     for p in pipeline:
         state_counts[p["state"]] += 1
+    state_counts["FULLY_SETTLED"] = len(settled_repository)
 
     settled_notional = round(sum(
         p["notional"] for p in settled_repository
     ), 2)
 
-    in_flight = sum(1 for p in pipeline if p["state"] != "FULLY_SETTLED")
+    in_flight = len(pipeline)
 
     return jsonify({
         "t0_cash":             t0_cash,
@@ -6473,7 +6474,7 @@ def api_neptune_promote(rec_id):
             "price":               rec["price"],
             "notional":            notional,
             "product_type":        "SINGLE_NAME_EQUITY" if rec.get("asset_class") == "equities" else "OUT_OF_SCOPE",
-            "rationale":           f"Neptune Spear ({rec['conviction']} conviction): {rec['thesis']}",
+            "rationale":           f"Atrox ({rec['conviction']} conviction): {rec['thesis']}",
             "signal_type":         "NEPTUNE",
             "created":             datetime.now(timezone.utc).isoformat(),
             "status":              "PENDING",
@@ -7257,7 +7258,7 @@ def framework_brief():
           </thead>
           <tbody>
             <tr>
-              <td class="lbl" data-label="Layer">Neptune Spear</td>
+              <td class="lbl" data-label="Layer">Atrox</td>
               <td class="mono" data-label="Altitude">50,000 ft</td>
               <td data-label="Role">Alpha origination &mdash; advisory only, never executes. Cato lives here as the Verana L0 settlement gate.</td>
             </tr>
@@ -7279,7 +7280,7 @@ def framework_brief():
             <tr>
               <td class="lbl" data-label="Layer">Thifur R / J / H</td>
               <td class="mono" data-label="Altitude">500 ft</td>
-              <td data-label="Role">R: deterministic execution. J: bounded autonomy. H: adaptive &mdash; declared, not yet activated.</td>
+              <td data-label="Role">R: Deterministic. J: Bounded. H: Adaptive &mdash; declared, not yet activated.</td>
             </tr>
             <tr>
               <td class="lbl" data-label="Layer">Verana L0</td>
@@ -7316,7 +7317,7 @@ def framework_brief():
         </div>
         <div class="kv-row">
           <div class="kv-key">Agents</div>
-          <div class="kv-val">Advisory only &mdash; Mentat, Kaladan, Neptune Spear, Thifur C2 / R / J surface analysis. Operator decides.</div>
+          <div class="kv-val">Advisory only &mdash; Mentat, Kaladan, Atrox, Thifur C2 / R / J surface analysis. Operator decides.</div>
         </div>
         <div class="kv-row">
           <div class="kv-key">Transition</div>
@@ -7332,7 +7333,7 @@ def framework_brief():
     <!-- ── Cato ───────────────────────────────────────────── -->
     <section class="section">
       <div class="section-header">
-        <span class="section-eyebrow">Live Proof Point &middot; Neptune Spear / Verana L0</span>
+        <span class="section-eyebrow">Live Proof Point &middot; Atrox / Verana L0</span>
         <h2>Cato &mdash; Tokenized Settlement Doctrine Gate</h2>
       </div>
       <p class="lead">The Verana L0 pre-settlement gate for tokenized institutional repo.</p>

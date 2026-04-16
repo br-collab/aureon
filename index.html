@@ -2059,7 +2059,7 @@ main {
   <!-- SETTLEMENT PIPELINE -->
   <div class="card" style="padding:20px;margin-bottom:24px">
     <div style="font-size:12px;font-weight:600;letter-spacing:.06em;margin-bottom:16px;color:var(--white)">SETTLEMENT PIPELINE</div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
 
       <!-- INSTRUCTED -->
       <div style="background:var(--deep);border-radius:6px;padding:14px;border-top:2px solid var(--muted)">
@@ -2091,15 +2091,7 @@ main {
         <div id="pipe-cash-settled" style="display:flex;flex-direction:column;gap:6px;min-height:40px"></div>
       </div>
 
-      <!-- FULLY SETTLED -->
-      <div style="background:var(--deep);border-radius:6px;padding:14px;border-top:2px solid var(--green)">
-        <div style="font-size:10px;letter-spacing:.08em;color:var(--green);margin-bottom:10px;display:flex;justify-content:space-between">
-          FULLY SETTLED
-          <span id="cnt-fully-settled" style="background:rgba(16,185,129,.12);padding:1px 7px;border-radius:3px;font-family:var(--font-mono)">0</span>
-        </div>
-        <div style="font-size:9px;color:var(--muted);margin-bottom:10px">Both legs complete · trade closed</div>
-        <div id="pipe-fully-settled" style="display:flex;flex-direction:column;gap:6px;min-height:40px"></div>
-      </div>
+      <!-- FULLY_SETTLED trades graduate to Settled Trade Repository below -->
 
     </div>
   </div>
@@ -2111,7 +2103,7 @@ main {
       <span style="margin-left:auto;font-size:9px;color:var(--muted)">Derived from persisted trade history</span>
     </div>
     <div style="font-size:10px;color:var(--muted);line-height:1.7;margin-bottom:12px">
-      Fully settled trades remain visible here even after they fall out of the live Treasury pipeline window.
+      Trades graduate here once fully settled. T+0 crypto after on-chain finality; T+1 equities after next-business-day 17:30 ET cutoff.
     </div>
     <div id="settled-repository-list" style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto">
       <div class="dim-t" style="font-size:10px">No fully settled trades recorded yet</div>
@@ -3602,7 +3594,7 @@ async function fetchTreasury() {
       : `${fmtM(d.cash_available)} available for new trade execution`;
 
     // Pipeline columns
-    const colMap = { INSTRUCTED:'instructed', MATCHED:'matched', CASH_SETTLED:'cash-settled', FULLY_SETTLED:'fully-settled' };
+    const colMap = { INSTRUCTED:'instructed', MATCHED:'matched', CASH_SETTLED:'cash-settled' };
     Object.entries(colMap).forEach(([st, id]) => {
       const trades = (d.pipeline || []).filter(t => t.state === st);
       const cntEl  = document.getElementById(`cnt-${id}`);
