@@ -4179,6 +4179,142 @@ def _register_doctrine_documents():
         },
     )
     print("[AUREON] Doctrine knowledge base: Thifur-Atrox + Thifur-C2 registered")
+    _register_canonical_architecture_v1_1()
+
+
+# ── Canonical Governing Architecture registration ─────────────────────────────
+# Per the audit-first rule (Outcome B), this reuses the existing
+# _register_source_document pattern (content-hash-derived document_id,
+# idempotent by content_hash). Canonical documents get an additional
+# canonical_id field ("AUREON-CAGA-v1.1") so operators and regulators can
+# cite them semantically. The retrieval endpoint resolves either identifier.
+
+CANONICAL_DOCUMENTS_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "aureon", "doctrine", "source_documents",
+)
+
+
+def _canonical_doc_integrity(storage_path: str, expected_sha256: str) -> tuple:
+    """Compute on-disk SHA-256 and compare to the registered hash.
+    Returns (matches: bool, actual_sha256: str | None)."""
+    if not os.path.exists(storage_path):
+        return False, None
+    with open(storage_path, "rb") as fh:
+        actual = hashlib.sha256(fh.read()).hexdigest()
+    return actual == expected_sha256, actual
+
+
+def _register_canonical_architecture_v1_1() -> None:
+    """Idempotent registration of AUREON-CAGA-v1.1. Safe on every boot.
+
+    Reads the markdown from
+    aureon/doctrine/source_documents/AUREON-CAGA-v1.1.md, computes SHA-256,
+    and registers via the existing _register_source_document pattern. If a
+    registration already exists with the same content hash, this is a no-op.
+    If the on-disk file's hash drifts from a previously-registered record,
+    surface an integrity warning but do not overwrite the registered record
+    (registered canonical records are immutable — content drift requires a
+    new document_id and version).
+    """
+    md_path = os.path.join(CANONICAL_DOCUMENTS_DIR, "AUREON-CAGA-v1.1.md")
+    if not os.path.exists(md_path):
+        _log_error("WARN", "canonical_registration",
+                   f"canonical markdown missing at {md_path}; skipping")
+        return
+    with open(md_path, "rb") as fh:
+        content_bytes = fh.read()
+    sha256_full = hashlib.sha256(content_bytes).hexdigest()
+    content_text = content_bytes.decode("utf-8", errors="replace")
+
+    # Idempotency check — a previous boot may have registered the same content.
+    # Look for an existing record with canonical_id matching.
+    with _lock:
+        existing = next(
+            (d for d in aureon_state.get("source_documents", [])
+             if d.get("canonical_id") == "AUREON-CAGA-v1.1"),
+            None,
+        )
+    if existing is not None:
+        # If hash matches, no-op. If drifts, log warning + do NOT overwrite.
+        if existing.get("sha256") == sha256_full:
+            return
+        _log_error(
+            "WARN", "canonical_registration",
+            f"AUREON-CAGA-v1.1 on-disk sha256={sha256_full[:16]}... "
+            f"does not match registered sha256={existing.get('sha256','')[:16]}... "
+            "Registered record is immutable; issue a new canonical_id for "
+            "any material revision."
+        )
+        return
+
+    # New registration — compose using the existing pattern, then attach
+    # canonical-document metadata.
+    record = _register_source_document(
+        title        = "Aureon Canonical Governing Architecture v1.1",
+        source_type  = "canonical_architecture",
+        source_name  = "AUREON-CAGA-v1.1.md",
+        content_text = content_text,
+        analysis     = {
+            "title": "Aureon Canonical Governing Architecture v1.1",
+            "summary": (
+                "Canonical synthesis document resolving four prior artifacts "
+                "(deployed server.py as of 2026-04-17, Framework Brief v2, "
+                "Agent Specification Draft 2.0, CAOM-001) into a single "
+                "authoritative governance architecture under Doctrine v1.3. "
+                "Includes layer-by-layer architecture, 10 Governance Axioms, "
+                "failure-mode and escalation logic, CAOM-001 authority mapping, "
+                "doctrine provenance v1.0–v1.3, parity principle, institutional "
+                "licensing thesis, and Appendix A open-conflict drift log."
+            ),
+            "governance_status": "CANONICAL — AUTHORITATIVE SOURCE OF RECORD",
+            "risk_classification": "Doctrine Source Artifact",
+            "stance": "Governance Architecture Source-of-Truth",
+            "conviction_score": 10,
+            "source_file": "AUREON-CAGA-v1.1.md",
+        },
+    )
+
+    # Attach canonical-document fields. The existing record is a dict stored
+    # in aureon_state; mutate in place so the persisted record carries the
+    # canonical metadata.
+    canonical_fields = {
+        "canonical_id":                     "AUREON-CAGA-v1.1",
+        "version":                          "1.1",
+        "effective_date":                   "2026-04-17",
+        "registered_at":                    datetime.now(timezone.utc).isoformat(),
+        "doctrine_version_at_registration": aureon_state.get("doctrine_version", "1.3"),
+        "authority":                        "Guillermo 'Bill' Ravelo · CAOM-001 Tier 3 (Executive)",
+        "sha256":                           sha256_full,
+        "content_format":                   "markdown",
+        "content_length_bytes":             len(content_bytes),
+        "storage_path":                     os.path.relpath(md_path, os.path.dirname(os.path.abspath(__file__))),
+        "supersedes":                       [],
+        "synthesizes_from": [
+            "server.py as of April 17, 2026",
+            "Framework Brief v2 (April 2026, Doctrine v1.3, Cato v0.2.2)",
+            "Agent Specification Draft 2.0",
+            "CAOM-001 (effective April 6, 2026)",
+        ],
+        "classification": "CONFIDENTIAL — Restricted Distribution",
+        "notes": (
+            "Resolves Project Arcadia → Aureon renaming, "
+            "Neptune Spear → Atrox naming, four-layer canonical architecture, "
+            "Axiom 9 Tier 0 Emergency Halt formalization. Open conflicts tracked "
+            "in Appendix A (Cato version parity, CAOM-001 Tier 0 addendum, "
+            "Framework Brief republication, Thifur-H activation gate, SVB calibration limit)."
+        ),
+    }
+    with _lock:
+        for d in aureon_state.get("source_documents", []):
+            if d.get("document_id") == record.get("document_id"):
+                d.update(canonical_fields)
+                break
+    threading.Thread(target=_save_state, daemon=True).start()
+    print(
+        f"[AUREON] Canonical architecture registered — {canonical_fields['canonical_id']} "
+        f"(doc_id={record.get('document_id')}, sha256={sha256_full[:16]}...)"
+    )
 
 
 def run_doctrine_stack():
@@ -4461,6 +4597,74 @@ def api_thesis_registry():
         docs = list(aureon_state.get("source_documents", []))
     docs = sorted(docs, key=lambda d: d.get("created_ts", ""), reverse=True)
     return jsonify({"documents": [_public_source_document(doc) for doc in docs[:25]], "count": len(docs)})
+
+
+@app.route("/api/source_documents", methods=["GET"])
+def api_source_documents_list():
+    """Return all registered authoritative source documents — metadata only.
+
+    Complements /api/thesis/registry with a doctrine-facing surface
+    (unbounded list, canonical_id exposed, no 25-entry cap). Uses
+    _public_source_document to strip content_text from the payload.
+    """
+    with _lock:
+        docs = list(aureon_state.get("source_documents", []))
+    return jsonify({
+        "documents": [_public_source_document(d) for d in docs],
+        "count":     len(docs),
+    })
+
+
+@app.route("/api/source_documents/<path:document_id>", methods=["GET"])
+def api_source_document_by_id(document_id: str):
+    """Retrieve a source document by document_id OR canonical_id with
+    SHA-256 integrity verification.
+
+    - 404 if no document matches the id.
+    - 500 with integrity error if on-disk content (for canonical docs)
+      does not match the registered sha256.
+    - 200 with full metadata + content_text on success.
+    """
+    with _lock:
+        docs = list(aureon_state.get("source_documents", []))
+    match = next(
+        (d for d in docs
+         if d.get("document_id") == document_id
+         or d.get("canonical_id") == document_id),
+        None,
+    )
+    if match is None:
+        return jsonify({
+            "error": "not_found",
+            "document_id": document_id,
+        }), 404
+
+    # Integrity check for canonical docs with a storage_path + sha256
+    storage_path = match.get("storage_path")
+    expected = match.get("sha256")
+    if storage_path and expected:
+        abs_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            storage_path,
+        )
+        matches, actual = _canonical_doc_integrity(abs_path, expected)
+        if not matches:
+            return jsonify({
+                "error": "integrity_check_failed",
+                "document_id": match.get("document_id"),
+                "canonical_id": match.get("canonical_id"),
+                "registered_sha256": expected,
+                "actual_sha256": actual,
+                "storage_path": storage_path,
+                "reason": ("On-disk content does not match the registered "
+                           "SHA-256. Tamper or corruption suspected. The "
+                           "registered record is immutable — a new "
+                           "canonical_id + version is required for any "
+                           "legitimate revision."),
+            }), 500
+
+    # Return full record including content_text
+    return jsonify({"document": dict(match)}), 200
 
 
 @app.route("/api/thesis/upload", methods=["POST"])
