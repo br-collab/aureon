@@ -674,7 +674,8 @@ class ThifurC2(Agent):
         This is the function server.py calls after a human approves a decision.
         """
         # ── Resolve Ranger roles from registry ────────────────────────
-        for required_role in ("AUR-R-SETTLEMENT-001", "AUR-R-TRADESUPPORT-001", "AUR-R-RECON-001"):
+        for required_role in ("AUR-R-SETTLEMENT-001", "AUR-R-TRADESUPPORT-001",
+                              "AUR-R-RECON-001", "AUR-R-REGREP-001"):
             if required_role not in RANGER_AGENTS:
                 raise RuntimeError(
                     f"[THIFUR-C2] Registry missing {required_role}. "
@@ -683,6 +684,7 @@ class ThifurC2(Agent):
         agent_settlement = RANGER_AGENTS["AUR-R-SETTLEMENT-001"](self._state, self._lock)
         agent_ts = RANGER_AGENTS["AUR-R-TRADESUPPORT-001"](self._state, self._lock)
         agent_recon = RANGER_AGENTS["AUR-R-RECON-001"](self._state, self._lock)
+        agent_regrep = RANGER_AGENTS["AUR-R-REGREP-001"](self._state, self._lock)
 
         # ── Step 1: Evaluate convergence scenario ────────────────────
         scenario = self.evaluate_convergence_scenario(decision)
@@ -770,18 +772,31 @@ class ThifurC2(Agent):
             "notional": decision.get("notional"),
         }
         dsor_intent = {
-            "id":       decision.get("id"),
-            "task_id":  task_id,
-            "symbol":   decision.get("symbol"),
-            "action":   decision.get("action"),
-            "shares":   decision.get("shares"),
-            "notional": decision.get("notional"),
+            "id":          decision.get("id"),
+            "decision_id": decision.get("id"),
+            "task_id":     task_id,
+            "symbol":      decision.get("symbol"),
+            "action":      decision.get("action"),
+            "shares":      decision.get("shares"),
+            "notional":    decision.get("notional"),
         }
 
         recon_result = agent_ts.reconcile_execution(execution_confirmation, dsor_intent)
         result["ts_recon_result"] = recon_result
 
         if recon_result.get("status") == "DISCREPANCY":
+            # RTS6 alert on trade-level discrepancy
+            rts6_alert = agent_regrep.generate_rts6_alert({
+                "task_id":              task_id,
+                "breach_ts":            datetime.now(timezone.utc).isoformat(),
+                "breach_source_role_id": "AUR-R-TRADESUPPORT-001",
+                "breach_type":          "TRADE_LEVEL_DISCREPANCY",
+                "symbol":               decision.get("symbol", ""),
+                "detail":               str(recon_result.get("mismatches", [])),
+                "decision_id":          decision.get("id", ""),
+            })
+            result["rts6_alert"] = rts6_alert
+
             escalation = agent_ts.escalate_discrepancy(recon_result)
             self.escalate(
                 task_id          = task_id,
@@ -826,6 +841,18 @@ class ThifurC2(Agent):
         self.record_agent_telemetry(task_id, "AUR-R-RECON-001", lineage_check)
 
         if lineage_check.get("status") == "UNMATCHED":
+            # RTS6 alert on cross-system lineage break
+            rts6_alert = agent_regrep.generate_rts6_alert({
+                "task_id":              task_id,
+                "breach_ts":            datetime.now(timezone.utc).isoformat(),
+                "breach_source_role_id": "AUR-R-RECON-001",
+                "breach_type":          "CROSS_SYSTEM_LINEAGE_UNMATCHED",
+                "symbol":               decision.get("symbol", ""),
+                "detail":               str(lineage_check.get("unmatched", [])),
+                "decision_id":          decision.get("id", ""),
+            })
+            result["rts6_alert"] = rts6_alert
+
             lineage_package = agent_recon.assemble_root_cause_lineage(task_id)
             escalation = agent_recon.escalate_break({
                 "type":            "LINEAGE_UNMATCHED",
@@ -876,7 +903,78 @@ class ThifurC2(Agent):
             result["r_result"] = r_result
             self.record_agent_telemetry(task_id, AGENT_R, r_result)
 
-        # ── Step 8: Assemble unified lineage ──────────────────────────
+        # ── Step 9: RegReporting lifecycle-close package ────────────────
+        regrep_handoff = self.handoff(
+            task_id        = task_id,
+            from_agent     = AGENT_R,
+            to_agent       = "AUR-R-REGREP-001",
+            object_state   = decision,
+            handoff_reason = "Settlement complete — regulatory reporting lifecycle close",
+        )
+        regrep_confirmed = agent_regrep.confirm_handoff(regrep_handoff)
+        if not regrep_confirmed:
+            self.escalate(
+                task_id          = task_id,
+                escalating_agent = "AUR-R-REGREP-001",
+                reason           = "RegReporting handoff confirmation failed",
+                severity         = "HALT",
+                context          = {"handoff_record": regrep_handoff},
+            )
+            result["status"] = "HANDOFF_FAILURE"
+            return result
+
+        # Build lifecycle-close reporting context
+        reporting_context = {
+            "id":                     decision.get("id"),
+            "task_id":                task_id,
+            "symbol":                 decision.get("symbol", ""),
+            "action":                 decision.get("action", ""),
+            "notional":               decision.get("notional", 0),
+            "asset_class":            decision.get("asset_class", ""),
+            "counterparty_lei":       decision.get("counterparty_lei", "N/A_PAPER_TRADING"),
+            "authority_hash":         r_result.get("lineage_stamp", {}).get("authority_hash", "") if r_result else "",
+            "doctrine_version":       doctrine_version or "unknown",
+            "release_target":         decision.get("release_target", "OMS"),
+        }
+
+        regrep_result = agent_regrep.prepare_execution_package(reporting_context, task_id, self)
+        result["regrep_result"] = regrep_result
+        self.record_agent_telemetry(task_id, "AUR-R-REGREP-001", regrep_result)
+
+        # Generate individual reports for BCBS 239 P3 validation
+        emir_report = agent_regrep.generate_emir_report(reporting_context)
+        result["emir_report"] = emir_report
+
+        # BCBS 239 P3 validation gate
+        p3_result = agent_regrep.validate_bcbs239_p3_accuracy(
+            report=emir_report,
+            dsor_source=dsor_intent,
+        )
+        result["bcbs239_p3_result"] = p3_result
+
+        if p3_result.get("status") == "BLOCKED":
+            escalation = agent_regrep.escalate_reporting_failure({
+                "failure_type":      "BCBS239_P3_VALIDATION_BLOCKED",
+                "report_type":       "EMIR",
+                "detail":            str(p3_result.get("mismatches", [])),
+                "task_id":           task_id,
+            })
+            self.escalate(
+                task_id          = task_id,
+                escalating_agent = "AUR-R-REGREP-001",
+                reason           = f"BCBS 239 P3 validation blocked: {p3_result.get('mismatches')}",
+                severity         = "WARN",
+                context          = p3_result,
+            )
+            result["status"]     = "BCBS239_P3_VALIDATION_BLOCKED"
+            result["escalation"] = {
+                "agent":    escalation.agent_role_id,
+                "reason":   escalation.reason,
+                "tier":     escalation.requires_authority_tier,
+            }
+            return result
+
+        # ── Step 10: Assemble unified lineage ─────────────────────────
         lineage = self.get_unified_lineage(task_id)
         result["unified_lineage"] = lineage
         result["status"]          = "COMPLETE"
