@@ -94,8 +94,7 @@ from aureon.integration_adapters.oms_adapter import send as oms_send
 from aureon.integration_adapters.ems_adapter import build_execution_release
 from aureon.session.session_protocol import SessionProtocol
 from aureon.data.market_data import get_price, get_prices_batch
-from agent_j import ThifurJ
-from agent_r import ThifurR
+from aureon.agents import ThifurJ, ThifurR
 
 # ── LOAD .env FILE ────────────────────────────────────────────────
 # Reads AUREON_EMAIL and AUREON_EMAIL_PW from the .env file in

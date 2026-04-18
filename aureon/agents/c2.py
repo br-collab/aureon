@@ -1,7 +1,7 @@
 """
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                         ║
-║  aureon/thifur/c2.py                                                 ║
+║  aureon/agents/c2.py                                                 ║
 ║  Thifur-C2 — Command and Control Master Agent                        ║
 ║                                                                      ║
 ║  MANDATE:                                                            ║
@@ -25,11 +25,15 @@
 ╚══════════════════════════════════════════════════════════════════════╝
 """
 
+from __future__ import annotations
+
 import hashlib
 import threading
 import time
 from datetime import datetime, timezone
 from typing import Any
+
+from aureon.agents._base import AureonAgent
 
 # ── C2 Operating Constants ────────────────────────────────────────────────────
 C2_VERSION          = "1.0"
@@ -74,7 +78,7 @@ CONV_CONCENTRATION_BREACH   = "CONCENTRATION_BREACH_MID_LIFECYCLE"
 CONV_JURISDICTIONAL_CONFLICT = "JURISDICTIONAL_CONFLICT"
 
 
-class ThifurC2:
+class ThifurC2(AureonAgent):
     """
     Thifur-C2 Master Agent.
 
@@ -98,8 +102,7 @@ class ThifurC2:
     """
 
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
-        self._state   = aureon_state
-        self._lock    = state_lock
+        super().__init__(aureon_state, state_lock)
         self._c2_lock = threading.Lock()   # C2's own internal lock
 
         # ── C2 internal registers ─────────────────────────────────
@@ -788,6 +791,10 @@ class ThifurC2:
             "convergence_governance": "ACTIVE",
             "trad_fi_defi_boundary":  "GOVERNED",
         }
+
+    def get_status(self) -> dict:
+        """AureonAgent ABC — delegates to get_c2_status()."""
+        return self.get_c2_status()
 
     def get_handoff_log(self, limit: int = 50) -> list:
         """Return recent handoff records for dashboard display."""
