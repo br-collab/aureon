@@ -35,6 +35,9 @@ from typing import Any
 
 from aureon.agents.base import Agent, Intent, Advisory, Tasking, Result
 from aureon.agents.ranger import RANGER_AGENTS
+from aureon.agents.payloads import (
+    ExecutionConfirmation, DSORIntent, BreachEvent, ReportingContext,
+)
 
 # ── C2 Operating Constants ────────────────────────────────────────────────────
 C2_VERSION          = "1.0"
@@ -765,36 +768,37 @@ class ThifurC2(Agent):
         # Build execution confirmation from the OMS release result.
         # In production this comes from the OMS; here we derive it from
         # the approved decision — the lifecycle is paper-trading.
-        execution_confirmation = {
-            "symbol":   decision.get("symbol"),
-            "action":   decision.get("action"),
-            "shares":   decision.get("shares"),
-            "notional": decision.get("notional"),
-        }
-        dsor_intent = {
-            "id":          decision.get("id"),
-            "decision_id": decision.get("id"),
-            "task_id":     task_id,
-            "symbol":      decision.get("symbol"),
-            "action":      decision.get("action"),
-            "shares":      decision.get("shares"),
-            "notional":    decision.get("notional"),
-        }
+        execution_confirmation = ExecutionConfirmation(
+            task_id=task_id,
+            decision_id=decision.get("id"),
+            symbol=decision.get("symbol"),
+            action=decision.get("action"),
+            shares=decision.get("shares", 0),
+            notional=decision.get("notional", 0),
+        )
+        dsor_intent = DSORIntent(
+            task_id=task_id,
+            decision_id=decision.get("id"),
+            symbol=decision.get("symbol"),
+            action=decision.get("action"),
+            shares=decision.get("shares", 0),
+            notional=decision.get("notional", 0),
+        )
 
         recon_result = agent_ts.reconcile_execution(execution_confirmation, dsor_intent)
         result["ts_recon_result"] = recon_result
 
         if recon_result.get("status") == "DISCREPANCY":
             # RTS6 alert on trade-level discrepancy
-            rts6_alert = agent_regrep.generate_rts6_alert({
-                "task_id":              task_id,
-                "breach_ts":            datetime.now(timezone.utc).isoformat(),
-                "breach_source_role_id": "AUR-R-TRADESUPPORT-001",
-                "breach_type":          "TRADE_LEVEL_DISCREPANCY",
-                "symbol":               decision.get("symbol", ""),
-                "detail":               str(recon_result.get("mismatches", [])),
-                "decision_id":          decision.get("id", ""),
-            })
+            rts6_alert = agent_regrep.generate_rts6_alert(BreachEvent(
+                task_id=task_id,
+                breach_ts=datetime.now(timezone.utc).isoformat(),
+                breach_source_role_id="AUR-R-TRADESUPPORT-001",
+                breach_type="TRADE_LEVEL_DISCREPANCY",
+                symbol=decision.get("symbol", ""),
+                detail=str(recon_result.get("mismatches", [])),
+                decision_id=decision.get("id", ""),
+            ))
             result["rts6_alert"] = rts6_alert
 
             escalation = agent_ts.escalate_discrepancy(recon_result)
@@ -842,15 +846,15 @@ class ThifurC2(Agent):
 
         if lineage_check.get("status") == "UNMATCHED":
             # RTS6 alert on cross-system lineage break
-            rts6_alert = agent_regrep.generate_rts6_alert({
-                "task_id":              task_id,
-                "breach_ts":            datetime.now(timezone.utc).isoformat(),
-                "breach_source_role_id": "AUR-R-RECON-001",
-                "breach_type":          "CROSS_SYSTEM_LINEAGE_UNMATCHED",
-                "symbol":               decision.get("symbol", ""),
-                "detail":               str(lineage_check.get("unmatched", [])),
-                "decision_id":          decision.get("id", ""),
-            })
+            rts6_alert = agent_regrep.generate_rts6_alert(BreachEvent(
+                task_id=task_id,
+                breach_ts=datetime.now(timezone.utc).isoformat(),
+                breach_source_role_id="AUR-R-RECON-001",
+                breach_type="CROSS_SYSTEM_LINEAGE_UNMATCHED",
+                symbol=decision.get("symbol", ""),
+                detail=str(lineage_check.get("unmatched", [])),
+                decision_id=decision.get("id", ""),
+            ))
             result["rts6_alert"] = rts6_alert
 
             lineage_package = agent_recon.assemble_root_cause_lineage(task_id)
@@ -924,18 +928,18 @@ class ThifurC2(Agent):
             return result
 
         # Build lifecycle-close reporting context
-        reporting_context = {
-            "id":                     decision.get("id"),
-            "task_id":                task_id,
-            "symbol":                 decision.get("symbol", ""),
-            "action":                 decision.get("action", ""),
-            "notional":               decision.get("notional", 0),
-            "asset_class":            decision.get("asset_class", ""),
-            "counterparty_lei":       decision.get("counterparty_lei", "N/A_PAPER_TRADING"),
-            "authority_hash":         r_result.get("lineage_stamp", {}).get("authority_hash", "") if r_result else "",
-            "doctrine_version":       doctrine_version or "unknown",
-            "release_target":         decision.get("release_target", "OMS"),
-        }
+        reporting_context = ReportingContext(
+            task_id=task_id,
+            decision_id=decision.get("id"),
+            symbol=decision.get("symbol", ""),
+            action=decision.get("action", ""),
+            notional=decision.get("notional", 0),
+            asset_class=decision.get("asset_class", ""),
+            counterparty_lei=decision.get("counterparty_lei", "N/A_PAPER_TRADING"),
+            authority_hash=r_result.get("lineage_stamp", {}).get("authority_hash", "") if r_result else "",
+            doctrine_version=doctrine_version or "unknown",
+            release_target=decision.get("release_target", "OMS"),
+        )
 
         regrep_result = agent_regrep.prepare_execution_package(reporting_context, task_id, self)
         result["regrep_result"] = regrep_result
