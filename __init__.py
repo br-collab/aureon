@@ -10,13 +10,9 @@ Phase 2+ declared (not active):
     ThifurH   — Hunter-Killer adaptive intelligence agent
 
 Import pattern:
-    from aureon.thifur.c2 import ThifurC2
-    from aureon.thifur.agent_j import ThifurJ
-    from aureon.thifur.agent_r import ThifurR
+    from aureon.agents import ThifurC2, ThifurJ, ThifurR, ThifurH
 """
 
-from aureon.thifur.c2 import ThifurC2
-from aureon.thifur.agent_j import ThifurJ
-from aureon.thifur.agent_r import ThifurR
+from aureon.agents import ThifurC2, ThifurJ, ThifurR, ThifurH
 
-__all__ = ["ThifurC2", "ThifurJ", "ThifurR"]
+__all__ = ["ThifurC2", "ThifurJ", "ThifurR", "ThifurH"]

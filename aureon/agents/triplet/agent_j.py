@@ -1,7 +1,7 @@
 """
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                         ║
-║  aureon/thifur/agent_j.py                                            ║
+║  aureon/agents/triplet/agent_j.py                                    ║
 ║  Thifur-J — JTAC — Bounded Autonomy Agent                           ║
 ║                                                                      ║
 ║  MANDATE (Phase 1):                                                  ║
@@ -31,8 +31,10 @@ import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+from aureon.agents._base import AureonAgent
+
 if TYPE_CHECKING:
-    from aureon.thifur.c2 import ThifurC2
+    from aureon.agents.c2 import ThifurC2
 
 # ── J Operating Constants ─────────────────────────────────────────────────────
 AGENT_J_VERSION   = "1.0"
@@ -73,7 +75,7 @@ GATES = [
 ]
 
 
-class ThifurJ:
+class ThifurJ(AureonAgent):
     """
     Thifur-J — JTAC — Bounded Autonomy Agent.
 
@@ -84,8 +86,7 @@ class ThifurJ:
     """
 
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
-        self._state = aureon_state
-        self._lock  = state_lock
+        super().__init__(aureon_state, state_lock)
         print(f"[THIFUR-J] Initialized — v{AGENT_J_VERSION} | "
               f"Algorithm ID: {ALGORITHM_ID} | SR 11-7 Tier 1 declared")
 

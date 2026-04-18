@@ -1,7 +1,7 @@
 """
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                         ║
-║  aureon/thifur/agent_r.py                                            ║
+║  aureon/agents/triplet/agent_r.py                                    ║
 ║  Thifur-R — Ranger — Deterministic Execution Agent                  ║
 ║                                                                      ║
 ║  MANDATE:                                                            ║
@@ -31,8 +31,10 @@ import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+from aureon.agents._base import AureonAgent
+
 if TYPE_CHECKING:
-    from aureon.thifur.c2 import ThifurC2
+    from aureon.agents.c2 import ThifurC2
 
 # ── R Operating Constants ─────────────────────────────────────────────────────
 AGENT_R_VERSION  = "1.0"
@@ -56,7 +58,7 @@ FIX_ORD_TYPE_MARKET = "1"
 FIX_ORD_TYPE_LIMIT  = "2"
 
 
-class ThifurR:
+class ThifurR(AureonAgent):
     """
     Thifur-R — Ranger — Deterministic Execution Agent.
 
@@ -72,8 +74,7 @@ class ThifurR:
     """
 
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
-        self._state = aureon_state
-        self._lock  = state_lock
+        super().__init__(aureon_state, state_lock)
         self._handoff_confirmed = False   # must be True before prepare_settlement_package
         print(f"[THIFUR-R] Initialized — v{AGENT_R_VERSION} | "
               f"Zero variance — deterministic only | SR 11-7 Tier 2")

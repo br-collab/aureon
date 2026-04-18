@@ -8,9 +8,9 @@
 ║  1. Add these imports near the top of server.py (after existing     ║
 ║     aureon.* imports):                                               ║
 ║                                                                      ║
-║     from aureon.thifur.c2 import ThifurC2                           ║
-║     from aureon.thifur.agent_j import ThifurJ                       ║
-║     from aureon.thifur.agent_r import ThifurR                       ║
+║     from aureon.agents import ThifurC2                           ║
+║     from aureon.agents import ThifurJ                       ║
+║     from aureon.agents import ThifurR                       ║
 ║                                                                      ║
 ║  2. After the aureon_state dict definition, initialize the agents:  ║
 ║                                                                      ║
@@ -33,9 +33,9 @@
 # PASTE 1: Imports (add after existing aureon.* imports in server.py)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# from aureon.thifur.c2 import ThifurC2
-# from aureon.thifur.agent_j import ThifurJ
-# from aureon.thifur.agent_r import ThifurR
+# from aureon.agents import ThifurC2
+# from aureon.agents import ThifurJ
+# from aureon.agents import ThifurR
 
 
 # ─────────────────────────────────────────────────────────────────────────────
