@@ -33,7 +33,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from aureon.agents.base import Agent
+from aureon.agents.base import Agent, Intent, Advisory, Tasking, Result
 
 # ── C2 Operating Constants ────────────────────────────────────────────────────
 C2_VERSION          = "1.0"
@@ -100,6 +100,10 @@ class ThifurC2(Agent):
         # Get the unified lineage record for DSOR:
         lineage = c2.get_unified_lineage(task_id)
     """
+
+    tier = 0
+    thifur_class = "C2"
+    role_id = "AUR-C2-COORD-001"
 
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
         super().__init__(aureon_state, state_lock)
@@ -791,6 +795,25 @@ class ThifurC2(Agent):
             "convergence_governance": "ACTIVE",
             "trad_fi_defi_boundary":  "GOVERNED",
         }
+
+    def advise(self, intent: Intent) -> Advisory:
+        """C2 does not advise — it coordinates."""
+        return Advisory(
+            timestamp=datetime.now(timezone.utc),
+            agent_role_id=self.role_id,
+            summary="C2 coordinates agent lifecycle — not an advisory agent",
+            recommendation={},
+            requires_approval=False,
+        )
+
+    def execute(self, tasking: Tasking) -> Result:
+        """C2 does not execute — it coordinates."""
+        return Result(
+            timestamp=datetime.now(timezone.utc),
+            agent_role_id=self.role_id,
+            outcome="DELEGATED",
+            dsor_record_id=tasking.c2_tasking_id,
+        )
 
     def get_status(self) -> dict:
         """AureonAgent ABC — delegates to get_c2_status()."""

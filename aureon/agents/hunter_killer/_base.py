@@ -49,7 +49,7 @@ import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from aureon.agents.base import Agent, NotActivatedError
+from aureon.agents.base import HunterKillerAgent, NotActivatedError, Intent, Advisory
 
 if TYPE_CHECKING:
     from aureon.agents.c2.coordinator import ThifurC2
@@ -197,7 +197,7 @@ PRICE_FEED_CONFIG = {
 }
 
 
-class ThifurH(Agent):
+class ThifurH(HunterKillerAgent):
     """
     Thifur-H — Hunter-Killer — Adaptive Intelligence Agent.
 
@@ -217,6 +217,8 @@ class ThifurH(Agent):
     This is the governance statement. The capability follows the governance.
     Not the other way around.
     """
+
+    role_id = "AUR-H-ADAPTIVE-001"
 
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
         super().__init__(aureon_state, state_lock)
@@ -423,6 +425,16 @@ class ThifurH(Agent):
     # ─────────────────────────────────────────────────────────────────────────
     # STATUS AND DASHBOARD
     # ─────────────────────────────────────────────────────────────────────────
+
+    def advise(self, intent: Intent) -> Advisory:
+        """Declared shell — returns not-activated advisory."""
+        return Advisory(
+            timestamp=datetime.now(timezone.utc),
+            agent_role_id=self.role_id,
+            summary="Thifur-H is declared but not activated",
+            recommendation={},
+            requires_approval=False,
+        )
 
     def get_status(self) -> dict:
         """Return Thifur-H status for dashboard and regulatory display."""
