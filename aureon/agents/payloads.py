@@ -228,3 +228,129 @@ class RTS6Alert(_DictCompatMixin):
     detail: str = ""
     decision_id: str = ""
     breach_source_role_id: str = ""
+
+
+# ── JTAC Phase 4 payloads ──────────────────────────────────────────────────────
+# Introduced alongside JTACConcreteBase + Compliance (AUR-J-COMP-001) for the
+# bounded-autonomy tier. The contract these payloads carry:
+#   - Selected-path record with attribution (who selected, which doctrine version)
+#   - Approval-gate context rich enough for the operator (or future Operator
+#     Console) to render the decision
+#   - Conflict-registry record requiring dual-authority (Compliance + Legal)
+#     resolution when a named doctrine/regulatory conflict is triggered
+
+
+@dataclass
+class ApprovedPath(_DictCompatMixin):
+    """A single approved path that a JTAC role can select among.
+
+    Phase 4 is code-as-path: callable_ref is the dotted Python path resolved
+    at runtime. Phase 7+ introduces data-as-path where rule_data replaces the
+    callable entirely. Both fields coexist here for forward-compatibility.
+    """
+    path_id: str = None
+    role_id: str = None
+    description: str = ""
+    callable_ref: Optional[str] = None
+    rule_data: Optional[dict] = None
+    requires_approval: bool = False
+    approval_predicates: list = field(default_factory=list)
+    conflict_keys: list = field(default_factory=list)
+
+    def __post_init__(self):
+        _validate_required(self, ["path_id", "role_id"])
+
+
+@dataclass
+class JTACPathSelection(_DictCompatMixin):
+    """JTAC's output: which approved path was selected and what's required next.
+
+    Returned by every JTAC task method (screen_ofac, etc.). C2 reads this to
+    decide whether to continue the lifecycle (requires_approval=False),
+    halt for single-authority approval (requires_approval=True), or halt for
+    dual-authority conflict resolution (requires_authority_resolution=True).
+    """
+    task_id: str = None
+    role_id: str = None
+    selected_path_id: str = None
+    selection_rationale: str = ""
+    requires_approval: bool = False
+    pending_approval_for: list = field(default_factory=list)
+    requires_authority_resolution: bool = False
+    conflict_id: Optional[str] = None
+    doctrine_version: Optional[str] = None
+    selected_at: str = ""
+
+    def __post_init__(self):
+        _validate_required(self, ["task_id", "role_id", "selected_path_id"])
+        if not self.selected_at:
+            self.selected_at = datetime.now(timezone.utc).isoformat()
+
+
+@dataclass
+class ApprovalGateContext(_DictCompatMixin):
+    """Payload C2 receives when JTAC returns requires_approval=True.
+
+    Carries enough context for the operator (or future Operator Console) to
+    render the gate and make the decision. Serialized into
+    aureon_state["paused_lifecycles"][task_id] so a pause survives a restart.
+    """
+    task_id: str = None
+    role_id: str = None
+    path_selection: Optional[JTACPathSelection] = None
+    intent_summary: dict = field(default_factory=dict)
+    risk_summary: dict = field(default_factory=dict)
+    pending_predicates: list = field(default_factory=list)
+    halt_ts: str = ""
+
+    def __post_init__(self):
+        _validate_required(self, ["task_id", "role_id", "path_selection"])
+        if not self.halt_ts:
+            self.halt_ts = datetime.now(timezone.utc).isoformat()
+
+
+@dataclass
+class ConflictResolution(_DictCompatMixin):
+    """Pre-determined conflict requiring dual-authority human resolution.
+
+    Phase 4 fills both authority slots via CAOM-001 (Bill holds all tiers);
+    the dual-role distinction is preserved in the payload shape so future
+    org expansion (separate Compliance head + General Counsel) doesn't
+    require a schema change.
+
+    combined_resolution is only valid when both decision dicts are present.
+    """
+    task_id: str = None
+    conflict_id: str = None
+    conflict_summary: str = ""
+    requires_compliance_authority: bool = True
+    requires_legal_authority: bool = True
+    compliance_authority_decision: Optional[dict] = None
+    legal_authority_decision: Optional[dict] = None
+    combined_resolution: Optional[dict] = None
+    halt_ts: str = ""
+
+    def __post_init__(self):
+        _validate_required(self, ["task_id", "conflict_id"])
+        if not self.halt_ts:
+            self.halt_ts = datetime.now(timezone.utc).isoformat()
+
+
+@dataclass
+class CounterpartyScreeningRequest(_DictCompatMixin):
+    """Input to Compliance.screen_ofac (AUR-J-COMP-001).
+
+    counterparty_name is the primary screening key for Phase 4's exact-match
+    semantics. Fuzzy, phonetic, transliteration, 50%-rule, and SSI matching
+    are explicitly deferred.
+    """
+    task_id: str = None
+    counterparty_name: str = None
+    counterparty_jurisdiction: str = ""
+    counterparty_lei: Optional[str] = None
+    requested_at: str = ""
+
+    def __post_init__(self):
+        _validate_required(self, ["task_id", "counterparty_name"])
+        if not self.requested_at:
+            self.requested_at = datetime.now(timezone.utc).isoformat()

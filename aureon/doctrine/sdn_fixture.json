@@ -1,0 +1,69 @@
+{
+  "_note": "Clearly fictional fixture SDN list for Phase 4 OFAC screening tests. Does NOT contain real OFAC entries. Used by aureon/agents/jtac/compliance.py Compliance.screen_ofac() for exact-match demonstration. YAML equivalent planned; JSON used because PyYAML is not in requirements.txt.",
+  "sdn_entries": [
+    {
+      "sdn_id": "SDN-FICTION-001",
+      "primary_name": "EXAMPLE SANCTIONED ENTITY ALPHA",
+      "aliases": ["EXAMPLE ALPHA LTD", "ALPHA EXAMPLE"],
+      "entity_type": "ENTITY",
+      "jurisdiction": "FICTION_COUNTRY_A",
+      "sdn_program": "FICTION_PROGRAM_1"
+    },
+    {
+      "sdn_id": "SDN-FICTION-002",
+      "primary_name": "BETA TESTCORP INTERNATIONAL",
+      "aliases": ["BETA TEST INTL", "BETA CORP"],
+      "entity_type": "ENTITY",
+      "jurisdiction": "FICTION_COUNTRY_B",
+      "sdn_program": "FICTION_PROGRAM_2"
+    },
+    {
+      "sdn_id": "SDN-FICTION-003",
+      "primary_name": "GAMMA HOLDINGS FICTITIOUS SA",
+      "aliases": ["GAMMA HOLDINGS", "GAMMA SA"],
+      "entity_type": "ENTITY",
+      "jurisdiction": "DE",
+      "sdn_program": "FICTION_PROGRAM_3"
+    },
+    {
+      "sdn_id": "SDN-FICTION-004",
+      "primary_name": "DELTA EXAMPLE TRADING LLC",
+      "aliases": ["DELTA EXAMPLE", "DELTA TRADING"],
+      "entity_type": "ENTITY",
+      "jurisdiction": "FICTION_COUNTRY_D",
+      "sdn_program": "FICTION_PROGRAM_1"
+    },
+    {
+      "sdn_id": "SDN-FICTION-005",
+      "primary_name": "EPSILON FAUX BANK GROUP",
+      "aliases": ["EPSILON BANK", "EPSILON GROUP"],
+      "entity_type": "ENTITY",
+      "jurisdiction": "FR",
+      "sdn_program": "FICTION_PROGRAM_2"
+    },
+    {
+      "sdn_id": "SDN-FICTION-006",
+      "primary_name": "ZETA SIMULATED FUND MANAGEMENT",
+      "aliases": ["ZETA FUND", "ZETA MGMT"],
+      "entity_type": "ENTITY",
+      "jurisdiction": "FICTION_COUNTRY_F",
+      "sdn_program": "FICTION_PROGRAM_3"
+    },
+    {
+      "sdn_id": "SDN-FICTION-007",
+      "primary_name": "ETA PLACEHOLDER INDUSTRIES",
+      "aliases": ["ETA INDUSTRIES", "ETA CORP"],
+      "entity_type": "ENTITY",
+      "jurisdiction": "FICTION_COUNTRY_G",
+      "sdn_program": "FICTION_PROGRAM_1"
+    },
+    {
+      "sdn_id": "SDN-FICTION-008",
+      "primary_name": "THETA MOCK ENERGY CO",
+      "aliases": ["THETA ENERGY", "THETA MOCK"],
+      "entity_type": "ENTITY",
+      "jurisdiction": "FICTION_COUNTRY_H",
+      "sdn_program": "FICTION_PROGRAM_2"
+    }
+  ]
+}

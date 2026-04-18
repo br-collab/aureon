@@ -39,6 +39,13 @@ def save_state(*, state, lock, state_file, resolve_mmf_provider, log_error):
                 "mmf_provider":      resolve_mmf_provider(state.get("mmf_provider")),
                 "sweep_log":         list(state.get("sweep_log", [])),
                 "decision_journal":  list(state.get("decision_journal", [])),
+                # ── JTAC Phase 4 ────────────────────────────────────
+                # paused_lifecycles is a dict keyed by canonical task_id;
+                # must persist so approval/conflict halts survive a restart.
+                # c2_j_compliance_log mirrors c2_r_*_log shape and must also
+                # cross restarts so the screening trail is durable.
+                "paused_lifecycles":     dict(state.get("paused_lifecycles", {})),
+                "c2_j_compliance_log":   list(state.get("c2_j_compliance_log", [])),
                 "saved_at":          datetime.now(timezone.utc).isoformat(),
             }
         # Atomic save: write to tmp in the same directory, then rename.

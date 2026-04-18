@@ -1,0 +1,40 @@
+{
+  "_note": "YAML equivalent planned; PyYAML not in requirements.txt so JSON is used. Shape preserved from Phase 4 spec. Any future PyYAML-enabled environment can swap the loader by overriding source_path in JTACConcreteBase.detect_conflict().",
+  "conflicts": [
+    {
+      "id": "OFAC_VS_GDPR_DATA_RETENTION",
+      "summary": "OFAC SDN screening requires retention of identifying data on screened parties (including EU residents). EU GDPR Article 17 establishes right-to-be-forgotten. When an EU resident is screened against OFAC and is not a match, OFAC retention requirements and GDPR minimization create a documented conflict.",
+      "primary_jurisdictions": ["US", "EU"],
+      "resolution_authority": ["compliance", "legal"],
+      "default_disposition": "hold_and_escalate"
+    },
+    {
+      "id": "MIFID_II_BEST_EX_VS_SEC_REG_NMS",
+      "summary": "MiFID II best-execution requires consideration of total consideration including research costs (unbundling). SEC Reg NMS prioritizes price-time priority across US trading venues. Dual-listed European securities traded by US-domiciled funds can produce conflicting venue selections under each framework.",
+      "primary_jurisdictions": ["EU", "US"],
+      "resolution_authority": ["compliance", "legal"],
+      "default_disposition": "hold_and_escalate"
+    },
+    {
+      "id": "BCBS_239_P3_VS_CFTC_PART45_TIMING",
+      "summary": "BCBS 239 P3 requires automated accuracy validation before any regulatory submission. CFTC Part 45 imposes timing SLAs on swap data reporting. Accuracy validation runs can exceed CFTC reporting windows for high-volume derivative books.",
+      "primary_jurisdictions": ["Global", "US"],
+      "resolution_authority": ["compliance", "legal"],
+      "default_disposition": "hold_and_escalate"
+    },
+    {
+      "id": "FINRA_SUITABILITY_VS_MIFID_APPROPRIATENESS",
+      "summary": "FINRA suitability rules and MiFID II appropriateness requirements use different definitions of the same client-protection concept. Cross-border retail-adjacent transactions can satisfy one and fail the other.",
+      "primary_jurisdictions": ["US", "EU"],
+      "resolution_authority": ["compliance", "legal"],
+      "default_disposition": "hold_and_escalate"
+    },
+    {
+      "id": "OFAC_50_PERCENT_RULE_VS_BENEFICIAL_OWNERSHIP_DISCLOSURE",
+      "summary": "OFAC's 50% rule treats entities owned 50%+ by sanctioned parties as themselves sanctioned, even if not on the SDN list. Beneficial ownership disclosure requirements (FinCEN, Corporate Transparency Act) generate the data needed to apply the 50% rule but with their own retention and disclosure constraints.",
+      "primary_jurisdictions": ["US"],
+      "resolution_authority": ["compliance", "legal"],
+      "default_disposition": "hold_and_escalate"
+    }
+  ]
+}
