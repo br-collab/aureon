@@ -34,6 +34,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from aureon.agents.base import Agent, Intent, Advisory, Tasking, Result
+from aureon.agents.ranger import RANGER_AGENTS
 
 # ── C2 Operating Constants ────────────────────────────────────────────────────
 C2_VERSION          = "1.0"
@@ -659,7 +660,7 @@ class ThifurC2(Agent):
     def process_pretrade_lifecycle(self,
                                    decision: dict,
                                    agent_j,   # ThifurJ instance
-                                   agent_r,   # SettlementOps instance
+                                   agent_r=None,   # ignored — resolved via RANGER_AGENTS
                                    doctrine_version: str | None = None) -> dict:
         """
         Phase 1 governed lifecycle entry point.
@@ -672,6 +673,15 @@ class ThifurC2(Agent):
 
         This is the function server.py calls after a human approves a decision.
         """
+        # ── Resolve SettlementOps from registry ───────────────────────
+        settlement_role_id = "AUR-R-SETTLEMENT-001"
+        if settlement_role_id not in RANGER_AGENTS:
+            raise RuntimeError(
+                f"[THIFUR-C2] Registry missing {settlement_role_id}. "
+                "Cannot proceed without settlement role in RANGER_AGENTS."
+            )
+        agent_r = RANGER_AGENTS[settlement_role_id](self._state, self._lock)
+
         # ── Step 1: Evaluate convergence scenario ────────────────────
         scenario = self.evaluate_convergence_scenario(decision)
         sequencing = self.get_convergence_sequencing(scenario) if scenario else {
@@ -742,7 +752,7 @@ class ThifurC2(Agent):
 
         # ── Step 5: Thifur-R settlement preparation ───────────────────
         if AGENT_R in agents:
-            r_result = agent_r.prepare_settlement_package(decision, task_id, self)
+            r_result = agent_r.prepare_execution_package(decision, task_id, self)
             result["r_result"] = r_result
 
             # Record R telemetry

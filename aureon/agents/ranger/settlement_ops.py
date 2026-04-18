@@ -187,17 +187,6 @@ class SettlementOps(RangerConcreteBase):
         }
 
     # ─────────────────────────────────────────────────────────────────────────
-    # BACKWARD-COMPAT ALIAS
-    # ─────────────────────────────────────────────────────────────────────────
-
-    def prepare_settlement_package(self,
-                                   decision: dict,
-                                   task_id: str,
-                                   c2: "ThifurC2") -> dict:
-        """Legacy alias — delegates to prepare_execution_package."""
-        return self.prepare_execution_package(decision, task_id, c2)
-
-    # ─────────────────────────────────────────────────────────────────────────
     # STATUS
     # ─────────────────────────────────────────────────────────────────────────
 
