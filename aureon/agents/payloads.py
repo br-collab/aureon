@@ -131,7 +131,7 @@ class DSORIntent(_DictCompatMixin):
 class TradeReconciliationResult(_DictCompatMixin):
     """Output of TradeSupport.reconcile_execution."""
     task_id: str = ""
-    status: str = ""
+    status: str = None
     matched: bool = False
     fields_checked: list = field(default_factory=list)
     mismatches: list = field(default_factory=list)
@@ -147,7 +147,7 @@ class TradeReconciliationResult(_DictCompatMixin):
 class LineageCheckResult(_DictCompatMixin):
     """Output of Reconciliation.match_intent_vs_execution."""
     task_id: str = ""
-    status: str = ""
+    status: str = None
     matched: bool = False
     fields_checked: list = field(default_factory=list)
     unmatched: list = field(default_factory=list)
