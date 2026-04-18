@@ -1,0 +1,12 @@
+{
+  "decision": {
+    "id": "DEC-FIXTURE-001",
+    "action": "SELL",
+    "symbol": "SPY",
+    "asset_class": "equities",
+    "shares": 100,
+    "notional": 52000,
+    "release_target": "OMS"
+  },
+  "task_id": "TSK-FIXTURE-001"
+}

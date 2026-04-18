@@ -1,0 +1,12 @@
+{
+  "depot_positions": {
+    "SPY": 10000,
+    "TLT": 5000,
+    "AGG": 1000
+  },
+  "ledger_positions": {
+    "SPY": 10000,
+    "TLT": 4990,
+    "AGG": 1000
+  }
+}
