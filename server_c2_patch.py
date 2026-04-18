@@ -70,7 +70,6 @@ def _c2_governed_approve(decision: dict, exec_price: float) -> dict:
     lifecycle_result = _thifur_c2.process_pretrade_lifecycle(
         decision         = decision,
         agent_j          = _thifur_j,
-        agent_r          = _thifur_r,
         doctrine_version = aureon_state.get("doctrine_version", "1.2"),
     )
 

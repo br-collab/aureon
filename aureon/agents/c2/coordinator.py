@@ -663,7 +663,6 @@ class ThifurC2(Agent):
     def process_pretrade_lifecycle(self,
                                    decision: dict,
                                    agent_j,   # ThifurJ instance
-                                   agent_r=None,   # ignored — resolved via RANGER_AGENTS
                                    doctrine_version: str | None = None) -> dict:
         """
         Phase 1 governed lifecycle entry point.
