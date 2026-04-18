@@ -3,21 +3,25 @@
 ## Active — Tech Debt
 [Items with explicit trigger conditions. Each entry names what must be true before it's addressed.]
 
-### JTAC base unification
-Phase 4 (da66610) introduces `JTACConcreteBase` but leaves `ThifurJ`
-(AUR-J-TRADE-001, 596 lines in `aureon/agents/jtac/pretrade_structuring.py`)
-inheriting `JTACAgent` directly. Two JTAC bases coexist temporarily.
-Phase 4.1 retrofits `ThifurJ` onto `JTACConcreteBase`.
+### Phase 4.2 — Pass 2 symbol rename (blocking)
+Display-layer rename Neptune Spear → Atrox and Red Wings → Argus
+completed April 16, 2026 (server.py and UI). Pass 2 — full symbol
+rename — remains outstanding: server.py internal identifiers
+(`_neptune_scan`, `NEPTUNE_WATCHLIST`, `_build_neptune_rec`), state
+key `aureon_state["neptune_recommendations"]` with Railway volume
+migration, routes `/api/neptune/*` → `/api/atrox/*`, signal_type
+literal `"NEPTUNE"` → `"ATROX"`, file renames
+`aureon/config/neptune_spear.py` → `aureon/config/atrox.py` and
+`aureon/mcp/neptune_client.py` → `aureon/mcp/atrox_client.py`,
+doctrine narrative rewrite (not find-and-replace — Atrox needs its
+own literary/constructed narrative anchor replacing the Operation
+Neptune Spear metaphor), source doc filename, equivalent work for
+Argus.
 
-**Trigger:** must complete before any new JTAC role beyond
-`Compliance (AUR-J-COMP-001)` is added. Phase 4.1 is strictly in front of
-Phase 5 (remaining JTAC roles: Surveillance, Risk Reporting, AML/KYC).
-
-**Scope:** one surgical prompt. Retrofit inheritance, migrate the
-existing 8 gate implementations to call the concrete-base machinery
-where applicable (especially `select_path_by_id`), ensure all Phase 3
-audits still pass, ensure the existing `_gate_ofac` ISIN hard-stop stays
-in place (see "Two OFAC enforcement axes" below).
+**Trigger:** blocks the Thifur-H / Atrox architectural reconciliation
+described under Architectural Findings below. Must complete before
+Atrox agent implementation can absorb the SIC/PRED/EXEC domains
+currently misfiled in `aureon/agents/hunter_killer/_base.py`.
 
 ---
 
@@ -109,6 +113,37 @@ ThifurJ (currently called directly as `agent_j`), the lookup is
 `JTAC_AGENTS["AUR-J-TRADE-001"]`. The `"THIFUR_J"` string stays in
 operational code.
 
+---
+
+### Thifur-H current implementation doctrinally misfiled
+`aureon/agents/hunter_killer/_base.py` contains 531 lines of
+alpha-origination logic (SIC spread detection, predictive markets
+timing, execution strategy optimization) that per Atrox (formerly
+Neptune Spear) doctrine belong in Atrox's Trade Origination / Market
+Intelligence / Product Recommendations domains. Thifur-H's actual
+doctrinal role is C2-tasked advisory adaptive intelligence (Portfolio
+Risk / Model Risk / Data Governance per AUR-PT-EFICC-001 for post-trade
+eFICC; equivalent roles under different objective functions for
+Arcadia Fund deployment context).
+
+**Reconciliation:**
+(a) extract current ThifurH logic into Atrox agent implementation;
+    Atrox produces recommendations requiring human approval before
+    flowing through Kaladan → Thifur-C2 → Thifur execution triplet,
+(b) rebuild Thifur-H fresh as C2-tasked advisory adaptive intelligence
+    per deployment context,
+(c) wire Atrox into Phase 4 halt-and-pend approval-gate pattern,
+(d) wire Thifur-H into C2 task dispatch pattern.
+
+**Dependency:** reconciliation requires Pass 2 symbol rename (Phase
+4.2) to complete first. See "Phase 4.2 — Pass 2 symbol rename
+(blocking)" under Tech Debt.
+
+**Phase 4.1 scope note:** `HUNTER_KILLER_AGENTS` registry key
+remained `"THIFUR_H"` (unchanged) — rekeying into `AUR-H-*` role_ids
+is not meaningful until the reconciliation above decides what the
+Tier-3 roles actually are.
+
 
 ## Active — Operational Findings
 [Deployment, infrastructure, and production-observability concerns.]
@@ -165,3 +200,16 @@ base and each role lives in its own file.
 `aureon/agents/jtac/pretrade_structuring.py`; `JTAC_AGENTS` re-keyed
 `"THIFUR_J"` → `"AUR-J-TRADE-001"` to match the Ranger convention.
 `_base.py` now holds `JTACConcreteBase` as of da66610.
+
+---
+
+### JTAC base unification
+Phase 4 (da66610) introduced `JTACConcreteBase` but left `ThifurJ`
+(AUR-J-TRADE-001, 596 lines) inheriting `JTACAgent` directly. Two
+JTAC bases coexisted temporarily. Phase 4.1 retrofitted `ThifurJ`
+onto `JTACConcreteBase`. Audit confirmed the retrofit was clean —
+no conflicts with any base method, zero behavior changes. 8/8 gate
+outputs preserved, all four Phase 4 lifecycle scenarios still pass,
+typed-payload audit still 23/23.
+
+**Closed:** Phase 4.1 (2026-04-18).
