@@ -1,7 +1,7 @@
 """
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                         ║
-║  aureon/agents/triplet/agent_r.py                                    ║
+║  aureon/agents/ranger/_base.py                                       ║
 ║  Thifur-R — Ranger — Deterministic Execution Agent                  ║
 ║                                                                      ║
 ║  MANDATE:                                                            ║
@@ -31,10 +31,10 @@ import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from aureon.agents._base import AureonAgent
+from aureon.agents.base import Agent
 
 if TYPE_CHECKING:
-    from aureon.agents.c2 import ThifurC2
+    from aureon.agents.c2.coordinator import ThifurC2
 
 # ── R Operating Constants ─────────────────────────────────────────────────────
 AGENT_R_VERSION  = "1.0"
@@ -58,7 +58,7 @@ FIX_ORD_TYPE_MARKET = "1"
 FIX_ORD_TYPE_LIMIT  = "2"
 
 
-class ThifurR(AureonAgent):
+class ThifurR(Agent):
     """
     Thifur-R — Ranger — Deterministic Execution Agent.
 

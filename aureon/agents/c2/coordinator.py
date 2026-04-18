@@ -1,7 +1,7 @@
 """
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                         ║
-║  aureon/agents/c2.py                                                 ║
+║  aureon/agents/c2/coordinator.py                                     ║
 ║  Thifur-C2 — Command and Control Master Agent                        ║
 ║                                                                      ║
 ║  MANDATE:                                                            ║
@@ -33,7 +33,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from aureon.agents._base import AureonAgent
+from aureon.agents.base import Agent
 
 # ── C2 Operating Constants ────────────────────────────────────────────────────
 C2_VERSION          = "1.0"
@@ -78,7 +78,7 @@ CONV_CONCENTRATION_BREACH   = "CONCENTRATION_BREACH_MID_LIFECYCLE"
 CONV_JURISDICTIONAL_CONFLICT = "JURISDICTIONAL_CONFLICT"
 
 
-class ThifurC2(AureonAgent):
+class ThifurC2(Agent):
     """
     Thifur-C2 Master Agent.
 

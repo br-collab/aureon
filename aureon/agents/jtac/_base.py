@@ -1,7 +1,7 @@
 """
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                         ║
-║  aureon/agents/triplet/agent_j.py                                    ║
+║  aureon/agents/jtac/_base.py                                         ║
 ║  Thifur-J — JTAC — Bounded Autonomy Agent                           ║
 ║                                                                      ║
 ║  MANDATE (Phase 1):                                                  ║
@@ -31,10 +31,10 @@ import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from aureon.agents._base import AureonAgent
+from aureon.agents.base import Agent
 
 if TYPE_CHECKING:
-    from aureon.agents.c2 import ThifurC2
+    from aureon.agents.c2.coordinator import ThifurC2
 
 # ── J Operating Constants ─────────────────────────────────────────────────────
 AGENT_J_VERSION   = "1.0"
@@ -75,7 +75,7 @@ GATES = [
 ]
 
 
-class ThifurJ(AureonAgent):
+class ThifurJ(Agent):
     """
     Thifur-J — JTAC — Bounded Autonomy Agent.
 

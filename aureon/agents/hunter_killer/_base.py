@@ -1,7 +1,7 @@
 """
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                         ║
-║  aureon/agents/triplet/agent_h.py                                    ║
+║  aureon/agents/hunter_killer/_base.py                                ║
 ║  Thifur-H — Hunter-Killer — Adaptive Intelligence Agent             ║
 ║                                                                      ║
 ║  ACTIVATION STATUS: DECLARED — NOT ACTIVATED                        ║
@@ -49,10 +49,10 @@ import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from aureon.agents._base import AureonAgent, NotActivatedError
+from aureon.agents.base import Agent, NotActivatedError
 
 if TYPE_CHECKING:
-    from aureon.agents.c2 import ThifurC2
+    from aureon.agents.c2.coordinator import ThifurC2
 
 # ── H Operating Constants ─────────────────────────────────────────────────────
 AGENT_H_VERSION  = "0.1-shell"
@@ -197,7 +197,7 @@ PRICE_FEED_CONFIG = {
 }
 
 
-class ThifurH(AureonAgent):
+class ThifurH(Agent):
     """
     Thifur-H — Hunter-Killer — Adaptive Intelligence Agent.
 
