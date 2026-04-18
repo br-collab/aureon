@@ -187,6 +187,9 @@ FRED_API_KEY=<key> python3 scripts/cato_backtest.py
 - `fed_l1` slot is always present in `chain_state` as a documented placeholder. Never remove it. When PORTS ships, the chain_state shape stays the same; only the `status` field flips from `not_yet_issued` to `live`.
 - Live prices are fetched on a 60s background cadence. Request path never hits CoinGecko, FRED, Blockscout, or Solana RPC directly. Any endpoint that makes a network call in the request handler is a bug.
 
+## Active trackers
+See `TRACKERS.md` for tech debt, architectural findings, and operational concerns with explicit trigger conditions. Review before starting any new phase.
+
 ## Governance Invariants
 
 These are non-negotiable design constraints:
