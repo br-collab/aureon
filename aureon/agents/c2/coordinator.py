@@ -674,7 +674,7 @@ class ThifurC2(Agent):
         This is the function server.py calls after a human approves a decision.
         """
         # ── Resolve Ranger roles from registry ────────────────────────
-        for required_role in ("AUR-R-SETTLEMENT-001", "AUR-R-TRADESUPPORT-001"):
+        for required_role in ("AUR-R-SETTLEMENT-001", "AUR-R-TRADESUPPORT-001", "AUR-R-RECON-001"):
             if required_role not in RANGER_AGENTS:
                 raise RuntimeError(
                     f"[THIFUR-C2] Registry missing {required_role}. "
@@ -682,6 +682,7 @@ class ThifurC2(Agent):
                 )
         agent_settlement = RANGER_AGENTS["AUR-R-SETTLEMENT-001"](self._state, self._lock)
         agent_ts = RANGER_AGENTS["AUR-R-TRADESUPPORT-001"](self._state, self._lock)
+        agent_recon = RANGER_AGENTS["AUR-R-RECON-001"](self._state, self._lock)
 
         # ── Step 1: Evaluate convergence scenario ────────────────────
         scenario = self.evaluate_convergence_scenario(decision)
@@ -763,9 +764,10 @@ class ThifurC2(Agent):
         # In production this comes from the OMS; here we derive it from
         # the approved decision — the lifecycle is paper-trading.
         execution_confirmation = {
-            "symbol":  decision.get("symbol"),
-            "action":  decision.get("action"),
-            "shares":  decision.get("shares"),
+            "symbol":   decision.get("symbol"),
+            "action":   decision.get("action"),
+            "shares":   decision.get("shares"),
+            "notional": decision.get("notional"),
         }
         dsor_intent = {
             "id":       decision.get("id"),
@@ -796,14 +798,65 @@ class ThifurC2(Agent):
             }
             return result
 
-        # ── Step 6: Handoff to SettlementOps ──────────────────────────
+        # ── Step 6: Reconciliation cross-system lineage check ─────────
+        recon_handoff = self.handoff(
+            task_id        = task_id,
+            from_agent     = "AUR-R-TRADESUPPORT-001",
+            to_agent       = "AUR-R-RECON-001",
+            object_state   = decision,
+            handoff_reason = "Trade-level reconciliation matched — cross-system lineage check",
+        )
+        recon_confirmed = agent_recon.confirm_handoff(recon_handoff)
+        if not recon_confirmed:
+            self.escalate(
+                task_id          = task_id,
+                escalating_agent = "AUR-R-RECON-001",
+                reason           = "Reconciliation handoff confirmation failed",
+                severity         = "HALT",
+                context          = {"handoff_record": recon_handoff},
+            )
+            result["status"] = "HANDOFF_FAILURE"
+            return result
+
+        lineage_check = agent_recon.match_intent_vs_execution(
+            dsor_intent      = dsor_intent,
+            execution_record = execution_confirmation,
+        )
+        result["recon_lineage_result"] = lineage_check
+        self.record_agent_telemetry(task_id, "AUR-R-RECON-001", lineage_check)
+
+        if lineage_check.get("status") == "UNMATCHED":
+            lineage_package = agent_recon.assemble_root_cause_lineage(task_id)
+            escalation = agent_recon.escalate_break({
+                "type":            "LINEAGE_UNMATCHED",
+                "symbol":          decision.get("symbol"),
+                "delta":           lineage_check.get("unmatched"),
+                "task_id":         task_id,
+                "lineage_package": lineage_package,
+            })
+            self.escalate(
+                task_id          = task_id,
+                escalating_agent = "AUR-R-RECON-001",
+                reason           = f"Cross-system lineage unmatched: {lineage_check.get('unmatched')}",
+                severity         = "WARN",
+                context          = lineage_check,
+            )
+            result["status"]     = "LINEAGE_UNMATCHED_HALTED"
+            result["escalation"] = {
+                "agent":    escalation.agent_role_id,
+                "reason":   escalation.reason,
+                "tier":     escalation.requires_authority_tier,
+            }
+            return result
+
+        # ── Step 7: Handoff to SettlementOps ──────────────────────────
         if AGENT_R in agents:
             settle_handoff = self.handoff(
                 task_id        = task_id,
-                from_agent     = "AUR-R-TRADESUPPORT-001",
+                from_agent     = "AUR-R-RECON-001",
                 to_agent       = AGENT_R,
                 object_state   = decision,
-                handoff_reason = "Execution reconciled — releasing to settlement preparation",
+                handoff_reason = "Cross-system lineage verified — releasing to settlement",
             )
             confirmed = agent_settlement.confirm_handoff(settle_handoff)
             if not confirmed:
