@@ -1,0 +1,27 @@
+{
+  "_note": "Phase 4.5 approval-lineage routing rules. Replaces hardcoded authority requirements in C2 resume logic with a data-driven lookup. operator + rationale are implicit for every pause (the operator approving IS the minimum attribution); explicit authority decisions (compliance_authority_decision, legal_authority_decision) are required only when required_authorities has 2+ entries, preserving Phase 4 OFAC non-EU single-authority semantics.",
+  "rules_version": "APPROVAL-LINEAGE-v1.0",
+  "effective": "2026-04-18",
+  "rules": [
+    {
+      "pause_reason": "APPROVAL_REQUIRED",
+      "required_authorities": ["compliance"],
+      "sla_seconds": 3600
+    },
+    {
+      "pause_reason": "CONFLICT_RESOLUTION_REQUIRED",
+      "required_authorities": ["compliance", "legal"],
+      "sla_seconds": 14400
+    },
+    {
+      "pause_reason": "POLICY_HOLD",
+      "required_authorities": ["compliance"],
+      "sla_seconds": 7200
+    },
+    {
+      "pause_reason": "ALGO_INVENTORY_MISSING",
+      "required_authorities": ["compliance", "legal"],
+      "sla_seconds": 86400
+    }
+  ]
+}

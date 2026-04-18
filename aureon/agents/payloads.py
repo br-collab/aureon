@@ -354,3 +354,122 @@ class CounterpartyScreeningRequest(_DictCompatMixin):
         _validate_required(self, ["task_id", "counterparty_name"])
         if not self.requested_at:
             self.requested_at = datetime.now(timezone.utc).isoformat()
+
+
+# ── Compliance Phase 4.5 payloads ─────────────────────────────────────────────
+# Pre-Trade Policy Checks + IPS Eligibility + Algo Inventory (MiFID II RTS 6) +
+# Approval Lineage Routing. Each task runs through the same halt-and-pend +
+# approved-paths machinery as OFAC Screening (Phase 4).
+
+
+@dataclass
+class PreTradePolicyCheckRequest(_DictCompatMixin):
+    """Input to Compliance.check_pretrade_policy.
+
+    intent_summary is the per-trade snapshot the policy engine needs:
+    asset_class, side, notional, instrument, counterparty.
+    """
+    task_id: str = None
+    decision_id: str = None
+    intent_summary: dict = field(default_factory=dict)
+    mandate_version: str = None
+    ips_version: str = None
+    requested_at: str = ""
+
+    def __post_init__(self):
+        _validate_required(self, ["task_id", "decision_id", "mandate_version", "ips_version"])
+        if not self.requested_at:
+            self.requested_at = datetime.now(timezone.utc).isoformat()
+
+
+@dataclass
+class IPSEligibilityResult(_DictCompatMixin):
+    """Output of Compliance.validate_ips_eligibility.
+
+    Invoked internally by check_pretrade_policy. Not an independent
+    lifecycle gate — the caller aggregates this into PreTradePolicyCheckResult.
+    """
+    task_id: str = None
+    status: str = None               # "ELIGIBLE" | "INELIGIBLE"
+    checks_performed: list = field(default_factory=list)
+    ineligibilities: list = field(default_factory=list)
+    ips_version: str = ""
+
+    def __post_init__(self):
+        _validate_required(self, ["task_id", "status"])
+
+
+@dataclass
+class PreTradePolicyCheckResult(_DictCompatMixin):
+    """Output of Compliance.check_pretrade_policy.
+
+    status semantics:
+      - "PASS"  → lifecycle continues to ThifurJ.
+      - "HOLD"  → halt-and-pend single-authority (approval override allowed).
+      - "BLOCK" → terminal halt, no pend (hard violation).
+    """
+    task_id: str = None
+    status: str = None               # "PASS" | "HOLD" | "BLOCK"
+    policy_checks_performed: list = field(default_factory=list)
+    failures: list = field(default_factory=list)
+    ips_eligibility: Optional[dict] = None
+    pending_approval_for: list = field(default_factory=list)
+    selected_path_id: Optional[str] = None  # PRETRADE_POLICY_PASS/HOLD/BLOCK
+    mandate_version: Optional[str] = None
+    ips_version: Optional[str] = None
+
+    def __post_init__(self):
+        _validate_required(self, ["task_id", "status"])
+
+
+@dataclass
+class AlgoInventoryCheckRequest(_DictCompatMixin):
+    """Input to Compliance.check_algo_inventory — MiFID II RTS 6 session-level
+    check. Runs once per algorithm activation, not per trade."""
+    task_id: str = None
+    active_algorithms: list = field(default_factory=list)
+    requested_at: str = ""
+
+    def __post_init__(self):
+        _validate_required(self, ["task_id"])
+        if not self.requested_at:
+            self.requested_at = datetime.now(timezone.utc).isoformat()
+
+
+@dataclass
+class AlgoInventoryCheckResult(_DictCompatMixin):
+    """Output of Compliance.check_algo_inventory.
+
+    status semantics:
+      - "REGISTERED" → all active algorithms on the inventory with a valid
+        last_validated_at date (within validation_frequency_days).
+      - "MISSING_REGISTRATION" → at least one algorithm absent or stale →
+        halt-and-pend dual-authority (Compliance + Legal).
+    """
+    task_id: str = None
+    status: str = None               # "REGISTERED" | "MISSING_REGISTRATION"
+    registered_algorithms: list = field(default_factory=list)
+    missing_registrations: list = field(default_factory=list)
+    pending_approval_for: list = field(default_factory=list)
+    selected_path_id: Optional[str] = None
+
+    def __post_init__(self):
+        _validate_required(self, ["task_id", "status"])
+
+
+@dataclass
+class ApprovalLineageRequirement(_DictCompatMixin):
+    """Output of Compliance.determine_approval_lineage.
+
+    Utility method — NOT a lifecycle gate. Called by halt-and-pend /
+    resume logic to determine which human authorities must sign off
+    for a given pause_reason. Replaces hardcoded authority lists.
+    """
+    task_id: str = None
+    pause_reason: str = None
+    required_authorities: list = field(default_factory=list)
+    sla_seconds: Optional[int] = None
+    fallback_authorities: list = field(default_factory=list)
+
+    def __post_init__(self):
+        _validate_required(self, ["task_id", "pause_reason"])

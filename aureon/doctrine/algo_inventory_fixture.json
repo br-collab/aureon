@@ -1,0 +1,21 @@
+{
+  "_note": "Phase 4.5 fixture — registered algorithms per MiFID II RTS 6. Production deployment requires an auto-revalidation hook on code changes, model updates, and regulatory requirement changes (see TRACKERS.md 'Algo inventory ongoing validation').",
+  "inventory_version": "ALGO-REGISTRY-v1.0",
+  "last_validated_at": "2026-04-01T00:00:00Z",
+  "registered_algorithms": [
+    {
+      "role_id": "AUR-J-TRADE-001",
+      "name": "Pre-Trade Structuring Agent",
+      "registration_version": "1.0",
+      "last_validated_at": "2026-04-01T00:00:00Z",
+      "validation_frequency_days": 180
+    },
+    {
+      "role_id": "AUR-J-COMP-001",
+      "name": "Compliance Monitoring",
+      "registration_version": "1.0",
+      "last_validated_at": "2026-04-18T00:00:00Z",
+      "validation_frequency_days": 180
+    }
+  ]
+}

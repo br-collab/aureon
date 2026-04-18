@@ -5657,6 +5657,87 @@ def api_c2_paused():
     })
 
 
+@app.route("/api/c2/algo-inventory-check", methods=["POST"])
+def api_c2_algo_inventory_check():
+    """Phase 4.5 — MiFID II RTS 6 algorithmic trading inventory compliance check.
+    Session-level (not per-trade).
+
+    Body: {"active_algorithms": ["AUR-J-TRADE-001", ...], "task_id": "<optional>"}
+
+    Returns AlgoInventoryCheckResult as JSON. On MISSING_REGISTRATION also
+    persists a paused_lifecycle entry with pause_reason=ALGO_INVENTORY_MISSING
+    so the operator can resume/override via /api/c2/resume/<task_id>
+    (dual-authority per approval_lineage_rules.json).
+    """
+    from aureon.agents.jtac import JTAC_AGENTS
+    from aureon.agents.payloads import AlgoInventoryCheckRequest
+    import hashlib as _hashlib
+    from datetime import datetime as _dt, timezone as _tz
+
+    body = request.get_json(silent=True) or {}
+    active = body.get("active_algorithms") or []
+    if not isinstance(active, list) or not all(isinstance(a, str) for a in active):
+        return jsonify({
+            "status": "INVALID_REQUEST",
+            "reason": "active_algorithms must be a list of role_id strings",
+        }), 400
+
+    task_id = body.get("task_id") or (
+        "TSK-ALGO-" + _hashlib.sha256(
+            (",".join(active) + _dt.now(_tz.utc).isoformat()).encode()
+        ).hexdigest()[:10].upper()
+    )
+
+    agent_compliance = JTAC_AGENTS["AUR-J-COMP-001"](aureon_state, _lock)
+    req = AlgoInventoryCheckRequest(task_id=task_id, active_algorithms=active)
+    result = agent_compliance.check_algo_inventory(req)
+
+    response_body = result.to_dict()
+    response_body["task_id"] = task_id
+
+    # On MISSING_REGISTRATION, persist a paused_lifecycle so the operator
+    # can resume/override. Dual-authority (Compliance + Legal) per
+    # approval_lineage_rules.json.
+    if result.status == "MISSING_REGISTRATION":
+        lineage = agent_compliance.determine_approval_lineage(
+            pause_reason="ALGO_INVENTORY_MISSING", task_id=task_id,
+        )
+        path_selection = agent_compliance.get_pending_algo_selection(task_id)
+        gate_context = agent_compliance.escalate_for_approval(
+            path_selection=path_selection,
+            intent_summary={"active_algorithms": list(active)},
+            risk_summary={
+                "missing_registrations": list(result.missing_registrations),
+                "rationale": "At least one active algorithm is not registered "
+                             "on the MiFID II RTS 6 inventory or its validation "
+                             "is stale.",
+            },
+        )
+        _thifur_c2._persist_paused_lifecycle(
+            task_id=task_id,
+            pause_reason="ALGO_INVENTORY_MISSING",
+            decision={
+                "id": task_id,
+                "symbol": "N/A",
+                "action": "ALGO_INVENTORY_CHECK",
+                "active_algorithms": list(active),
+            },
+            path_selection=path_selection,
+            doctrine_version=aureon_state.get("doctrine_version", "unknown"),
+            gate_context=gate_context,
+            conflict=None,
+            convergence_scenario=None,
+            sequencing_rule="Session-level inventory check — not a per-trade gate.",
+            agents_activated=["AUR-J-COMP-001"],
+            approval_lineage=lineage,
+        )
+        response_body["paused_lifecycle_created"] = True
+        response_body["resume_endpoint"] = f"/api/c2/resume/{task_id}"
+        response_body["approval_lineage"] = lineage.to_dict()
+
+    return jsonify(response_body), 200
+
+
 @app.route("/api/c2/resume/<task_id>", methods=["POST"])
 def api_c2_resume(task_id):
     """Resume a paused lifecycle with operator approval payload.
