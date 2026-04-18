@@ -269,7 +269,7 @@ def _read_network_registry() -> dict:
             "THIFUR_R":   {"role": "TradFi Settlement", "status": "ACTIVE"},
             "THIFUR_J":   {"role": "Pre-Trade Governance", "status": "ACTIVE"},
             "THIFUR_H":   {"role": "Execution Optimization", "status": "DECLARED"},
-            "NEPTUNE":    {"role": "Alpha Generator / Origination", "status": "DECLARED"},
+            "ATROX":    {"role": "Alpha Generator / Origination", "status": "DECLARED"},
         },
         "doctrine_ref": "Verana L0 — Network Governance Layer · Aureon Grid 3",
     }

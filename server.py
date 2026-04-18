@@ -70,10 +70,10 @@ from datetime import datetime, timedelta, timezone, time as dt_time
 import zoneinfo
 from flask import Flask, Response, jsonify, send_from_directory, request
 from aureon.config.settings import LOG_FILE, STATE_FILE
-from aureon.config.neptune_spear import get_neptune_source_document_text, get_neptune_declaration
+from aureon.config.atrox import get_atrox_source_document_text, get_atrox_declaration
 from aureon.config.thifur_c2_doctrine import get_c2_source_document_text, get_c2_doctrine_declaration
 from aureon.mcp.server import mcp_bp, init_mcp
-from aureon.mcp.neptune_client import init_neptune_pipe, get_client as get_neptune_client, pipe_status as neptune_pipe_status
+from aureon.mcp.atrox_client import init_atrox_pipe, get_client as get_atrox_client, pipe_status as atrox_pipe_status
 from aureon.mcp.tradier_client import init_tradier_pipe, get_client as get_tradier_client, pipe_status as tradier_pipe_status
 from aureon.mcp.alpaca_client  import init_alpaca_pipe,  get_client as get_alpaca_client,  pipe_status as alpaca_pipe_status
 from aureon.mcp.cboe_client    import init_cboe_pipe,    get_client as get_cboe_client,    pipe_status as cboe_pipe_status
@@ -267,7 +267,7 @@ aureon_state = {
     "authority_log":      [],
     "operational_journal": [],   # DA-1594 equivalent — DTG-stamped operational record
     "decision_journal":    [],   # Commander's log — full signal brief + outcome for every HITL decision
-    "neptune_recommendations": [],  # Atrox trade recommendations awaiting operator review
+    "atrox_recommendations": [],  # Atrox trade recommendations awaiting operator review
     "prices":             {},
     "class_totals":       {},
 
@@ -326,8 +326,8 @@ aureon_state = {
                 "Two doctrine documents registered: Thifur-Atrox (Alpha Generator "
                 "origination agent, Draft 1.0) and Thifur-C2 (Command and Control doctrine, "
                 "Draft 1.0). Atrox added above execution triplet. Authority chain "
-                "formalized: Neptune → Operator → Kaladan → C2 → R/J/H. Five Immutable Stops "
-                "codified in C2 doctrine. CAOM agent advisory updated to reflect Neptune."
+                "formalized: Atrox → Operator → Kaladan → C2 → R/J/H. Five Immutable Stops "
+                "codified in C2 doctrine. CAOM agent advisory updated to reflect Atrox."
             ),
         },
     ],
@@ -1888,21 +1888,21 @@ _thesis_market_metric_cache = {}
 _fred_cache = {"ts": 0.0, "data": None}
 _ofr_cache = {"ts": 0.0, "data": None}
 
-# ── Neptune data-feed cache ──────────────────────────────────────────────────
-# The dashboard polls Neptune endpoints every 15s, but each endpoint makes
+# ── Atrox data-feed cache ──────────────────────────────────────────────────
+# The dashboard polls Atrox endpoints every 15s, but each endpoint makes
 # blocking external HTTP calls (Alpaca/CBOE/EDGAR/Blockscout) that can take
 # seconds when upstream pipes are degraded. Without this cache, concurrent
 # polling saturates gunicorn workers within minutes. The endpoints serve from
-# cache only; _neptune_refresh_loop refreshes the cache every 60s in the
+# cache only; _atrox_refresh_loop refreshes the cache every 60s in the
 # background so the request path never makes a network call.
-_neptune_data_cache = {
+_atrox_data_cache = {
     "alpaca_snapshots":    {"ts": 0.0, "data": None},
     "cboe_fear_packet":    {"ts": 0.0, "data": None},
     "edgar_institutional": {"ts": 0.0, "data": None},
     "blockscout_stats":    {"ts": 0.0, "data": None},
 }
-_neptune_data_cache_lock = threading.Lock()
-NEPTUNE_DATA_CACHE_REFRESH_SECONDS = 60
+_atrox_data_cache_lock = threading.Lock()
+ATROX_DATA_CACHE_REFRESH_SECONDS = 60
 
 # ── Cato doctrine-gate input cache ───────────────────────────────────────────
 # Cato needs three scalars: SOFR, OFR stress, and ETH gas (gwei). All three
@@ -1922,7 +1922,7 @@ _cato_input_cache_lock = threading.Lock()
 
 # Cato v0.2.1 multi-chain endpoints — mirror of BLOCKSCOUT_CHAINS in the
 # Cato MCP server (cato-mcp/index.js). Fetched from inside
-# _neptune_refresh_loop every 60 seconds, cached into _cato_input_cache,
+# _atrox_refresh_loop every 60 seconds, cached into _cato_input_cache,
 # and served from cache to /api/cato/* endpoints with zero network I/O
 # in the request path.
 _CATO_BLOCKSCOUT_CHAINS = {
@@ -2168,16 +2168,16 @@ def _get_ofr_stress_snapshot(macro_snapshot: dict):
     return data
 
 
-def _neptune_data_cache_get(key):
-    """Thread-safe read of a Neptune data-feed cache entry. Returns data or None."""
-    with _neptune_data_cache_lock:
-        return _neptune_data_cache.get(key, {}).get("data")
+def _atrox_data_cache_get(key):
+    """Thread-safe read of a Atrox data-feed cache entry. Returns data or None."""
+    with _atrox_data_cache_lock:
+        return _atrox_data_cache.get(key, {}).get("data")
 
 
-def _neptune_data_cache_set(key, data):
-    """Thread-safe write of a Neptune data-feed cache entry."""
-    with _neptune_data_cache_lock:
-        _neptune_data_cache[key] = {"ts": time.time(), "data": data}
+def _atrox_data_cache_set(key, data):
+    """Thread-safe write of a Atrox data-feed cache entry."""
+    with _atrox_data_cache_lock:
+        _atrox_data_cache[key] = {"ts": time.time(), "data": data}
 
 
 def _cato_fetch_coingecko_prices():
@@ -2401,7 +2401,7 @@ def _cato_refresh_inputs():
     delta (funding-market shock detector — restored from v0.1.0 spec
     after the Sept 2019 repo spike backtest gap).
 
-    Called from inside _neptune_refresh_loop on the 60s cadence.
+    Called from inside _atrox_refresh_loop on the 60s cadence.
     """
     sofr_rate = None
     sofr_prev = None
@@ -2455,11 +2455,11 @@ def _cato_refresh_inputs():
         _cato_input_cache["prices"] = prices
 
 
-def _neptune_refresh_loop():
+def _atrox_refresh_loop():
     """
-    Background refresh of Neptune data feeds and Cato gate inputs. Each
+    Background refresh of Atrox data feeds and Cato gate inputs. Each
     fetch is isolated so one slow/broken upstream cannot block the others.
-    Runs forever; sleeps NEPTUNE_DATA_CACHE_REFRESH_SECONDS between cycles.
+    Runs forever; sleeps ATROX_DATA_CACHE_REFRESH_SECONDS between cycles.
     The first iteration fires immediately so caches are warm before the
     dashboard polls.
     """
@@ -2477,9 +2477,9 @@ def _neptune_refresh_loop():
             if client is not None and getattr(client, "is_ready", False):
                 data = client.get_snapshots(["SPY", "QQQ", "IWM", "DIA"])
                 if data is not None:
-                    _neptune_data_cache_set("alpaca_snapshots", data)
+                    _atrox_data_cache_set("alpaca_snapshots", data)
         except Exception as exc:
-            _log_error("WARN", "neptune_refresh:alpaca_snapshots", str(exc))
+            _log_error("WARN", "atrox_refresh:alpaca_snapshots", str(exc))
 
         # CBOE Thifur fear packet — dashboard default lookback
         try:
@@ -2487,19 +2487,19 @@ def _neptune_refresh_loop():
             if client is not None:
                 data = client.get_thifur_fear_packet(lookback_days=30)
                 if data is not None:
-                    _neptune_data_cache_set("cboe_fear_packet", data)
+                    _atrox_data_cache_set("cboe_fear_packet", data)
         except Exception as exc:
-            _log_error("WARN", "neptune_refresh:cboe_fear_packet", str(exc))
+            _log_error("WARN", "atrox_refresh:cboe_fear_packet", str(exc))
 
         # EDGAR institutional packet — defaults
         try:
             client = get_edgar_client()
             if client is not None:
-                data = client.get_neptune_institutional_packet(institutions=None)
+                data = client.get_atrox_institutional_packet(institutions=None)
                 if data is not None:
-                    _neptune_data_cache_set("edgar_institutional", data)
+                    _atrox_data_cache_set("edgar_institutional", data)
         except Exception as exc:
-            _log_error("WARN", "neptune_refresh:edgar_institutional", str(exc))
+            _log_error("WARN", "atrox_refresh:edgar_institutional", str(exc))
 
         # Blockscout network stats — Ethereum mainnet
         try:
@@ -2507,11 +2507,11 @@ def _neptune_refresh_loop():
             if client is not None:
                 data = client.get_network_stats(chain_id="1")
                 if data is not None:
-                    _neptune_data_cache_set("blockscout_stats", data)
+                    _atrox_data_cache_set("blockscout_stats", data)
         except Exception as exc:
-            _log_error("WARN", "neptune_refresh:blockscout_stats", str(exc))
+            _log_error("WARN", "atrox_refresh:blockscout_stats", str(exc))
 
-        time.sleep(NEPTUNE_DATA_CACHE_REFRESH_SECONDS)
+        time.sleep(ATROX_DATA_CACHE_REFRESH_SECONDS)
 
 
 def _thesis_compute_realized_vol_pct(close_series):
@@ -3480,26 +3480,26 @@ def _generate_signal():
 
 
 # ─────────────────────────────────────────────────────────────────
-# 5a-NEPTUNE. NEPTUNE SPEAR — RECOMMENDATION ENGINE
+# 5a-ATROX. ATROX SPEAR — RECOMMENDATION ENGINE
 # ─────────────────────────────────────────────────────────────────
-# Neptune scans live pipe data (CBOE fear gauge, Blockscout on-chain
+# Atrox scans live pipe data (CBOE fear gauge, Blockscout on-chain
 # stats, EDGAR institutional positioning) and generates advisory
-# trade recommendations. These stay in neptune_recommendations until
+# trade recommendations. These stay in atrox_recommendations until
 # the operator explicitly promotes one to a governed decision.
 #
-# Neptune NEVER self-executes. Neptune originates. Operator decides.
+# Atrox NEVER self-executes. Atrox originates. Operator decides.
 # ─────────────────────────────────────────────────────────────────
 
-NEPTUNE_MAX_RECS = 8          # cap on pending recommendations
-NEPTUNE_SCAN_INTERVAL = 120   # seconds between scans
-_neptune_last_scan = time.time()  # defer first scan by NEPTUNE_SCAN_INTERVAL after boot
+ATROX_MAX_RECS = 8          # cap on pending recommendations
+ATROX_SCAN_INTERVAL = 120   # seconds between scans
+_atrox_last_scan = time.time()  # defer first scan by ATROX_SCAN_INTERVAL after boot
 
-# Symbols Neptune considers for each asset class
-NEPTUNE_WATCHLIST = {
+# Symbols Atrox considers for each asset class
+ATROX_WATCHLIST = {
     "equities": ["SPY", "QQQ", "IWM", "DIA", "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA"],
 }
 
-def _neptune_scan():
+def _atrox_scan():
     """
     Atrox origination scan.
 
@@ -3507,18 +3507,18 @@ def _neptune_scan():
     recommendations. Each recommendation includes a thesis, risk framing,
     signal provenance, and conviction level.
 
-    Called from market_loop on NEPTUNE_SCAN_INTERVAL cadence.
+    Called from market_loop on ATROX_SCAN_INTERVAL cadence.
     """
-    global _neptune_last_scan
+    global _atrox_last_scan
     now = time.time()
-    if now - _neptune_last_scan < NEPTUNE_SCAN_INTERVAL:
+    if now - _atrox_last_scan < ATROX_SCAN_INTERVAL:
         return
-    _neptune_last_scan = now
+    _atrox_last_scan = now
 
     with _lock:
         if aureon_state["halt_active"]:
             return
-        if len(aureon_state["neptune_recommendations"]) >= NEPTUNE_MAX_RECS:
+        if len(aureon_state["atrox_recommendations"]) >= ATROX_MAX_RECS:
             return
         prices    = dict(aureon_state["prices"])
         positions = list(aureon_state["positions"])
@@ -3536,7 +3536,7 @@ def _neptune_scan():
         if cboe and cboe.is_ready:
             fear_data = cboe.get_thifur_fear_packet(lookback_days=30)
     except Exception as _e:
-        print(f"[NEPTUNE] CBOE fear packet failed: {_e}")
+        print(f"[ATROX] CBOE fear packet failed: {_e}")
 
     bs_data = None
     try:
@@ -3544,7 +3544,7 @@ def _neptune_scan():
         if bs and bs.is_ready:
             bs_data = bs.get_network_stats(chain_id="1")
     except Exception as _e:
-        print(f"[NEPTUNE] Blockscout stats failed: {_e}")
+        print(f"[ATROX] Blockscout stats failed: {_e}")
 
     # ── Derive market regime ───────────────────────────────────────
     fear_level = (fear_data or {}).get("fear_level", "UNKNOWN")
@@ -3568,7 +3568,7 @@ def _neptune_scan():
     if fear_level == "ELEVATED" and "SPY" not in held_symbols:
         spy_price = prices.get("SPY", 535.0)
         shares = max(100, int(250_000 / spy_price / 100) * 100)
-        recs.append(_build_neptune_rec(
+        recs.append(_build_atrox_rec(
             action="SELL", symbol="SPY", shares=shares, price=spy_price,
             asset_class="equities",
             thesis=(
@@ -3581,7 +3581,7 @@ def _neptune_scan():
             risk_factors=["VIX mean-reversion risk", "Short squeeze in relief rally", "Timing risk on regime shift"],
             first_order=f"SELL {shares:,} SPY @ ~${spy_price:,.2f} as tactical hedge. Notional: ${int(shares * spy_price):,}.",
             second_order="Reduces net equity beta. Frees risk budget for opportunistic longs when fear subsides.",
-            third_order="Establishes Neptune's hedging discipline — sell strength in fear, buy weakness in complacency.",
+            third_order="Establishes Atrox's hedging discipline — sell strength in fear, buy weakness in complacency.",
             ts=ts,
         ))
 
@@ -3600,18 +3600,18 @@ def _neptune_scan():
             if notional < 200_000:
                 continue
             # Cash floor guard — mirror Thifur-H's _generate_signal check.
-            # A Neptune BUY rec must not breach the operating cash floor
+            # A Atrox BUY rec must not breach the operating cash floor
             # (OPERATING_CASH_FLOOR_PCT of portfolio value) even if approved.
             if cash - notional < cash_floor:
                 _journal(
-                    "NEPTUNE_REC_SUPPRESSED", "NEPTUNE-SPEAR", sym,
+                    "ATROX_REC_SUPPRESSED", "ATROX-001", sym,
                     f"BUY {sym} rec suppressed — would breach operating cash floor. "
                     f"Available: ${cash:,.0f} | Notional: ${notional:,.0f} | "
                     f"Floor: ${cash_floor:,.0f} | Post-trade cash: ${cash - notional:,.0f}",
                     authority="SYSTEM", outcome="SUPPRESSED",
                 )
                 continue
-            recs.append(_build_neptune_rec(
+            recs.append(_build_atrox_rec(
                 action="BUY", symbol=sym, shares=shares, price=sym_price,
                 asset_class="equities",
                 thesis=(
@@ -3638,7 +3638,7 @@ def _neptune_scan():
             sym_shares = abs(largest.get("shares", 0))
             trim_shares = max(10, int(sym_shares * 0.3 / 10) * 10)  # trim 30%
             if trim_shares > 0 and int(trim_shares * sym_price) >= 200_000:
-                recs.append(_build_neptune_rec(
+                recs.append(_build_atrox_rec(
                     action="SELL", symbol=sym, shares=trim_shares, price=sym_price,
                     asset_class="equities",
                     thesis=(
@@ -3662,7 +3662,7 @@ def _neptune_scan():
             if gas_float > 50 and "QQQ" in held_symbols:
                 qqq_price = prices.get("QQQ", 450.0)
                 shares = max(50, int(200_000 / qqq_price / 50) * 50)
-                recs.append(_build_neptune_rec(
+                recs.append(_build_atrox_rec(
                     action="SELL", symbol="QQQ", shares=shares, price=qqq_price,
                     asset_class="equities",
                     thesis=(
@@ -3675,7 +3675,7 @@ def _neptune_scan():
                     risk_factors=["Gas spike may be isolated (NFT mint, not systemic)", "Correlation is statistical not causal"],
                     first_order=f"SELL {shares:,} QQQ @ ~${qqq_price:,.2f}. Notional: ${int(shares * qqq_price):,}.",
                     second_order="Reduces tech equity beta during on-chain stress event.",
-                    third_order="Neptune cross-domain signal — DeFi stress as leading indicator for TradFi risk.",
+                    third_order="Atrox cross-domain signal — DeFi stress as leading indicator for TradFi risk.",
                     ts=ts,
                 ))
         except (ValueError, TypeError):
@@ -3696,17 +3696,17 @@ def _neptune_scan():
             notional_s5 = int(shares * sym_price)
             # Defensive cash-floor guard — the cash_pct > 60 pre-check above
             # should already guarantee headroom, but mirror the Thifur-H
-            # doctrine so no Neptune BUY path can ever slip past the floor.
+            # doctrine so no Atrox BUY path can ever slip past the floor.
             if cash - notional_s5 < cash_floor_s5:
                 _journal(
-                    "NEPTUNE_REC_SUPPRESSED", "NEPTUNE-SPEAR", sym,
+                    "ATROX_REC_SUPPRESSED", "ATROX-001", sym,
                     f"BUY {sym} deploy-cash rec suppressed — would breach operating cash floor. "
                     f"Available: ${cash:,.0f} | Notional: ${notional_s5:,.0f} | "
                     f"Floor: ${cash_floor_s5:,.0f} | Post-trade cash: ${cash - notional_s5:,.0f}",
                     authority="SYSTEM", outcome="SUPPRESSED",
                 )
                 continue
-            recs.append(_build_neptune_rec(
+            recs.append(_build_atrox_rec(
                 action="BUY", symbol=sym, shares=shares, price=sym_price,
                 asset_class="equities",
                 thesis=(
@@ -3727,25 +3727,25 @@ def _neptune_scan():
     # ── Insert new recs ────────────────────────────────────────────
     if recs:
         with _lock:
-            existing_ids = {r["id"] for r in aureon_state["neptune_recommendations"]}
+            existing_ids = {r["id"] for r in aureon_state["atrox_recommendations"]}
             # Dedup by symbol+action
-            existing_sigs = {(r["symbol"], r["action"]) for r in aureon_state["neptune_recommendations"]}
+            existing_sigs = {(r["symbol"], r["action"]) for r in aureon_state["atrox_recommendations"]}
             for rec in recs:
                 if rec["id"] not in existing_ids and (rec["symbol"], rec["action"]) not in existing_sigs:
-                    if len(aureon_state["neptune_recommendations"]) < NEPTUNE_MAX_RECS:
-                        aureon_state["neptune_recommendations"].append(rec)
-                        _journal("NEPTUNE_REC", "NEPTUNE-SPEAR", rec["symbol"],
-                                 f"Neptune recommendation: {rec['action']} {rec['symbol']} — {rec['conviction']} conviction. "
+                    if len(aureon_state["atrox_recommendations"]) < ATROX_MAX_RECS:
+                        aureon_state["atrox_recommendations"].append(rec)
+                        _journal("ATROX_REC", "ATROX-001", rec["symbol"],
+                                 f"Atrox recommendation: {rec['action']} {rec['symbol']} — {rec['conviction']} conviction. "
                                  f"Thesis: {rec['thesis'][:120]}...",
                                  outcome="AWAITING_OPERATOR", ref_id=rec["id"])
-                        print(f"[NEPTUNE] Recommendation: {rec['action']} {rec['symbol']} "
+                        print(f"[ATROX] Recommendation: {rec['action']} {rec['symbol']} "
                               f"${rec['notional']:,} — {rec['conviction']} conviction")
 
 
-def _build_neptune_rec(action, symbol, shares, price, asset_class, thesis,
+def _build_atrox_rec(action, symbol, shares, price, asset_class, thesis,
                         conviction, signal_sources, risk_factors,
                         first_order, second_order, third_order, ts):
-    """Build a structured Neptune recommendation dict."""
+    """Build a structured Atrox recommendation dict."""
     notional = int(shares * price)
     rec_id = f"NPT-{random.randint(0x10000000, 0xFFFFFFFF):X}"
     return {
@@ -4133,26 +4133,26 @@ def _register_doctrine_documents():
       - Thifur-Atrox Draft 1.0 (Alpha Generator doctrine)
       - Thifur-C2 Draft 1.0 (Command and Control doctrine)
     """
-    neptune_text = get_neptune_source_document_text()
+    atrox_text = get_atrox_source_document_text()
     _register_source_document(
         title       = "Thifur-Atrox — Alpha Generator Doctrine (Draft 1.0)",
         source_type = "doctrine",
-        source_name = "Thifur-Neptune-Spear-Doctrine.docx",
-        content_text = neptune_text,
+        source_name = "Thifur-Atrox-Doctrine.docx",
+        content_text = atrox_text,
         analysis    = {
             "title":              "Thifur-Atrox — Alpha Generator Doctrine",
             "summary":            (
                 "Origination intelligence agent above the Thifur execution triplet. "
                 "Generates investment theses, market intelligence, and product "
                 "recommendations. Every output requires human authority approval. "
-                "Neptune never self-executes. Authority chain: Neptune → Operator → "
+                "Atrox never self-executes. Authority chain: Atrox → Operator → "
                 "Kaladan → Thifur-C2 → execution agents."
             ),
             "governance_status":  "DOCTRINE REGISTERED — HITL ENFORCED",
             "risk_classification": "Origination Layer — Pre-Approval Intelligence",
             "stance":             "Alpha Generation",
             "conviction_score":   9,
-            "source_file":        "Thifur-Neptune-Spear-Doctrine.docx",
+            "source_file":        "Thifur-Atrox-Doctrine.docx",
         },
     )
 
@@ -4218,7 +4218,7 @@ def run_doctrine_stack():
             "verana":    {"status": "COMPLETE", "nodes": 15, "phase": "RECOVER"},
             "mentat":    {"status": "COMPLETE", "doctrine": "1.3", "decisions": 9},
             "kaladan":   {"status": "COMPLETE", "executions": 6},
-            "thifur":    {"status": "COMPLETE", "R": 2, "J": 4, "H": 0, "C2": 1, "NEPTUNE": 1},
+            "thifur":    {"status": "COMPLETE", "R": 2, "J": 4, "H": 0, "C2": 1, "ATROX": 1},
             "telemetry": {"status": "COMPLETE", "signals": 6},
         },
     }
@@ -4258,6 +4258,12 @@ def run_doctrine_stack():
             # ── JTAC Phase 4 ─────────────────────────────────────
             aureon_state["paused_lifecycles"]   = saved.get("paused_lifecycles",   {})
             aureon_state["c2_j_compliance_log"] = saved.get("c2_j_compliance_log", [])
+            # ── Phase 4.2 Atrox recommendations ──────────────────
+            # load_state() already ran migrate_neptune_to_atrox on
+            # the snapshot, so saved["atrox_recommendations"] is the
+            # canonical key. Data from older neptune_recommendations
+            # snapshots is preserved through the migration.
+            aureon_state["atrox_recommendations"] = saved.get("atrox_recommendations", [])
         else:
             # ── First-ever launch — seed from INITIAL_POSITIONS ───
             aureon_state["positions"] = [dict(p) for p in INITIAL_POSITIONS]
@@ -4286,14 +4292,14 @@ def run_doctrine_stack():
     # All five pipes initialize at startup. CBOE + EDGAR require no
     # credentials and are always live. Unusual Whales, Tradier, and
     # Alpaca degrade gracefully until tokens are added to env vars.
-    init_neptune_pipe()
+    init_atrox_pipe()
     init_tradier_pipe()
     init_alpaca_pipe()
     init_cboe_pipe()
     init_edgar_pipe()
     init_blockscout_pipe()
     for _ps in (
-        neptune_pipe_status(), tradier_pipe_status(),
+        atrox_pipe_status(), tradier_pipe_status(),
         alpaca_pipe_status(),  cboe_pipe_status(), edgar_pipe_status(),
         blockscout_pipe_status(),
     ):
@@ -4334,11 +4340,11 @@ def market_loop():
             if _market_is_open() and random.random() < 0.033:
                 _generate_signal()
 
-            # Atrox origination scan (every NEPTUNE_SCAN_INTERVAL)
+            # Atrox origination scan (every ATROX_SCAN_INTERVAL)
             try:
-                _neptune_scan()
+                _atrox_scan()
             except Exception as nex:
-                _log_error("WARN", "neptune_scan", str(nex))
+                _log_error("WARN", "atrox_scan", str(nex))
 
             # Refresh FRED/OFR cache off the request path so /api/compliance
             # never makes network calls. Functions are cache-aware (30-min TTL)
@@ -4527,7 +4533,7 @@ def api_compliance():
 # ─────────────────────────────────────────────────────────────────
 # Cato doctrine gate — Verana L0 pre-settlement check
 # Served from in-memory cache (_cato_input_cache) populated by
-# _neptune_refresh_loop. No network I/O in the request path.
+# _atrox_refresh_loop. No network I/O in the request path.
 # ─────────────────────────────────────────────────────────────────
 @app.route("/api/cato/gate")
 def api_cato_gate():
@@ -4538,7 +4544,7 @@ def api_cato_gate():
     Returns PROCEED / HOLD / ESCALATE + recommended_chain + price_sources
     based on live SOFR, OFR stress, live ETH/SOL prices, and the full
     multi-chain state (Ethereum, Base, Arbitrum, Solana). Served from
-    cache — _cato_refresh_inputs refreshes every 60s inside the Neptune
+    cache — _cato_refresh_inputs refreshes every 60s inside the Atrox
     refresh loop.
     """
     with _cato_input_cache_lock:
@@ -6031,21 +6037,21 @@ def api_treasury():
 
 
 # ─────────────────────────────────────────────────────────────────
-# NEPTUNE SPEAR — DATA PIPE ENDPOINTS
+# ATROX SPEAR — DATA PIPE ENDPOINTS
 # Unusual Whales REST adapter. Requires UW_API_TOKEN env var.
 # All responses carry MCP-style provenance (source_uri, content_hash, ts).
 # ─────────────────────────────────────────────────────────────────
 
-@app.route("/api/neptune/status")
-def api_neptune_status():
-    """Neptune pipe health — token presence, source label, last-checked ts."""
-    return jsonify(neptune_pipe_status())
+@app.route("/api/atrox/status")
+def api_atrox_status():
+    """Atrox pipe health — token presence, source label, last-checked ts."""
+    return jsonify(atrox_pipe_status())
 
 
-@app.route("/api/neptune/flow-alerts")
-def api_neptune_flow_alerts():
+@app.route("/api/atrox/flow-alerts")
+def api_atrox_flow_alerts():
     """Options flow alerts — large premium sweeps and unusual activity."""
-    client = get_neptune_client()
+    client = get_atrox_client()
     if client is None or not client.is_ready:
         return jsonify({"error": "UW pipe not ready — UW_API_TOKEN not configured", "alerts": []}), 503
     limit       = request.args.get("limit", 50, type=int)
@@ -6065,10 +6071,10 @@ def api_neptune_flow_alerts():
     return jsonify(result)
 
 
-@app.route("/api/neptune/darkpool")
-def api_neptune_darkpool():
+@app.route("/api/atrox/darkpool")
+def api_atrox_darkpool():
     """Market-wide dark pool recent prints."""
-    client = get_neptune_client()
+    client = get_atrox_client()
     if client is None or not client.is_ready:
         return jsonify({"error": "UW pipe not ready — UW_API_TOKEN not configured", "prints": []}), 503
     limit  = request.args.get("limit", 50, type=int)
@@ -6090,10 +6096,10 @@ def api_neptune_darkpool():
     return jsonify(result)
 
 
-@app.route("/api/neptune/market-tide")
-def api_neptune_market_tide():
+@app.route("/api/atrox/market-tide")
+def api_atrox_market_tide():
     """Market-wide options sentiment — call/put premium delta."""
-    client = get_neptune_client()
+    client = get_atrox_client()
     if client is None or not client.is_ready:
         return jsonify({"error": "UW pipe not ready — UW_API_TOKEN not configured"}), 503
     result = client.get_market_tide()
@@ -6102,10 +6108,10 @@ def api_neptune_market_tide():
     return jsonify(result)
 
 
-@app.route("/api/neptune/packet", methods=["POST"])
-def api_neptune_packet():
+@app.route("/api/atrox/packet", methods=["POST"])
+def api_atrox_packet():
     """
-    Full Neptune ingestion packet — pulls flow, dark pool, and market tide
+    Full Atrox ingestion packet — pulls flow, dark pool, and market tide
     for a list of tickers in one call.
 
     Body (JSON):
@@ -6116,14 +6122,14 @@ def api_neptune_packet():
         "darkpool_limit":   50                  // optional, default 50
       }
     """
-    client = get_neptune_client()
+    client = get_atrox_client()
     if client is None or not client.is_ready:
         return jsonify({"error": "UW pipe not ready — UW_API_TOKEN not configured"}), 503
     body = request.get_json(silent=True) or {}
     tickers = body.get("tickers", [])
     if not tickers:
         return jsonify({"error": "tickers list is required"}), 400
-    result = client.get_neptune_ingestion_packet(
+    result = client.get_atrox_ingestion_packet(
         tickers          = tickers,
         flow_min_premium = body.get("flow_min_premium", 25000),
         flow_limit       = body.get("flow_limit", 50),
@@ -6139,13 +6145,13 @@ def api_neptune_packet():
 # Requires TRADIER_API_TOKEN env var. Free paper account at tradier.com.
 # ─────────────────────────────────────────────────────────────────
 
-@app.route("/api/neptune/tradier/status")
+@app.route("/api/atrox/tradier/status")
 def api_tradier_status():
     """Tradier pipe health — token presence, live vs sandbox."""
     return jsonify(tradier_pipe_status())
 
 
-@app.route("/api/neptune/tradier/quotes")
+@app.route("/api/atrox/tradier/quotes")
 def api_tradier_quotes():
     """Real-time equity quotes. ?symbols=AAPL,MSFT"""
     client = get_tradier_client()
@@ -6156,7 +6162,7 @@ def api_tradier_quotes():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/tradier/expirations")
+@app.route("/api/atrox/tradier/expirations")
 def api_tradier_expirations():
     """Options expiration dates. ?symbol=SPY"""
     client = get_tradier_client()
@@ -6167,7 +6173,7 @@ def api_tradier_expirations():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/tradier/chain")
+@app.route("/api/atrox/tradier/chain")
 def api_tradier_chain():
     """Full options chain. ?symbol=SPY&expiration=2026-05-16"""
     client = get_tradier_client()
@@ -6181,7 +6187,7 @@ def api_tradier_chain():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/tradier/iv-surface")
+@app.route("/api/atrox/tradier/iv-surface")
 def api_tradier_iv_surface():
     """IV surface across all expirations. ?symbol=SPY"""
     client = get_tradier_client()
@@ -6192,7 +6198,7 @@ def api_tradier_iv_surface():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/tradier/stress-packet", methods=["POST"])
+@app.route("/api/atrox/tradier/stress-packet", methods=["POST"])
 def api_tradier_stress_packet():
     """
     Thifur stress-test data packet. Body: {"symbols": ["AAPL","NVDA"]}
@@ -6218,13 +6224,13 @@ def api_tradier_stress_packet():
 # Free paper trading account at alpaca.markets.
 # ─────────────────────────────────────────────────────────────────
 
-@app.route("/api/neptune/alpaca/status")
+@app.route("/api/atrox/alpaca/status")
 def api_alpaca_status():
     """Alpaca pipe health — key presence."""
     return jsonify(alpaca_pipe_status())
 
 
-@app.route("/api/neptune/alpaca/bars")
+@app.route("/api/atrox/alpaca/bars")
 def api_alpaca_bars():
     """OHLCV price bars. ?symbols=SPY,QQQ&timeframe=1Day&limit=252"""
     client = get_alpaca_client()
@@ -6247,26 +6253,26 @@ def api_alpaca_bars():
     return jsonify(result), 200
 
 
-@app.route("/api/neptune/alpaca/snapshots")
+@app.route("/api/atrox/alpaca/snapshots")
 def api_alpaca_snapshots():
     """
-    Latest quote + trade + bar snapshot. Served from the Neptune data-feed cache,
-    which is refreshed every 60s in the background by _neptune_refresh_loop.
+    Latest quote + trade + bar snapshot. Served from the Atrox data-feed cache,
+    which is refreshed every 60s in the background by _atrox_refresh_loop.
     Default symbols: SPY, QQQ, IWM, DIA. Custom ?symbols= is ignored to keep this
     endpoint fast and prevent gunicorn worker saturation under dashboard polling.
     """
-    cached = _neptune_data_cache_get("alpaca_snapshots")
+    cached = _atrox_data_cache_get("alpaca_snapshots")
     if cached is not None:
         return jsonify(cached), 200
     return jsonify({
         "status":  "warming",
-        "reason":  "Neptune cache populating",
+        "reason":  "Atrox cache populating",
         "data":    None,
         "message": "Cache will populate within 60s of boot. Retry shortly.",
     }), 200
 
 
-@app.route("/api/neptune/alpaca/news")
+@app.route("/api/atrox/alpaca/news")
 def api_alpaca_news():
     """News feed. ?symbols=NVDA,AAPL&limit=20"""
     client = get_alpaca_client()
@@ -6286,10 +6292,10 @@ def api_alpaca_news():
     return jsonify(result), 200
 
 
-@app.route("/api/neptune/alpaca/packet", methods=["POST"])
+@app.route("/api/atrox/alpaca/packet", methods=["POST"])
 def api_alpaca_packet():
     """
-    Full Alpaca Neptune packet. Body: {"symbols": ["SPY","QQQ","NVDA"]}
+    Full Alpaca Atrox packet. Body: {"symbols": ["SPY","QQQ","NVDA"]}
     Returns snapshots, 1-year daily bars, and news.
     """
     client = get_alpaca_client()
@@ -6299,7 +6305,7 @@ def api_alpaca_packet():
     symbols = body.get("symbols", [])
     if not symbols:
         return jsonify({"error": "symbols list is required"}), 400
-    result = client.get_neptune_ingestion_packet(
+    result = client.get_atrox_ingestion_packet(
         symbols    = symbols,
         bar_limit  = body.get("bar_limit", 252),
         news_limit = body.get("news_limit", 20),
@@ -6319,13 +6325,13 @@ def api_alpaca_packet():
 # No API key required. Public CBOE CDN data.
 # ─────────────────────────────────────────────────────────────────
 
-@app.route("/api/neptune/cboe/status")
+@app.route("/api/atrox/cboe/status")
 def api_cboe_status():
     """CBOE pipe health — always live (no auth required)."""
     return jsonify(cboe_pipe_status())
 
 
-@app.route("/api/neptune/cboe/vix")
+@app.route("/api/atrox/cboe/vix")
 def api_cboe_vix():
     """VIX daily history. ?limit=252"""
     client = get_cboe_client()
@@ -6336,7 +6342,7 @@ def api_cboe_vix():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/cboe/index")
+@app.route("/api/atrox/cboe/index")
 def api_cboe_index():
     """Any CBOE index history. ?index=SKEW&limit=30. Valid: VIX,VIX9D,VIX3M,VIX6M,VVIX,SKEW,MOVE"""
     client = get_cboe_client()
@@ -6348,7 +6354,7 @@ def api_cboe_index():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/cboe/term-structure")
+@app.route("/api/atrox/cboe/term-structure")
 def api_cboe_term_structure():
     """VIX term structure with contango/backwardation signal. ?lookback=30"""
     client = get_cboe_client()
@@ -6359,7 +6365,7 @@ def api_cboe_term_structure():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/cboe/put-call")
+@app.route("/api/atrox/cboe/put-call")
 def api_cboe_put_call():
     """All put/call ratios. ?lookback=30"""
     client = get_cboe_client()
@@ -6370,20 +6376,20 @@ def api_cboe_put_call():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/cboe/fear-packet")
+@app.route("/api/atrox/cboe/fear-packet")
 def api_cboe_fear_packet():
     """
     Full Thifur fear gauge packet — VIX term structure + P/C ratios + SKEW + VVIX.
-    Served from the Neptune data-feed cache (60s background refresh) to prevent
+    Served from the Atrox data-feed cache (60s background refresh) to prevent
     gunicorn worker saturation. Default lookback=30; custom values ignored.
     """
-    cached = _neptune_data_cache_get("cboe_fear_packet")
+    cached = _atrox_data_cache_get("cboe_fear_packet")
     if cached is not None:
         return jsonify(cached)
     return jsonify({
         "ok":      False,
         "status":  "warming",
-        "reason":  "Neptune cache populating",
+        "reason":  "Atrox cache populating",
         "message": "Cache will populate within 60s of boot. Retry shortly.",
     }), 200
 
@@ -6394,13 +6400,13 @@ def api_cboe_fear_packet():
 # Rate limit: 10 req/sec (SEC fair access policy).
 # ─────────────────────────────────────────────────────────────────
 
-@app.route("/api/neptune/edgar/status")
+@app.route("/api/atrox/edgar/status")
 def api_edgar_status():
     """EDGAR pipe health — always live (no auth required)."""
     return jsonify(edgar_pipe_status())
 
 
-@app.route("/api/neptune/edgar/submissions")
+@app.route("/api/atrox/edgar/submissions")
 def api_edgar_submissions():
     """Company filing history. ?cik=0001067983"""
     client = get_edgar_client()
@@ -6413,7 +6419,7 @@ def api_edgar_submissions():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/edgar/13f")
+@app.route("/api/atrox/edgar/13f")
 def api_edgar_13f():
     """Recent 13F filings for an institution. ?cik=0001067983&count=4"""
     client = get_edgar_client()
@@ -6427,7 +6433,7 @@ def api_edgar_13f():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/edgar/insider")
+@app.route("/api/atrox/edgar/insider")
 def api_edgar_insider():
     """Recent Form 4 insider transactions. ?cik=0000320193&count=10"""
     client = get_edgar_client()
@@ -6441,7 +6447,7 @@ def api_edgar_insider():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/edgar/search")
+@app.route("/api/atrox/edgar/search")
 def api_edgar_search():
     """Full-text EDGAR search. ?q=semiconductor&form=13F-HR"""
     client = get_edgar_client()
@@ -6456,61 +6462,61 @@ def api_edgar_search():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/edgar/institutional-packet", methods=["POST"])
+@app.route("/api/atrox/edgar/institutional-packet", methods=["POST"])
 def api_edgar_institutional_packet():
     """
-    Full Neptune institutional intelligence packet.
-    Served from the Neptune data-feed cache (60s background refresh) to prevent
+    Full Atrox institutional intelligence packet.
+    Served from the Atrox data-feed cache (60s background refresh) to prevent
     gunicorn worker saturation. Uses default institution list; custom body is
     ignored. Berkshire, Bridgewater, Citadel, Two Sigma, Tiger Global.
     """
-    cached = _neptune_data_cache_get("edgar_institutional")
+    cached = _atrox_data_cache_get("edgar_institutional")
     if cached is not None:
         return jsonify(cached)
     return jsonify({
         "ok":      False,
         "status":  "warming",
-        "reason":  "Neptune cache populating",
+        "reason":  "Atrox cache populating",
         "message": "Cache will populate within 60s of boot. Retry shortly.",
     }), 200
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  NEPTUNE SPEAR — Recommendation Engine Routes
+#  ATROX SPEAR — Recommendation Engine Routes
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.route("/api/neptune/recommendations")
-def api_neptune_recommendations():
-    """List active Neptune trade recommendations."""
+@app.route("/api/atrox/recommendations")
+def api_atrox_recommendations():
+    """List active Atrox trade recommendations."""
     with _lock:
-        recs = [r for r in aureon_state["neptune_recommendations"] if r.get("status") == "ACTIVE"]
+        recs = [r for r in aureon_state["atrox_recommendations"] if r.get("status") == "ACTIVE"]
     return jsonify({"recommendations": recs, "count": len(recs)})
 
 
-@app.route("/api/neptune/recommendations/scan", methods=["POST"])
-def api_neptune_scan():
-    """Force an immediate Neptune scan (bypasses interval cooldown)."""
-    global _neptune_last_scan
-    _neptune_last_scan = 0.0  # reset cooldown
+@app.route("/api/atrox/recommendations/scan", methods=["POST"])
+def api_atrox_scan():
+    """Force an immediate Atrox scan (bypasses interval cooldown)."""
+    global _atrox_last_scan
+    _atrox_last_scan = 0.0  # reset cooldown
     try:
-        _neptune_scan()
+        _atrox_scan()
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
     with _lock:
-        recs = [r for r in aureon_state["neptune_recommendations"] if r.get("status") == "ACTIVE"]
+        recs = [r for r in aureon_state["atrox_recommendations"] if r.get("status") == "ACTIVE"]
     return jsonify({"scanned": True, "recommendations": recs, "count": len(recs)})
 
 
-@app.route("/api/neptune/recommendations/<rec_id>/promote", methods=["POST"])
-def api_neptune_promote(rec_id):
+@app.route("/api/atrox/recommendations/<rec_id>/promote", methods=["POST"])
+def api_atrox_promote(rec_id):
     """
-    Promote a Neptune recommendation to a governed decision.
-    The recommendation moves from neptune_recommendations to pending_decisions
+    Promote a Atrox recommendation to a governed decision.
+    The recommendation moves from atrox_recommendations to pending_decisions
     as a PENDING governed decision requiring CAOM-001 approval.
     """
     with _lock:
         rec = None
-        for r in aureon_state["neptune_recommendations"]:
+        for r in aureon_state["atrox_recommendations"]:
             if r["id"] == rec_id and r.get("status") == "ACTIVE":
                 rec = r
                 break
@@ -6524,7 +6530,7 @@ def api_neptune_promote(rec_id):
         if len(aureon_state["pending_decisions"]) >= 4:
             return jsonify({"error": "Decision queue full (max 4). Approve or reject existing decisions first."}), 409
 
-        # Build governed decision from Neptune recommendation
+        # Build governed decision from Atrox recommendation
         notional = int(rec["shares"] * rec["price"])
         decision = {
             "id":                  f"DEC-{random.randint(0x10000000, 0xFFFFFFFF):X}",
@@ -6536,7 +6542,7 @@ def api_neptune_promote(rec_id):
             "notional":            notional,
             "product_type":        "SINGLE_NAME_EQUITY" if rec.get("asset_class") == "equities" else "OUT_OF_SCOPE",
             "rationale":           f"Atrox ({rec['conviction']} conviction): {rec['thesis']}",
-            "signal_type":         "NEPTUNE",
+            "signal_type":         "ATROX",
             "created":             datetime.now(timezone.utc).isoformat(),
             "status":              "PENDING",
             "required_approvals":  ["TRADER"],
@@ -6556,11 +6562,11 @@ def api_neptune_promote(rec_id):
         rec["promoted_to"] = decision["id"]
         rec["promoted_at"] = datetime.now(timezone.utc).isoformat()
 
-    _journal("NEPTUNE_PROMOTED", "NEPTUNE-SPEAR", rec["symbol"],
-             f"Neptune rec {rec_id} promoted to governed decision {decision['id']}. "
+    _journal("ATROX_PROMOTED", "ATROX-001", rec["symbol"],
+             f"Atrox rec {rec_id} promoted to governed decision {decision['id']}. "
              f"{rec['action']} {rec['symbol']} ${notional:,}. Awaiting CAOM-001 approval.",
              outcome="PENDING_DECISION", ref_id=decision["id"])
-    print(f"[NEPTUNE] Rec {rec_id} promoted → {decision['id']} — "
+    print(f"[ATROX] Rec {rec_id} promoted → {decision['id']} — "
           f"{rec['action']} {rec['symbol']} ${notional:,}")
 
     return jsonify({
@@ -6573,16 +6579,16 @@ def api_neptune_promote(rec_id):
     })
 
 
-@app.route("/api/neptune/recommendations/<rec_id>/dismiss", methods=["POST"])
-def api_neptune_dismiss(rec_id):
-    """Dismiss a Neptune recommendation (operator reviewed, chose not to act)."""
+@app.route("/api/atrox/recommendations/<rec_id>/dismiss", methods=["POST"])
+def api_atrox_dismiss(rec_id):
+    """Dismiss a Atrox recommendation (operator reviewed, chose not to act)."""
     with _lock:
-        for r in aureon_state["neptune_recommendations"]:
+        for r in aureon_state["atrox_recommendations"]:
             if r["id"] == rec_id and r.get("status") == "ACTIVE":
                 r["status"] = "DISMISSED"
                 r["dismissed_at"] = datetime.now(timezone.utc).isoformat()
-                _journal("NEPTUNE_DISMISSED", "CAOM-001", r["symbol"],
-                         f"Neptune rec {rec_id} dismissed by operator. "
+                _journal("ATROX_DISMISSED", "CAOM-001", r["symbol"],
+                         f"Atrox rec {rec_id} dismissed by operator. "
                          f"{r['action']} {r['symbol']} — thesis: {r['thesis'][:80]}...",
                          outcome="DISMISSED", ref_id=rec_id)
                 return jsonify({"status": "dismissed", "rec_id": rec_id})
@@ -6591,35 +6597,35 @@ def api_neptune_dismiss(rec_id):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  NEPTUNE SPEAR — Blockscout On-Chain Intelligence Pipe Routes
+#  ATROX SPEAR — Blockscout On-Chain Intelligence Pipe Routes
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.route("/api/neptune/blockscout/status")
+@app.route("/api/atrox/blockscout/status")
 def api_blockscout_status():
     """Blockscout pipe health — always live (no auth required)."""
     return jsonify(blockscout_pipe_status())
 
 
-@app.route("/api/neptune/blockscout/stats")
+@app.route("/api/atrox/blockscout/stats")
 def api_blockscout_stats():
     """
     Ethereum network stats — gas, block time, total addresses, market cap.
-    Served from the Neptune data-feed cache (60s background refresh) to prevent
+    Served from the Atrox data-feed cache (60s background refresh) to prevent
     gunicorn worker saturation. Default chain=1 (Ethereum mainnet); custom
     ?chain= is ignored.
     """
-    cached = _neptune_data_cache_get("blockscout_stats")
+    cached = _atrox_data_cache_get("blockscout_stats")
     if cached is not None:
         return jsonify(cached)
     return jsonify({
         "ok":      False,
         "status":  "warming",
-        "reason":  "Neptune cache populating",
+        "reason":  "Atrox cache populating",
         "message": "Cache will populate within 60s of boot. Retry shortly.",
     }), 200
 
 
-@app.route("/api/neptune/blockscout/address")
+@app.route("/api/atrox/blockscout/address")
 def api_blockscout_address():
     """Address info — balance, tx count, token holdings. ?address=0x...&chain=1"""
     client = get_blockscout_client()
@@ -6633,7 +6639,7 @@ def api_blockscout_address():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/blockscout/transfers")
+@app.route("/api/atrox/blockscout/transfers")
 def api_blockscout_transfers():
     """Token transfers for an address. ?address=0x...&chain=1&limit=20"""
     client = get_blockscout_client()
@@ -6648,7 +6654,7 @@ def api_blockscout_transfers():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/blockscout/tx")
+@app.route("/api/atrox/blockscout/tx")
 def api_blockscout_tx():
     """Transaction details. ?hash=0x...&chain=1"""
     client = get_blockscout_client()
@@ -6662,7 +6668,7 @@ def api_blockscout_tx():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/blockscout/search")
+@app.route("/api/atrox/blockscout/search")
 def api_blockscout_search():
     """Search tokens by name or symbol. ?q=USDC&chain=1"""
     client = get_blockscout_client()
@@ -6676,10 +6682,10 @@ def api_blockscout_search():
     return (jsonify(result), 502) if not result.get("ok") else jsonify(result)
 
 
-@app.route("/api/neptune/blockscout/onchain-packet", methods=["GET", "POST"])
+@app.route("/api/atrox/blockscout/onchain-packet", methods=["GET", "POST"])
 def api_blockscout_onchain_packet():
     """
-    Full Neptune on-chain intelligence packet.
+    Full Atrox on-chain intelligence packet.
     Network stats + gas + blocks + optional whale watch.
     GET: ?chain=1
     POST: {"chain": "1", "watch_addresses": ["0x...", ...]}
@@ -7706,7 +7712,7 @@ def _start_background_threads():
              authority="SYSTEM", outcome="OPEN_FINDING")
     threading.Thread(target=market_loop, daemon=True).start()
     threading.Thread(target=email_scheduler, daemon=True).start()
-    threading.Thread(target=_neptune_refresh_loop, daemon=True).start()
+    threading.Thread(target=_atrox_refresh_loop, daemon=True).start()
     print("[AUREON] Background threads started — CAOM-001 session OPEN")
 
 if __name__ == "__main__":

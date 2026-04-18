@@ -2,7 +2,7 @@
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                         ║
 ║  aureon/mcp/edgar_client.py                                          ║
-║  Neptune Spear — SEC EDGAR Institutional Data Pipe                   ║
+║  Atrox — SEC EDGAR Institutional Data Pipe                   ║
 ║                                                                      ║
 ║  MANDATE:                                                            ║
 ║    Institutional positioning intelligence for Thifur. 13F filings    ║
@@ -48,11 +48,11 @@ EDGAR_BROWSE_BASE = "https://www.sec.gov/cgi-bin/browse-edgar"
 # Rate limit: SEC requires max 10 req/sec — we stay conservative at 8/sec
 EDGAR_REQ_INTERVAL = 0.13   # seconds between requests
 
-# ── Neptune Pipe Identity ─────────────────────────────────────────────────────
+# ── Atrox Pipe Identity ─────────────────────────────────────────────────────
 PIPE_ID         = "EDGAR-PIPE-001"
 PIPE_NAME       = "SEC EDGAR — 13F Institutional Holdings + Insider Transactions"
 PIPE_VERSION    = "1.0"
-PIPE_URI_PREFIX = "aureon://neptune/pipe/edgar"
+PIPE_URI_PREFIX = "aureon://atrox/pipe/edgar"
 
 # Default user-agent (SEC requires org name + email per fair access policy)
 DEFAULT_UA = "Ravelo Strategic Solutions aureon@ravelostrategic.com"
@@ -87,7 +87,7 @@ _last_request_ts: float = 0.0
 
 class EdgarClient:
     """
-    Neptune Spear MCP data pipe client for SEC EDGAR.
+    Atrox MCP data pipe client for SEC EDGAR.
 
     Wraps SEC EDGAR REST API as a structured data pipe with full provenance.
     Enforces SEC fair access rate limits (10 req/sec max).
@@ -276,7 +276,7 @@ class EdgarClient:
         Pulls the filing index, finds the infotable XML document, and
         parses each position (issuer, CUSIP, value, shares, type).
 
-        Neptune domain: Crowding risk + institutional concentration.
+        Atrox domain: Crowding risk + institutional concentration.
         """
         # Step 1: Get the latest 13F accession number
         filings = self.get_13f_filings(cik, count=1)
@@ -349,7 +349,7 @@ class EdgarClient:
         Recent Form 4 insider transaction filings for a company.
         Returns filing metadata — issuer, filer, transaction date, type.
 
-        Neptune domain: Informed money signal (insider buys > sells = conviction).
+        Atrox domain: Informed money signal (insider buys > sells = conviction).
         """
         submissions = self.get_company_submissions(cik)
         if not submissions.get("ok"):
@@ -428,18 +428,18 @@ class EdgarClient:
         })
 
     # ─────────────────────────────────────────────────────────────────────────
-    # NEPTUNE INSTITUTIONAL INTELLIGENCE PACKET
+    # ATROX INSTITUTIONAL INTELLIGENCE PACKET
     # ─────────────────────────────────────────────────────────────────────────
 
-    def get_neptune_institutional_packet(self,
+    def get_atrox_institutional_packet(self,
                                           institutions: Optional[List[str]] = None) -> dict:
         """
-        Full Neptune institutional intelligence packet.
+        Full Atrox institutional intelligence packet.
 
         Pulls latest 13F filing metadata for a set of major institutions.
         Default set: Berkshire, Bridgewater, Citadel, Two Sigma, Tiger Global.
 
-        Neptune domain: Crowding risk + smart money positioning.
+        Atrox domain: Crowding risk + smart money positioning.
         """
         ts = datetime.now(timezone.utc).isoformat()
 
@@ -449,7 +449,7 @@ class EdgarClient:
         packet: dict = {
             "ok":        True,
             "pipe_id":   PIPE_ID,
-            "source_uri": f"{PIPE_URI_PREFIX}/neptune-institutional-packet",
+            "source_uri": f"{PIPE_URI_PREFIX}/atrox-institutional-packet",
             "ts":        ts,
             "institutions_queried": institutions,
             "data": {},

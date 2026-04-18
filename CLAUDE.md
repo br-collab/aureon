@@ -32,7 +32,7 @@ There is no automated test suite. Validation is manual via Railway deployment.
 
 | Layer | Altitude | Role |
 |---|---|---|
-| **Neptune Spear** | 50,000 ft | Alpha origination — advisory only, never executes |
+| **Atrox** | 50,000 ft | Alpha origination — advisory only, never executes |
 | **Mentat** | 30,000 ft | Decision intelligence, scenario support |
 | **Kaladan** | 10,000 ft | Lifecycle orchestration, approval lineage, evidence |
 | **Thifur-C2** | 1,000 ft | Command & Control coordination, lineage assembly |
@@ -44,12 +44,12 @@ There is no automated test suite. Validation is manual via Railway deployment.
 - **`server.py`** — Monolith Flask backend (~266KB). All API routes, state management, background threads (market loop, doctrine stack). This is the entry point for everything.
 - **`index.html`** — Full dashboard UI (~204KB). Portfolio, approvals, compliance, decision journal.
 - **`aureon/`** — Extracted domain modules (refactored from server.py):
-  - `config/` — CAOM, Neptune Spear spec, C2 doctrine, settings
+  - `config/` — CAOM, Atrox spec, C2 doctrine, settings
   - `approval_service/` — Role-based approval gates, release control, decision normalization
   - `policy_engine/` — Pre-trade gate evaluation (market status, cash, concentration, drawdown, OFAC, macro stress, hours)
   - `evidence_service/` — Trade reports, compliance PDFs, audit packaging
   - `session/` — 6-step session open protocol (must auto-run at boot, never require manual curl)
-  - `mcp/` — Verana L0 MCP server (JSON-RPC 2.0) + Neptune data pipe clients (Unusual Whales, Tradier, Alpaca, CBOE, EDGAR, Blockscout)
+  - `mcp/` — Verana L0 MCP server (JSON-RPC 2.0) + Atrox data pipe clients (Unusual Whales, Tradier, Alpaca, CBOE, EDGAR, Blockscout)
   - `persistence/` — JSON state save/load with corruption salvage
   - `core/models.py` — GovernedDecision dataclass
   - `integration_adapters/` — OMS, EMS, FIX stubs

@@ -96,7 +96,7 @@ C2_CONVERGENCE_MANDATE: str = (
 
 # ── Authority Chain (complete) ────────────────────────────────────────────────
 C2_AUTHORITY_CHAIN: list[str] = [
-    "Neptune Spear: origination & recommendation",
+    "Atrox: origination & recommendation",
     "Human Authority: approval required before any action",
     "Kaladan L2: lifecycle structuring & packaging",
     "Thifur-C2: coordination, handoff governance, unified lineage",
@@ -114,7 +114,7 @@ C2_RATIONALE: str = (
     "object, who holds the complete picture? Without C2, the answer is: nobody. "
     "With C2, the answer is: always C2. One unified lineage. One escalation "
     "surface. One coordination point at the convergence boundary. One authority "
-    "hash trail from Neptune origination to final settlement. C2 is what makes "
+    "hash trail from Atrox origination to final settlement. C2 is what makes "
     "the Aureon architecture auditable at institutional scale."
 )
 
@@ -169,8 +169,8 @@ execution (Thifur-R), programmable asset governance (Thifur-J), and adaptive
 optimization (Thifur-H), who holds the unified picture across all three? C2 holds
 that picture. Always. Without exception.
 
-C2 also receives Neptune Spear's operator-approved recommendations as the first
-downstream recipient after Kaladan structures the lifecycle. Neptune originates,
+C2 also receives Atrox's operator-approved recommendations as the first
+downstream recipient after Kaladan structures the lifecycle. Atrox originates,
 the operator approves, Kaladan packages, C2 coordinates execution. That is the
 complete authority chain.
 

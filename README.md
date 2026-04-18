@@ -42,14 +42,14 @@ Aureon augments OMS/EMS. It does not replace order staging, venue routing, paren
 ## Target Institutional Architecture
 
 ```text
-Neptune Spear — Alpha Origination (50,000 ft)
+Atrox — Alpha Origination (50,000 ft)
   Systematic signal generation, predictive analytics,
   market intelligence, product recommendations
   [Advisory only — all outputs require human approval]
                     |
                     v
       [HUMAN AUTHORITY — CAOM-001]
-      Operator reviews and approves Neptune output
+      Operator reviews and approves Atrox output
                     |
                     v
       Aureon Agent + Governance Layer
@@ -85,18 +85,18 @@ for replay, supervisory evidence, and audit packaging
 
 ## Agent Architecture
 
-### Neptune Spear — Alpha Generator (50,000 ft)
+### Atrox — Alpha Generator (50,000 ft)
 
-Neptune Spear is the alpha origination layer. It is the highest-intelligence agent in the architecture — above the Thifur execution triplet, below human authority. Neptune does not execute. Neptune originates.
+Atrox is the alpha origination layer. It is the highest-intelligence agent in the architecture — above the Thifur execution triplet, below human authority. Atrox does not execute. Atrox originates.
 
 **Three domains:**
 - **Trade Origination** — systematic signal generation, predictive analytics, cross-asset opportunity identification, 24/7 continuous monitoring
 - **Market Intelligence** — real-time data synthesis across Twelve Data, Bloomberg, onchain flows, macro signals, regulatory publications, and alternative data
 - **Product Recommendations** — identifies new strategies, instruments, and licensing opportunities based on persistent signal patterns and institutional demand signals
 
-**Governance:** Every Neptune output is advisory. Full analytical lineage is required before any recommendation surfaces to human authority. No downstream agent receives a tasking without explicit operator approval. Neptune never self-executes under any condition.
+**Governance:** Every Atrox output is advisory. Full analytical lineage is required before any recommendation surfaces to human authority. No downstream agent receives a tasking without explicit operator approval. Atrox never self-executes under any condition.
 
-**Named for:** Operation Neptune Spear. Executed blind into denied territory with incomplete information, zero margin for error, single objective. The agent operates with the same mandate.
+**Named for:** Atrox. Executed blind into denied territory with incomplete information, zero margin for error, single objective. The agent operates with the same mandate.
 
 ---
 
@@ -146,7 +146,7 @@ All Thifur agents operate under strict governance constraints:
 
 | Doctrine Name | Altitude | Institutional Translation | Phase 1 Responsibility |
 |---------------|----------|---------------------------|------------------------|
-| **Neptune Spear** | 50,000 ft | Alpha origination and market intelligence layer | Signal generation, predictive analytics, product recommendations — advisory only |
+| **Atrox** | 50,000 ft | Alpha origination and market intelligence layer | Signal generation, predictive analytics, product recommendations — advisory only |
 | **Verana** | Ground | Control and governance boundary layer | Session controls, policy boundary enforcement, supervisory control posture |
 | **Mentat** | 30,000 ft | Decision-intelligence and portfolio reasoning layer | Intent synthesis, scenario support, strategy-context framing, doctrine boundaries |
 | **Kaladan** | 10,000 ft | Lifecycle and evidence orchestration layer | Approval lineage, evidence packaging, replay context, downstream status attachment |
@@ -178,7 +178,7 @@ No agent substitutes for human authority at any tier. Every approval action is s
 - risk framing and constraint visibility for human review
 - configurable role-based approval lineage
 - DSOR evidence, replay context, and audit packaging
-- Neptune Spear origination intelligence — advisory layer above execution
+- Atrox origination intelligence — advisory layer above execution
 - Thifur-C2 coordination and unified lineage assembly
 - controlled AI-assisted workflow support inside governed tasks
 
@@ -210,7 +210,7 @@ Aureon is designed to support the controlled use of bounded agentics within defi
 
 The critical architectural principle: **intelligence and authority are explicitly separated.**
 
-- Neptune Spear originates. The operator approves.
+- Atrox originates. The operator approves.
 - Mentat reasons. The operator decides.
 - Kaladan structures. The operator releases.
 - Thifur executes. Within bounds the operator has pre-approved.
@@ -240,7 +240,7 @@ Aureon's governance architecture is mapped against six regulatory frameworks:
 |------|--------------------|-----------------|
 | Asset scope | Equities-first | Program Trading, Delta One, OTC, all asset classes |
 | Primary pilot | Electronic Execution | Broader cross-desk rollout |
-| Neptune Spear | 6 data pipes live (Unusual Whales, Tradier, Alpaca, CBOE, EDGAR, Blockscout) + dashboard tab | Full production activation with trade origination |
+| Atrox | 6 data pipes live (Unusual Whales, Tradier, Alpaca, CBOE, EDGAR, Blockscout) + dashboard tab | Full production activation with trade origination |
 | Thifur-C2 | Declared — coordination architecture specified | Full multi-agent coordination live |
 | Thifur-R | Core settlement determinism active | Full clearing governance, cross-border rails |
 | Thifur-J | Pre-trade structuring, policy checks | Full tokenized asset lifecycle, DeFi convergence |
@@ -261,9 +261,9 @@ Aureon's governance architecture is mapped against six regulatory frameworks:
 - dashboard views for governance, decisions, and downstream status visibility
 - email reporting pipeline for governed trade confirmation
 - live paper trading on Railway production deployment
-- Neptune Spear alpha origination layer with 6 live data pipes (options flow, dark pool, VIX fear gauge, market snapshots, institutional 13F, on-chain intelligence)
+- Atrox alpha origination layer with 6 live data pipes (options flow, dark pool, VIX fear gauge, market snapshots, institutional 13F, on-chain intelligence)
 - MCP server (Verana L0) exposing 5 governance resources and 4 compliance tools to external AI agents
-- Neptune Spear dashboard tab with pipe status, fear gauge, flow intelligence, and on-chain data
+- Atrox dashboard tab with pipe status, fear gauge, flow intelligence, and on-chain data
 
 The current implementation is still technically compressed. The backend is centered in `server.py`, the UI is concentrated in `index.html`, and several concerns remain co-located for prototype speed. That structural compression is a repository limitation, not the target product architecture.
 
@@ -284,12 +284,12 @@ The Grid 3/
   aureon/
     config/
       caom.py
-      neptune_spear.py
+      atrox.py
       thifur_c2_doctrine.py
     mcp/
       __init__.py
       server.py
-      neptune_client.py
+      atrox_client.py
       tradier_client.py
       alpaca_client.py
       cboe_client.py
@@ -308,15 +308,15 @@ Current file roles:
 - `fix_adapter.py`: FIX translation stub for OMS/EMS integration boundary exploration
 - `aureon_state_persist.json`: local persisted runtime state
 - `aureon/config/caom.py`: CAOM-001 Consolidated Authority Operating Mode configuration
-- `aureon/config/neptune_spear.py`: Thifur-Neptune Spear doctrine declaration and knowledge base text
+- `aureon/config/atrox.py`: Thifur-Atrox doctrine declaration and knowledge base text
 - `aureon/config/thifur_c2_doctrine.py`: Thifur-C2 Command and Control doctrine declaration
 - `aureon/mcp/server.py`: MCP server — Phase 1 Verana L0 (JSON-RPC 2.0 over HTTP, `POST /mcp`)
-- `aureon/mcp/neptune_client.py`: Neptune data pipe — Unusual Whales options flow, dark pool prints, market sentiment
-- `aureon/mcp/tradier_client.py`: Neptune data pipe — Tradier options chains, Greeks, IV surface, historical volatility
-- `aureon/mcp/alpaca_client.py`: Neptune data pipe — Alpaca price bars, news feed, market snapshots, corporate actions
-- `aureon/mcp/cboe_client.py`: Neptune data pipe — CBOE VIX term structure, put/call ratios, SKEW, fear gauge (no auth)
-- `aureon/mcp/edgar_client.py`: Neptune data pipe — SEC EDGAR 13F institutional holdings, insider Form 4 transactions (no auth)
-- `aureon/mcp/blockscout_client.py`: Neptune data pipe — Blockscout on-chain intelligence, ETH gas/blocks, multi-chain (no auth)
+- `aureon/mcp/atrox_client.py`: Atrox data pipe — Unusual Whales options flow, dark pool prints, market sentiment
+- `aureon/mcp/tradier_client.py`: Atrox data pipe — Tradier options chains, Greeks, IV surface, historical volatility
+- `aureon/mcp/alpaca_client.py`: Atrox data pipe — Alpaca price bars, news feed, market snapshots, corporate actions
+- `aureon/mcp/cboe_client.py`: Atrox data pipe — CBOE VIX term structure, put/call ratios, SKEW, fear gauge (no auth)
+- `aureon/mcp/edgar_client.py`: Atrox data pipe — SEC EDGAR 13F institutional holdings, insider Form 4 transactions (no auth)
+- `aureon/mcp/blockscout_client.py`: Atrox data pipe — Blockscout on-chain intelligence, ETH gas/blocks, multi-chain (no auth)
 - `aureon/session/session_protocol.py`: six-step session auto-complete protocol
 - `aureon/approval_service/release_control.py`: governed release control and approval lineage
 - `scripts/`: local startup helpers
@@ -347,7 +347,7 @@ Aureon exposes a Model Context Protocol (MCP) server, enabling external AI agent
 
 | Agent | What It Consumes | Why |
 |---|---|---|
-| **Neptune Spear** | External market data pipes, alternative data, onchain feeds via MCP | Structured, auditable data ingestion with full provenance — replaces raw API polling |
+| **Atrox** | External market data pipes, alternative data, onchain feeds via MCP | Structured, auditable data ingestion with full provenance — replaces raw API polling |
 | **Mentat L1** | Regulatory publication feeds, SEC/ESMA/FRB document streams | Doctrine updates require traceable source documents |
 | **Verana L0** | OFAC SDN list updates, DORA/MiFID II regulatory change feeds | Network Registry must absorb external regulatory changes with lineage |
 
@@ -356,7 +356,7 @@ Aureon exposes a Model Context Protocol (MCP) server, enabling external AI agent
 ### Verana L0 — Phase 1 Connection Schema
 
 ```
-MCP Client (Claude Desktop / external agent / Neptune Spear)
+MCP Client (Claude Desktop / external agent / Atrox)
   │
   │  POST /mcp
   │  Content-Type: application/json
@@ -412,9 +412,9 @@ POST /mcp
 
 ---
 
-### Neptune Spear — External Data Pipe Architecture
+### Atrox — External Data Pipe Architecture
 
-Neptune Spear is the highest-intelligence origination agent in the architecture. In Phase 1 activation, Neptune consumes external data sources via structured data pipe clients — giving every data input a structured, auditable provenance trail. Six pipes are currently live.
+Atrox is the highest-intelligence origination agent in the architecture. In Phase 1 activation, Atrox consumes external data sources via structured data pipe clients — giving every data input a structured, auditable provenance trail. Six pipes are currently live.
 
 ```
 External Data Sources (MCP Servers)
@@ -426,7 +426,7 @@ External Data Sources (MCP Servers)
           │
           │  MCP resources/read + tools/call
           ▼
-  Neptune Spear (MCP Client)
+  Atrox (MCP Client)
   Synthesizes across all feeds → generates investment thesis
           │
           │  Recommendation + full analytical lineage
@@ -438,11 +438,11 @@ External Data Sources (MCP Servers)
   Kaladan L2 → Thifur-C2 → R / J / H
 ```
 
-**Why MCP for Neptune's data pipes:**
+**Why MCP for Atrox's data pipes:**
 - Every data source is a named, versioned MCP resource — not a raw API call
 - Full provenance trail: which data, from which server, at which timestamp
-- If a regulator asks "what data did Neptune use for this recommendation?" — the MCP resource URI is the answer
-- Same HITL guardrail applies: Neptune synthesizes, operator approves, nothing executes autonomously
+- If a regulator asks "what data did Atrox use for this recommendation?" — the MCP resource URI is the answer
+- Same HITL guardrail applies: Atrox synthesizes, operator approves, nothing executes autonomously
 
 ---
 
@@ -526,7 +526,7 @@ TWELVE_DATA_API_KEY=your_key
 ## Current Limitations
 
 - The system is a prototype and does not yet implement production-grade persistence, resiliency, or control architecture
-- Neptune Spear data pipes are implemented (6 live pipes: Unusual Whales, Tradier, Alpaca, CBOE, EDGAR, Blockscout); full production activation pending regulatory validation
+- Atrox data pipes are implemented (6 live pipes: Unusual Whales, Tradier, Alpaca, CBOE, EDGAR, Blockscout); full production activation pending regulatory validation
 - Thifur-C2 is fully specified at the doctrine level — coordination implementation is the next phase
 - The codebase is still structurally compressed and does not yet reflect the target service boundaries
 - FIX support is a translation stub, not a live broker, EMS, or OMS session
@@ -545,7 +545,7 @@ The near-term objective is much narrower and more credible:
 - establish Aureon as the DSOR before execution
 - demonstrate clean boundaries with OMS, EMS, SOR, and downstream post-trade systems
 - build trust through governed approvals, replayability, and evidence quality
-- activate Neptune Spear as the alpha origination layer on live data pipes
+- activate Atrox as the alpha origination layer on live data pipes
 
 ---
 

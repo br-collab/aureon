@@ -1,11 +1,11 @@
 """
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                         ║
-║  aureon/mcp/neptune_client.py                                        ║
-║  Neptune Spear — Unusual Whales MCP Data Pipe Client                 ║
+║  aureon/mcp/atrox_client.py                                        ║
+║  Atrox — Unusual Whales MCP Data Pipe Client                 ║
 ║                                                                      ║
 ║  MANDATE:                                                            ║
-║    Neptune Spear's first live external data pipe.                    ║
+║    Atrox's first live external data pipe.                    ║
 ║    Ingests options flow, dark pool prints, and market sentiment      ║
 ║    from Unusual Whales (unusualwhales.com/public-api/mcp).           ║
 ║                                                                      ║
@@ -14,7 +14,7 @@
 ║    (Anthropic tool-use pattern), not a JSON-RPC MCP server.          ║
 ║    This client wraps their REST API as a structured MCP data pipe    ║
 ║    with full provenance — every ingestion record carries:            ║
-║      - source URI (aureon://neptune/pipe/unusual-whales/{resource})  ║
+║      - source URI (aureon://atrox/pipe/unusual-whales/{resource})  ║
 ║      - timestamp, endpoint, API version                              ║
 ║      - raw response hash for lineage                                 ║
 ║                                                                      ║
@@ -23,9 +23,9 @@
 ║  Auth: Authorization: Bearer <UW_API_TOKEN>                          ║
 ║        UW-CLIENT-API-ID: 100001                                      ║
 ║                                                                      ║
-║  DOCTRINE: Every data source Neptune consumes is a named,            ║
+║  DOCTRINE: Every data source Atrox consumes is a named,            ║
 ║  versioned resource URI. Not a raw API call. This is what makes      ║
-║  Neptune's recommendations auditable — "what data did Neptune        ║
+║  Atrox's recommendations auditable — "what data did Atrox        ║
 ║  use?" is answered by the provenance record, not memory.             ║
 ╚══════════════════════════════════════════════════════════════════════╝
 """
@@ -44,10 +44,10 @@ UW_BASE_URL      = "https://api.unusualwhales.com"
 UW_CLIENT_ID     = "100001"
 UW_SKILL_MANIFEST = "https://unusualwhales.com/skill.md"
 
-# ── Neptune Pipe Resource URI prefix ─────────────────────────────────────────
-# Every data ingestion record carries a URI so Neptune's recommendations
+# ── Atrox Pipe Resource URI prefix ─────────────────────────────────────────
+# Every data ingestion record carries a URI so Atrox's recommendations
 # can cite the exact data source — the MCP provenance standard.
-PIPE_URI_PREFIX  = "aureon://neptune/pipe/unusual-whales"
+PIPE_URI_PREFIX  = "aureon://atrox/pipe/unusual-whales"
 
 # ── Data pipe identity ────────────────────────────────────────────────────────
 PIPE_ID      = "UW-PIPE-001"
@@ -57,7 +57,7 @@ PIPE_VERSION = "1.0"
 
 class UnusualWhalesClient:
     """
-    Neptune Spear MCP data pipe client for Unusual Whales.
+    Atrox MCP data pipe client for Unusual Whales.
 
     Wraps the Unusual Whales REST API as a structured data pipe
     with full provenance — each response carries source URI,
@@ -78,8 +78,8 @@ class UnusualWhalesClient:
         # Market tide (sentiment)
         tide = client.get_market_tide()
 
-        # Full Neptune ingestion packet — all three in one call
-        packet = client.get_neptune_ingestion_packet(tickers=["SPY","QQQ","MSFT"])
+        # Full Atrox ingestion packet — all three in one call
+        packet = client.get_atrox_ingestion_packet(tickers=["SPY","QQQ","MSFT"])
     """
 
     def __init__(self, api_token: Optional[str] = None):
@@ -115,7 +115,7 @@ class UnusualWhalesClient:
         req.add_header("Authorization", f"Bearer {self._token}")
         req.add_header("UW-CLIENT-API-ID", UW_CLIENT_ID)
         req.add_header("Accept", "application/json")
-        req.add_header("User-Agent", "aureon-neptune/1.0")
+        req.add_header("User-Agent", "aureon-atrox/1.0")
 
         ts = datetime.now(timezone.utc).isoformat()
 
@@ -171,7 +171,7 @@ class UnusualWhalesClient:
         """
         Unusual options flow alerts — whale trades.
         Endpoint: GET /api/option-trades/flow-alerts
-        Neptune domain: Trade Origination + Market Intelligence
+        Atrox domain: Trade Origination + Market Intelligence
         """
         params = {"limit": limit}
         if min_premium is not None:
@@ -188,7 +188,7 @@ class UnusualWhalesClient:
             params["size_greater_oi"] = str(size_greater_oi).lower()
 
         result = self._get("/api/option-trades/flow-alerts", params)
-        result["neptune_domain"] = "TRADE_ORIGINATION"
+        result["atrox_domain"] = "TRADE_ORIGINATION"
         result["signal_type"]    = "OPTIONS_FLOW_ALERT"
         return result
 
@@ -198,7 +198,7 @@ class UnusualWhalesClient:
         Endpoint: GET /api/stock/{ticker}/flow-recent
         """
         result = self._get(f"/api/stock/{ticker.upper()}/flow-recent")
-        result["neptune_domain"] = "MARKET_INTELLIGENCE"
+        result["atrox_domain"] = "MARKET_INTELLIGENCE"
         result["signal_type"]    = "TICKER_FLOW_RECENT"
         result["ticker"]         = ticker.upper()
         return result
@@ -224,7 +224,7 @@ class UnusualWhalesClient:
             params["min_volume_oi_ratio"] = min_volume_oi_ratio
 
         result = self._get("/api/screener/option-contracts", params)
-        result["neptune_domain"] = "TRADE_ORIGINATION"
+        result["atrox_domain"] = "TRADE_ORIGINATION"
         result["signal_type"]    = "OPTIONS_SCREENER"
         return result
 
@@ -236,10 +236,10 @@ class UnusualWhalesClient:
         """
         Market-wide dark pool prints.
         Endpoint: GET /api/darkpool/recent
-        Neptune domain: Market Intelligence
+        Atrox domain: Market Intelligence
         """
         result = self._get("/api/darkpool/recent", {"limit": limit})
-        result["neptune_domain"] = "MARKET_INTELLIGENCE"
+        result["atrox_domain"] = "MARKET_INTELLIGENCE"
         result["signal_type"]    = "DARK_POOL_MARKET_WIDE"
         return result
 
@@ -249,7 +249,7 @@ class UnusualWhalesClient:
         Endpoint: GET /api/darkpool/{ticker}
         """
         result = self._get(f"/api/darkpool/{ticker.upper()}")
-        result["neptune_domain"] = "MARKET_INTELLIGENCE"
+        result["atrox_domain"] = "MARKET_INTELLIGENCE"
         result["signal_type"]    = "DARK_POOL_TICKER"
         result["ticker"]         = ticker.upper()
         return result
@@ -262,10 +262,10 @@ class UnusualWhalesClient:
         """
         Market tide — net premium, put/call sentiment.
         Endpoint: GET /api/market/market-tide
-        Neptune domain: Market Intelligence
+        Atrox domain: Market Intelligence
         """
         result = self._get("/api/market/market-tide")
-        result["neptune_domain"] = "MARKET_INTELLIGENCE"
+        result["atrox_domain"] = "MARKET_INTELLIGENCE"
         result["signal_type"]    = "MARKET_TIDE"
         return result
 
@@ -275,7 +275,7 @@ class UnusualWhalesClient:
         Endpoint: GET /api/stock/{ticker}/net-prem-ticks
         """
         result = self._get(f"/api/stock/{ticker.upper()}/net-prem-ticks")
-        result["neptune_domain"] = "MARKET_INTELLIGENCE"
+        result["atrox_domain"] = "MARKET_INTELLIGENCE"
         result["signal_type"]    = "NET_PREMIUM_TICKS"
         result["ticker"]         = ticker.upper()
         return result
@@ -287,7 +287,7 @@ class UnusualWhalesClient:
     def get_greeks(self, ticker: str) -> dict:
         """Greeks per strike/expiry. Endpoint: GET /api/stock/{ticker}/greeks"""
         result = self._get(f"/api/stock/{ticker.upper()}/greeks")
-        result["neptune_domain"] = "MARKET_INTELLIGENCE"
+        result["atrox_domain"] = "MARKET_INTELLIGENCE"
         result["signal_type"]    = "OPTIONS_GREEKS"
         result["ticker"]         = ticker.upper()
         return result
@@ -295,7 +295,7 @@ class UnusualWhalesClient:
     def get_spot_gex(self, ticker: str) -> dict:
         """Spot gamma exposure by strike. Endpoint: GET /api/stock/{ticker}/spot-exposures/strike"""
         result = self._get(f"/api/stock/{ticker.upper()}/spot-exposures/strike")
-        result["neptune_domain"] = "MARKET_INTELLIGENCE"
+        result["atrox_domain"] = "MARKET_INTELLIGENCE"
         result["signal_type"]    = "SPOT_GEX"
         result["ticker"]         = ticker.upper()
         return result
@@ -303,38 +303,38 @@ class UnusualWhalesClient:
     def get_options_volume(self, ticker: str) -> dict:
         """Options volume + put/call ratio. Endpoint: GET /api/stock/{ticker}/options-volume"""
         result = self._get(f"/api/stock/{ticker.upper()}/options-volume")
-        result["neptune_domain"] = "MARKET_INTELLIGENCE"
+        result["atrox_domain"] = "MARKET_INTELLIGENCE"
         result["signal_type"]    = "OPTIONS_VOLUME_PC"
         result["ticker"]         = ticker.upper()
         return result
 
     # ─────────────────────────────────────────────────────────────────────────
-    # NEPTUNE INGESTION PACKET
-    # Primary entry point for the Neptune Spear intelligence cycle
+    # ATROX INGESTION PACKET
+    # Primary entry point for the Atrox intelligence cycle
     # ─────────────────────────────────────────────────────────────────────────
 
-    def get_neptune_ingestion_packet(self,
+    def get_atrox_ingestion_packet(self,
                                      tickers: Optional[list] = None,
                                      flow_min_premium: int = 100_000,
                                      flow_limit: int = 25,
                                      darkpool_limit: int = 25) -> dict:
         """
-        Full Neptune Spear ingestion packet — all three primary domains.
+        Full Atrox ingestion packet — all three primary domains.
 
         Pulls options flow alerts, market-wide dark pool, market tide,
         and ticker-level flow/dark pool for each specified ticker.
 
-        Returns a single provenance-wrapped packet that Neptune uses
+        Returns a single provenance-wrapped packet that Atrox uses
         to generate investment theses. Every field carries source URI
-        so the operator can trace exactly what Neptune saw.
+        so the operator can trace exactly what Atrox saw.
 
-        This is what makes Neptune's recommendations auditable.
+        This is what makes Atrox's recommendations auditable.
         """
         ts     = datetime.now(timezone.utc).isoformat()
         tickers = [t.upper() for t in (tickers or [])]
 
         packet = {
-            "packet_id":    f"NEPTUNE-PKT-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+            "packet_id":    f"ATROX-PKT-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
             "pipe_id":      PIPE_ID,
             "pipe_name":    PIPE_NAME,
             "pipe_version": PIPE_VERSION,
@@ -344,7 +344,7 @@ class UnusualWhalesClient:
                 "source":   "Unusual Whales API",
                 "skill_manifest": UW_SKILL_MANIFEST,
                 "base_url": UW_BASE_URL,
-                "pipe_uri": f"{PIPE_URI_PREFIX}/neptune-packet",
+                "pipe_uri": f"{PIPE_URI_PREFIX}/atrox-packet",
             },
             "domains": {
                 "TRADE_ORIGINATION": {},
@@ -405,7 +405,7 @@ class UnusualWhalesClient:
             "calls_attempted":  4 + len(tickers) * 3,
             "calls_succeeded":  4 + len(tickers) * 3 - len(packet["errors"]),
             "errors":           len(packet["errors"]),
-            "ready_for_neptune": len(packet["errors"]) == 0,
+            "ready_for_atrox": len(packet["errors"]) == 0,
         }
 
         return packet
@@ -415,16 +415,16 @@ class UnusualWhalesClient:
 _client: Optional[UnusualWhalesClient] = None
 
 
-def init_neptune_pipe(api_token: Optional[str] = None) -> UnusualWhalesClient:
+def init_atrox_pipe(api_token: Optional[str] = None) -> UnusualWhalesClient:
     """
-    Initialize the Neptune Spear / Unusual Whales data pipe.
+    Initialize the Atrox / Unusual Whales data pipe.
     Called by server.py at startup — token read from UW_API_TOKEN env var.
     """
     global _client
     token   = api_token or os.environ.get("UW_API_TOKEN", "")
     _client = UnusualWhalesClient(api_token=token)
     status  = "READY" if _client.is_ready else "NO TOKEN — add UW_API_TOKEN"
-    print(f"[NEPTUNE] Unusual Whales data pipe — {status}")
+    print(f"[ATROX] Unusual Whales data pipe — {status}")
     return _client
 
 
@@ -448,8 +448,8 @@ def pipe_status() -> dict:
             "darkpool_recent", "darkpool_ticker",
             "market_tide", "net_prem_ticks",
             "greeks", "spot_gex", "options_volume",
-            "neptune_ingestion_packet",
+            "atrox_ingestion_packet",
         ],
-        "neptune_domains": ["TRADE_ORIGINATION", "MARKET_INTELLIGENCE"],
+        "atrox_domains": ["TRADE_ORIGINATION", "MARKET_INTELLIGENCE"],
         "provenance_uri_prefix": PIPE_URI_PREFIX,
     }

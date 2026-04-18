@@ -2,7 +2,7 @@
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                         ║
 ║  aureon/mcp/alpaca_client.py                                         ║
-║  Neptune Spear — Alpaca Market Data Pipe                             ║
+║  Atrox — Alpaca Market Data Pipe                             ║
 ║                                                                      ║
 ║  MANDATE:                                                            ║
 ║    Baseline equity data, price history, and news feed for            ║
@@ -39,11 +39,11 @@ from typing import Optional, List
 ALPACA_DATA_BASE  = "https://data.alpaca.markets/v2"
 ALPACA_NEWS_BASE  = "https://data.alpaca.markets/v1beta1"
 
-# ── Neptune Pipe Identity ─────────────────────────────────────────────────────
+# ── Atrox Pipe Identity ─────────────────────────────────────────────────────
 PIPE_ID          = "ALPACA-PIPE-001"
 PIPE_NAME        = "Alpaca — Price Bars + News + Market Snapshots"
 PIPE_VERSION     = "1.0"
-PIPE_URI_PREFIX  = "aureon://neptune/pipe/alpaca"
+PIPE_URI_PREFIX  = "aureon://atrox/pipe/alpaca"
 
 # Module-level client singleton
 _client: Optional["AlpacaClient"] = None
@@ -51,7 +51,7 @@ _client: Optional["AlpacaClient"] = None
 
 class AlpacaClient:
     """
-    Neptune Spear MCP data pipe client for Alpaca Data API v2.
+    Atrox MCP data pipe client for Alpaca Data API v2.
 
     Wraps Alpaca REST API as a structured data pipe with full provenance.
     Free tier supports IEX feed + delayed SIP — sufficient for Thifur
@@ -69,8 +69,8 @@ class AlpacaClient:
         # News feed for a ticker
         news = client.get_news(["NVDA"], limit=20)
 
-        # Full Neptune ingestion packet
-        packet = client.get_neptune_ingestion_packet(["SPY", "QQQ", "NVDA"])
+        # Full Atrox ingestion packet
+        packet = client.get_atrox_ingestion_packet(["SPY", "QQQ", "NVDA"])
     """
 
     def __init__(self, api_key: Optional[str] = None, api_secret: Optional[str] = None):
@@ -100,7 +100,7 @@ class AlpacaClient:
         req.add_header("APCA-API-KEY-ID",     self._key)
         req.add_header("APCA-API-SECRET-KEY", self._secret)
         req.add_header("Accept", "application/json")
-        req.add_header("User-Agent", "aureon-neptune/1.0")
+        req.add_header("User-Agent", "aureon-atrox/1.0")
 
         ts = datetime.now(timezone.utc).isoformat()
 
@@ -219,7 +219,7 @@ class AlpacaClient:
         """
         Aggregated snapshot — latest quote, latest trade, daily bar, prev bar.
         Endpoint: GET /stocks/snapshots
-        Neptune domain: Pre-trade state picture.
+        Atrox domain: Pre-trade state picture.
         """
         return self._get(ALPACA_DATA_BASE, "/stocks/snapshots", {
             "symbols": ",".join(symbols),
@@ -238,7 +238,7 @@ class AlpacaClient:
         News articles — company-specific or broad market.
         Endpoint: GET /news (v1beta1)
 
-        Neptune domain: Macro + company news signal for Thifur H advisory.
+        Atrox domain: Macro + company news signal for Thifur H advisory.
         """
         params: dict = {"limit": limit, "sort": "desc"}
         if symbols:
@@ -265,23 +265,23 @@ class AlpacaClient:
         return self._get(ALPACA_DATA_BASE, f"/stocks/{symbol}/corporate_actions", params or None)
 
     # ─────────────────────────────────────────────────────────────────────────
-    # NEPTUNE INGESTION PACKET
+    # ATROX INGESTION PACKET
     # ─────────────────────────────────────────────────────────────────────────
 
-    def get_neptune_ingestion_packet(self, symbols: List[str],
+    def get_atrox_ingestion_packet(self, symbols: List[str],
                                       bar_limit: int = 252,
                                       news_limit: int = 20) -> dict:
         """
-        Full Neptune ingestion packet for Thifur calibration.
+        Full Atrox ingestion packet for Thifur calibration.
         Pulls: snapshots, daily bars, and news for all symbols.
 
-        Neptune domain: Baseline equity + macro signal pipeline.
+        Atrox domain: Baseline equity + macro signal pipeline.
         """
         ts = datetime.now(timezone.utc).isoformat()
         packet: dict = {
             "ok":        True,
             "pipe_id":   PIPE_ID,
-            "source_uri": f"{PIPE_URI_PREFIX}/neptune-packet",
+            "source_uri": f"{PIPE_URI_PREFIX}/atrox-packet",
             "ts":        ts,
             "symbols":   symbols,
             "data": {},

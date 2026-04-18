@@ -46,6 +46,10 @@ def save_state(*, state, lock, state_file, resolve_mmf_provider, log_error):
                 # cross restarts so the screening trail is durable.
                 "paused_lifecycles":     dict(state.get("paused_lifecycles", {})),
                 "c2_j_compliance_log":   list(state.get("c2_j_compliance_log", [])),
+                # ── Phase 4.2 Atrox recommendations ─────────────────
+                # Renamed from neptune_recommendations. Migration
+                # handled at load time via migrate_neptune_to_atrox.
+                "atrox_recommendations": list(state.get("atrox_recommendations", [])),
                 "saved_at":          datetime.now(timezone.utc).isoformat(),
             }
         # Atomic save: write to tmp in the same directory, then rename.
@@ -68,12 +72,65 @@ def save_state(*, state, lock, state_file, resolve_mmf_provider, log_error):
         log_error("WARN", "persistence.save_state", str(exc))
 
 
+def migrate_neptune_to_atrox(state: dict, log_error=None) -> bool:
+    """Phase 4.2 one-time migration: rename the state key
+    ``neptune_recommendations`` → ``atrox_recommendations``.
+
+    Three-step safety sequence:
+      1. Read old key. If absent, set ``atrox_recommendations`` default and
+         return False (no migration needed — already migrated or never had data).
+      2. Copy old → new. Verify new contents equal old contents bit-for-bit.
+         If verification fails, leave BOTH keys intact and raise — never
+         silently drop data.
+      3. Only after verification, delete the old key.
+
+    Idempotent — safe to run on every boot. Called by load_state() below and
+    also directly by server.py after rehydrating aureon_state from the saved
+    snapshot, since older snapshots may still carry ``neptune_recommendations``
+    without the ``atrox_recommendations`` key ever existing.
+
+    Returns True if a migration was performed, False if it was a no-op.
+    """
+    old_key = "neptune_recommendations"
+    new_key = "atrox_recommendations"
+
+    if old_key not in state:
+        state.setdefault(new_key, [])
+        return False
+
+    old_data = state[old_key]
+
+    # Step 1: copy
+    state[new_key] = list(old_data) if isinstance(old_data, list) else old_data
+
+    # Step 2: verify
+    if state.get(new_key) != old_data:
+        msg = (
+            f"State migration verification failed: {new_key} does not match "
+            f"{old_key} after copy. Old key preserved. Aborting migration."
+        )
+        if log_error:
+            log_error("ERROR", "persistence.migrate_neptune_to_atrox", msg)
+        raise RuntimeError(msg)
+
+    # Step 3: delete old only after verification
+    del state[old_key]
+    n = len(state[new_key]) if isinstance(state[new_key], list) else 1
+    print(
+        f"[AUREON] State migration OK — neptune_recommendations → "
+        f"atrox_recommendations ({n} entries preserved)"
+    )
+    return True
+
+
 def load_state(*, state_file, log_error):
     """
     Load persisted state from *state_file*.
     Returns the snapshot dict on success, or None if no file / parse error.
     Does NOT acquire any lock — must be called before the lock block in
     run_doctrine_stack() to avoid a deadlock.
+
+    Runs migrate_neptune_to_atrox on the loaded snapshot before returning.
     """
     if not os.path.exists(state_file):
         print("[AUREON] No persisted state found — initialising from INITIAL_POSITIONS")
@@ -81,6 +138,9 @@ def load_state(*, state_file, log_error):
     try:
         with open(state_file, "r") as fh:
             snapshot = json.load(fh)
+        # Phase 4.2: rename neptune_recommendations → atrox_recommendations
+        # in-place on the snapshot before returning. Preserves existing data.
+        migrate_neptune_to_atrox(snapshot, log_error=log_error)
         n_pos    = len(snapshot.get("positions", []))
         n_trades = len(snapshot.get("trades", []))
         saved_at = snapshot.get("saved_at", "unknown")

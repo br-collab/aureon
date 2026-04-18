@@ -2,7 +2,7 @@
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                         ║
 ║  aureon/mcp/blockscout_client.py                                     ║
-║  Neptune Spear — Blockscout On-Chain Intelligence Pipe               ║
+║  Atrox — Blockscout On-Chain Intelligence Pipe               ║
 ║                                                                      ║
 ║  MANDATE:                                                            ║
 ║    On-chain intelligence for TradFi-DeFi convergence monitoring.    ║
@@ -43,11 +43,11 @@ BLOCKSCOUT_CHAINS = {
 
 DEFAULT_CHAIN_ID = "1"  # Ethereum Mainnet
 
-# ── Neptune Pipe Identity ─────────────────────────────────────────────────────
+# ── Atrox Pipe Identity ─────────────────────────────────────────────────────
 PIPE_ID         = "BLOCKSCOUT-PIPE-001"
 PIPE_NAME       = "Blockscout — On-Chain Intelligence"
 PIPE_VERSION    = "1.0"
-PIPE_URI_PREFIX = "aureon://neptune/pipe/blockscout"
+PIPE_URI_PREFIX = "aureon://atrox/pipe/blockscout"
 
 # Module-level client singleton
 _client: Optional["BlockscoutClient"] = None
@@ -55,7 +55,7 @@ _client: Optional["BlockscoutClient"] = None
 
 class BlockscoutClient:
     """
-    Neptune Spear MCP data pipe client for Blockscout on-chain data.
+    Atrox MCP data pipe client for Blockscout on-chain data.
 
     No API key required — pulls from public Blockscout explorer API.
     All responses include structured provenance (source URI, timestamp, hash).
@@ -94,7 +94,7 @@ class BlockscoutClient:
         url = f"{base}{path}"
         req = urllib.request.Request(url, headers={
             "Accept": "application/json",
-            "User-Agent": "Aureon/1.0 (Neptune Spear Blockscout Pipe)",
+            "User-Agent": "Aureon/1.0 (Atrox Blockscout Pipe)",
         })
         try:
             with urllib.request.urlopen(req, timeout=15) as resp:
@@ -104,7 +104,7 @@ class BlockscoutClient:
             return {"error": str(e), "url": url}
 
     def _provenance(self, data: dict, chain_id: str = None, resource: str = "") -> dict:
-        """Wrap response with Neptune provenance envelope."""
+        """Wrap response with Atrox provenance envelope."""
         cid = chain_id or self._default_chain
         raw = json.dumps(data, sort_keys=True, default=str)
         return {
@@ -211,12 +211,12 @@ class BlockscoutClient:
         data = self._fetch("/api/v2/stats/charts/gas", chain_id)
         return self._provenance(data, chain_id, "gas-tracker")
 
-    # ── Neptune Composite Packet ─────────────────────────────────────────────
+    # ── Atrox Composite Packet ─────────────────────────────────────────────
 
     def get_onchain_packet(self, chain_id: str = None,
                            watch_addresses: List[str] = None) -> dict:
         """
-        Full Neptune on-chain intelligence packet.
+        Full Atrox on-chain intelligence packet.
         Network stats + gas + recent blocks + optional whale watch.
         """
         cid = chain_id or self._default_chain
