@@ -218,7 +218,9 @@ class ThifurH(HunterKillerAgent):
     Not the other way around.
     """
 
-    role_id = "AUR-H-ADAPTIVE-001"
+    role_id   = "AUR-H-ADAPTIVE-001"
+    role_name = ("Adaptive Intelligence — Alpha Origination Prototype "
+                 "(Declared, Not Activated; Doctrinal Alignment Under Review)")
 
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
         super().__init__(aureon_state, state_lock)

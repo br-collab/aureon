@@ -31,7 +31,8 @@ import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from aureon.agents.base import JTACAgent, Intent, Advisory, Tasking, Result
+from aureon.agents.base import Intent, Advisory, Tasking, Result
+from aureon.agents.jtac._base import JTACConcreteBase
 
 if TYPE_CHECKING:
     from aureon.agents.c2.coordinator import ThifurC2
@@ -75,7 +76,7 @@ GATES = [
 ]
 
 
-class ThifurJ(JTACAgent):
+class ThifurJ(JTACConcreteBase):
     """
     Thifur-J — JTAC — Bounded Autonomy Agent.
 
@@ -83,9 +84,16 @@ class ThifurJ(JTACAgent):
     mandate compliance, and settlement package preparation for C2 handoff to R.
 
     JTAC principle: selects among pre-approved paths, never generates new ones.
+
+    Phase 4.1: inherits JTACConcreteBase. Retrofit is clean — none of the base
+    machinery (load_approved_paths, select_path_by_id, detect_conflict,
+    escalate_for_approval, etc.) conflicts with ThifurJ's 8-gate structuring
+    flow. The inherited surface is available for future extensions without
+    altering current behavior.
     """
 
-    role_id = "AUR-J-TRADE-001"
+    role_id   = "AUR-J-TRADE-001"
+    role_name = "Pre-Trade Structuring Agent"
 
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
         super().__init__(aureon_state, state_lock)
