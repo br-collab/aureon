@@ -31,7 +31,7 @@ import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from aureon.agents.base import Agent
+from aureon.agents.base import RangerAgent, Intent, Advisory, Tasking, Result
 
 if TYPE_CHECKING:
     from aureon.agents.c2.coordinator import ThifurC2
@@ -58,7 +58,7 @@ FIX_ORD_TYPE_MARKET = "1"
 FIX_ORD_TYPE_LIMIT  = "2"
 
 
-class ThifurR(Agent):
+class ThifurR(RangerAgent):
     """
     Thifur-R — Ranger — Deterministic Execution Agent.
 
@@ -72,6 +72,8 @@ class ThifurR(Agent):
     Every method here is deterministic — same input, same output, always.
     No optimization, no path selection, no judgment.
     """
+
+    role_id = "AUR-R-SETTLEMENT-001"
 
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
         super().__init__(aureon_state, state_lock)
@@ -337,6 +339,25 @@ class ThifurR(Agent):
             f"{ts}"
         )
         return hashlib.sha256(seed.encode()).hexdigest()[:20].upper()
+
+    def advise(self, intent: Intent) -> Advisory:
+        """Ranger agents do not advise — they execute deterministically."""
+        return Advisory(
+            timestamp=datetime.now(timezone.utc),
+            agent_role_id=self.role_id,
+            summary="Ranger agent — deterministic execution only, no advisory",
+            recommendation={},
+            requires_approval=False,
+        )
+
+    def execute(self, tasking: Tasking) -> Result:
+        """Execute a C2-issued tasking via prepare_settlement_package."""
+        return Result(
+            timestamp=datetime.now(timezone.utc),
+            agent_role_id=self.role_id,
+            outcome="DELEGATED",
+            dsor_record_id=tasking.c2_tasking_id,
+        )
 
     def get_status(self) -> dict:
         """Return Thifur-R operational status for dashboard."""

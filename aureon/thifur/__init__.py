@@ -1,9 +1,4 @@
-"""
-aureon.thifur — Legacy import path.
-
-Agents have moved to aureon.agents. This module re-exports for
-backward compatibility with existing TYPE_CHECKING references.
-"""
+"""aureon.thifur — Legacy import path. Agents live in aureon.agents now."""
 
 from aureon.agents.c2.coordinator import ThifurC2
 from aureon.agents.jtac._base import ThifurJ

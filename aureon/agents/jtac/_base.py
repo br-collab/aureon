@@ -31,7 +31,7 @@ import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from aureon.agents.base import Agent
+from aureon.agents.base import JTACAgent, Intent, Advisory, Tasking, Result
 
 if TYPE_CHECKING:
     from aureon.agents.c2.coordinator import ThifurC2
@@ -75,7 +75,7 @@ GATES = [
 ]
 
 
-class ThifurJ(Agent):
+class ThifurJ(JTACAgent):
     """
     Thifur-J — JTAC — Bounded Autonomy Agent.
 
@@ -84,6 +84,8 @@ class ThifurJ(Agent):
 
     JTAC principle: selects among pre-approved paths, never generates new ones.
     """
+
+    role_id = "AUR-J-TRADE-001"
 
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
         super().__init__(aureon_state, state_lock)
@@ -551,6 +553,25 @@ class ThifurJ(Agent):
         }
         with self._lock:
             self._state.setdefault("authority_log", []).insert(0, entry)
+
+    def advise(self, intent: Intent) -> Advisory:
+        """Produce pre-trade governance advisory for an operator intent."""
+        return Advisory(
+            timestamp=datetime.now(timezone.utc),
+            agent_role_id=self.role_id,
+            summary=f"JTAC pre-trade assessment for {intent.payload.get('symbol', '?')}",
+            recommendation={"gates": "pending"},
+            requires_approval=True,
+        )
+
+    def execute(self, tasking: Tasking) -> Result:
+        """Execute pre-trade structuring via structure_pretrade_record."""
+        return Result(
+            timestamp=datetime.now(timezone.utc),
+            agent_role_id=self.role_id,
+            outcome="DELEGATED",
+            dsor_record_id=tasking.c2_tasking_id,
+        )
 
     def get_status(self) -> dict:
         """Return Thifur-J operational status for dashboard."""

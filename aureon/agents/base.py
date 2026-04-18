@@ -1,10 +1,4 @@
-"""
-aureon.agents.base — Agent ABC + shared doctrine types.
-
-Every Aureon doctrine-governed agent inherits from Agent.
-Shared types encode the lifecycle vocabulary that flows between
-agents, C2, Kaladan, and the DSOR.
-"""
+"""aureon.agents.base — Agent ABC, tier base classes, and shared doctrine types."""
 
 from __future__ import annotations
 
@@ -12,115 +6,190 @@ import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
+from typing import Optional
 
 
 # ── Exceptions ────────────────────────────────────────────────────────────────
 
 class NotActivatedError(RuntimeError):
-    """Raised when a declared-but-not-activated agent method is called."""
+    """Raised when a declared-but-not-activated agent is invoked."""
+
+
+# ── Shared Doctrine Types ────────────────────────────────────────────────────
+
+@dataclass
+class Intent:
+    """Advisory input."""
+    timestamp: datetime
+    operator: str
+    payload: dict
+
+
+@dataclass
+class Advisory:
+    """Advisory output."""
+    timestamp: datetime
+    agent_role_id: str
+    summary: str
+    recommendation: dict
+    requires_approval: bool = True
+
+
+@dataclass
+class Tasking:
+    """Execution input (R/J only)."""
+    timestamp: datetime
+    operator: str
+    c2_tasking_id: str
+    payload: dict
+
+
+@dataclass
+class Result:
+    """Execution output (R/J only)."""
+    timestamp: datetime
+    agent_role_id: str
+    outcome: str
+    dsor_record_id: str
+
+
+@dataclass
+class DSORRecord:
+    """Decision System of Record entry — immutable after assembly."""
+    record_id: str
+    caom_mode: str = "CAOM-001"
+    operator: str = ""
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    event_type: str = ""
+    payload: dict = field(default_factory=dict)
+
+
+@dataclass
+class GuardrailResult:
+    """Single gate / guardrail check outcome."""
+    passed: bool
+    rule: str
+    reason: Optional[str] = None
+
+
+@dataclass
+class Escalation:
+    """Routed to human authority surface."""
+    timestamp: datetime
+    agent_role_id: str
+    reason: str
+    requires_authority_tier: int
 
 
 # ── Agent ABC ─────────────────────────────────────────────────────────────────
 
 class Agent(ABC):
-    """
-    Base contract for all Aureon agents.
+    """Uniform contract for all Aureon doctrine-governed agents."""
 
-    Constructor: (aureon_state: dict, state_lock: threading.Lock)
-    Required:    get_status() -> dict
-    """
+    tier: int
+    thifur_class: str
+    role_id: str
+    activated: bool = True
 
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
         self._state = aureon_state
         self._lock = state_lock
 
     @abstractmethod
+    def advise(self, intent: Intent) -> Advisory:
+        """Produce an advisory from an operator intent."""
+        ...
+
+    @abstractmethod
+    def execute(self, tasking: Tasking) -> Result:
+        """Execute a C2-issued tasking."""
+        ...
+
+    @abstractmethod
     def get_status(self) -> dict:
         """Return agent operational status for dashboard and regulatory display."""
         ...
 
+    def guardrail_check(self, action) -> GuardrailResult:
+        """Default guardrail — pass. Overridden by tier base classes."""
+        return GuardrailResult(passed=True, rule="default")
 
-# ── Shared Doctrine Types ────────────────────────────────────────────────────
-# These encode the lifecycle vocabulary shared across agents, C2, and DSOR.
-# All agents produce or consume these; keeping them here avoids circular deps.
+    def dsor_stamp(self, event) -> DSORRecord:
+        """Stamp a DSOR record for the given event."""
+        return DSORRecord(
+            record_id=f"DSOR-{id(event)}",
+            operator=event.get("operator", "") if isinstance(event, dict) else "",
+            event_type=event.get("event_type", "") if isinstance(event, dict) else "",
+            payload=event if isinstance(event, dict) else {},
+        )
 
-@dataclass
-class Intent:
-    """Operator intent — the what and why before any agent touches it."""
-    action: str                        # BUY | SELL
-    symbol: str
-    asset_class: str
-    notional: float
-    rationale: str = ""
-    signal_type: str = ""
-    is_tokenized: bool = False
-    has_smart_contract: bool = False
-    cross_border: bool = False
-
-
-@dataclass
-class Advisory:
-    """Agent advisory output — recommendation, never an order."""
-    agent_id: str
-    ts: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    recommendation: str = ""
-    confidence: float = 0.0
-    rationale: str = ""
-    data: dict[str, Any] = field(default_factory=dict)
+    def escalate(self, reason: str) -> Escalation:
+        """Escalate to human authority."""
+        return Escalation(
+            timestamp=datetime.now(timezone.utc),
+            agent_role_id=self.role_id,
+            reason=reason,
+            requires_authority_tier=self.tier,
+        )
 
 
-@dataclass
-class Tasking:
-    """C2 task record — tracks a lifecycle object across agents."""
-    task_id: str
-    agents: list[str] = field(default_factory=list)
-    doctrine_version: str = "unknown"
-    convergence_scenario: str | None = None
-    status: str = "ACTIVE"
+# ── Tier Base Classes ─────────────────────────────────────────────────────────
+
+class RangerAgent(Agent):
+    """Tier 1 — zero-variance deterministic execution."""
+    tier = 1
+    thifur_class = "R"
+
+    def guardrail_check(self, action) -> GuardrailResult:
+        """Enforce zero variance and no self-initiation."""
+        if isinstance(action, dict) and action.get("self_initiated"):
+            return GuardrailResult(
+                passed=False,
+                rule="no-self-initiation",
+                reason="Ranger agents require C2 handoff authorization",
+            )
+        return GuardrailResult(passed=True, rule="zero-variance")
 
 
-@dataclass
-class Result:
-    """Standardised agent result envelope."""
-    agent_id: str
-    task_id: str
-    status: str                        # PASS | WARN | BLOCKED | COMPLETE
-    ts: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    data: dict[str, Any] = field(default_factory=dict)
-    block_reason: str | None = None
+class JTACAgent(Agent):
+    """Tier 2 — bounded-autonomy pre-trade governance."""
+    tier = 2
+    thifur_class = "J"
+
+    def guardrail_check(self, action) -> GuardrailResult:
+        """Enforce approved paths only and approval lineage."""
+        if isinstance(action, dict):
+            if action.get("unapproved_path"):
+                return GuardrailResult(
+                    passed=False,
+                    rule="approved-paths-only",
+                    reason="JTAC selects among pre-approved paths, never generates new ones",
+                )
+            if action.get("missing_approval_lineage"):
+                return GuardrailResult(
+                    passed=False,
+                    rule="no-release-without-approval-lineage",
+                    reason="No release without complete approval lineage",
+                )
+        return GuardrailResult(passed=True, rule="bounded-autonomy")
 
 
-@dataclass
-class DSORRecord:
-    """Decision System of Record entry — immutable after assembly."""
-    task_id: str
-    lineage_hash: str
-    doctrine_version: str
-    agents_involved: list[str] = field(default_factory=list)
-    assembled_ts: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    dsor_ready: bool = False
-    data: dict[str, Any] = field(default_factory=dict)
+class HunterKillerAgent(Agent):
+    """Tier 3 — adaptive intelligence. DECLARED, NOT ACTIVATED."""
+    tier = 3
+    thifur_class = "H"
+    activated = False
 
+    def execute(self, tasking: Tasking) -> Result:
+        """Always raises — Thifur-H is declared, not activated."""
+        raise NotActivatedError(
+            "Thifur-H is declared, not activated under current doctrine."
+        )
 
-@dataclass
-class Escalation:
-    """C2 escalation record — routed to human authority surface."""
-    escalation_id: str
-    task_id: str
-    escalating_agent: str
-    reason: str
-    severity: str = "WARN"             # WARN | HALT | SUSPEND
-    ts: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    context: dict[str, Any] = field(default_factory=dict)
-    gaps_flagged: list[str] = field(default_factory=list)
-    resolved: bool = False
-
-
-@dataclass
-class GuardrailResult:
-    """Single gate / guardrail check outcome."""
-    gate: str
-    layer: str
-    status: str                        # PASS | WARN | FAIL
-    detail: str = ""
+    def guardrail_check(self, action) -> GuardrailResult:
+        """Block all execution while not activated."""
+        return GuardrailResult(
+            passed=False,
+            rule="activation-required",
+            reason="Hunter-Killer agent not activated — SR 11-7 Tier 1 validation pending",
+        )
