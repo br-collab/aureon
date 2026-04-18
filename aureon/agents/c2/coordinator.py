@@ -673,14 +673,15 @@ class ThifurC2(Agent):
 
         This is the function server.py calls after a human approves a decision.
         """
-        # ── Resolve SettlementOps from registry ───────────────────────
-        settlement_role_id = "AUR-R-SETTLEMENT-001"
-        if settlement_role_id not in RANGER_AGENTS:
-            raise RuntimeError(
-                f"[THIFUR-C2] Registry missing {settlement_role_id}. "
-                "Cannot proceed without settlement role in RANGER_AGENTS."
-            )
-        agent_r = RANGER_AGENTS[settlement_role_id](self._state, self._lock)
+        # ── Resolve Ranger roles from registry ────────────────────────
+        for required_role in ("AUR-R-SETTLEMENT-001", "AUR-R-TRADESUPPORT-001"):
+            if required_role not in RANGER_AGENTS:
+                raise RuntimeError(
+                    f"[THIFUR-C2] Registry missing {required_role}. "
+                    "Cannot proceed with pre-trade lifecycle."
+                )
+        agent_settlement = RANGER_AGENTS["AUR-R-SETTLEMENT-001"](self._state, self._lock)
+        agent_ts = RANGER_AGENTS["AUR-R-TRADESUPPORT-001"](self._state, self._lock)
 
         # ── Step 1: Evaluate convergence scenario ────────────────────
         scenario = self.evaluate_convergence_scenario(decision)
@@ -729,36 +730,100 @@ class ThifurC2(Agent):
             # Record J telemetry
             self.record_agent_telemetry(task_id, AGENT_J, j_result)
 
-        # ── Step 4: Handoff J → R ─────────────────────────────────────
-        if AGENT_J in agents and AGENT_R in agents:
-            handoff_record = self.handoff(
-                task_id       = task_id,
-                from_agent    = AGENT_J,
-                to_agent      = AGENT_R,
-                object_state  = decision,
-                handoff_reason = "Pre-trade structure complete — releasing to settlement preparation",
+        # ── Step 4: TradeSupport OMS release package ──────────────────
+        ts_handoff = self.handoff(
+            task_id        = task_id,
+            from_agent     = AGENT_J if AGENT_J in agents else AGENT_C2,
+            to_agent       = "AUR-R-TRADESUPPORT-001",
+            object_state   = decision,
+            handoff_reason = "Pre-trade complete — releasing to TradeSupport for OMS package",
+        )
+        ts_confirmed = agent_ts.confirm_handoff(ts_handoff)
+        if not ts_confirmed:
+            self.escalate(
+                task_id          = task_id,
+                escalating_agent = "AUR-R-TRADESUPPORT-001",
+                reason           = "TradeSupport handoff confirmation failed",
+                severity         = "HALT",
+                context          = {"handoff_record": ts_handoff},
             )
-            confirmed = agent_r.confirm_handoff(handoff_record)
+            result["status"] = "HANDOFF_FAILURE"
+            return result
+
+        ts_result = agent_ts.prepare_execution_package(decision, task_id, self)
+        result["ts_result"] = ts_result
+        self.record_agent_telemetry(task_id, "AUR-R-TRADESUPPORT-001", ts_result)
+
+        if ts_result.get("status") == "BLOCKED":
+            result["status"] = "BLOCKED_BY_TRADESUPPORT"
+            return result
+
+        # ── Step 5: Post-execution reconciliation ─────────────────────
+        # Build execution confirmation from the OMS release result.
+        # In production this comes from the OMS; here we derive it from
+        # the approved decision — the lifecycle is paper-trading.
+        execution_confirmation = {
+            "symbol":  decision.get("symbol"),
+            "action":  decision.get("action"),
+            "shares":  decision.get("shares"),
+        }
+        dsor_intent = {
+            "id":       decision.get("id"),
+            "task_id":  task_id,
+            "symbol":   decision.get("symbol"),
+            "action":   decision.get("action"),
+            "shares":   decision.get("shares"),
+            "notional": decision.get("notional"),
+        }
+
+        recon_result = agent_ts.reconcile_execution(execution_confirmation, dsor_intent)
+        result["ts_recon_result"] = recon_result
+
+        if recon_result.get("status") == "DISCREPANCY":
+            escalation = agent_ts.escalate_discrepancy(recon_result)
+            self.escalate(
+                task_id          = task_id,
+                escalating_agent = "AUR-R-TRADESUPPORT-001",
+                reason           = f"Execution discrepancy: {recon_result.get('mismatches')}",
+                severity         = "WARN",
+                context          = recon_result,
+            )
+            result["status"]     = "DISCREPANCY_HALTED"
+            result["escalation"] = {
+                "agent":    escalation.agent_role_id,
+                "reason":   escalation.reason,
+                "tier":     escalation.requires_authority_tier,
+            }
+            return result
+
+        # ── Step 6: Handoff to SettlementOps ──────────────────────────
+        if AGENT_R in agents:
+            settle_handoff = self.handoff(
+                task_id        = task_id,
+                from_agent     = "AUR-R-TRADESUPPORT-001",
+                to_agent       = AGENT_R,
+                object_state   = decision,
+                handoff_reason = "Execution reconciled — releasing to settlement preparation",
+            )
+            confirmed = agent_settlement.confirm_handoff(settle_handoff)
             if not confirmed:
                 self.escalate(
-                    task_id         = task_id,
+                    task_id          = task_id,
                     escalating_agent = AGENT_R,
-                    reason          = "R handoff confirmation failed",
-                    severity        = "HALT",
-                    context         = {"handoff_record": handoff_record},
+                    reason           = "SettlementOps handoff confirmation failed",
+                    severity         = "HALT",
+                    context          = {"handoff_record": settle_handoff},
                 )
                 result["status"] = "HANDOFF_FAILURE"
                 return result
 
-        # ── Step 5: Thifur-R settlement preparation ───────────────────
+        # ── Step 7: SettlementOps settlement preparation ──────────────
         if AGENT_R in agents:
-            r_result = agent_r.prepare_execution_package(decision, task_id, self)
+            r_result = agent_settlement.prepare_execution_package(decision, task_id, self)
             result["r_result"] = r_result
-
-            # Record R telemetry
             self.record_agent_telemetry(task_id, AGENT_R, r_result)
 
-        # ── Step 6: Assemble unified lineage ──────────────────────────
+        # ── Step 8: Assemble unified lineage ──────────────────────────
         lineage = self.get_unified_lineage(task_id)
         result["unified_lineage"] = lineage
         result["status"]          = "COMPLETE"
