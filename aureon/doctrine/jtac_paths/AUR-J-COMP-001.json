@@ -1,0 +1,21 @@
+{
+  "_note": "Approved paths for Compliance (AUR-J-COMP-001). Phase 4 scope is OFAC counterparty screening only; other Compliance tasks (pre-trade policy checks, IPS eligibility, MiFID II algo inventory, approval lineage routing) are declared stubs in compliance.py and will gain paths in Phase 4.5.",
+  "paths": [
+    {
+      "path_id": "OFAC_CLEAR_NO_MATCH",
+      "description": "Counterparty not present on fixture SDN list. Clear — lifecycle continues to downstream agents.",
+      "callable_ref": "aureon.agents.jtac.compliance:_path_clear_no_match",
+      "requires_approval": false,
+      "approval_predicates": [],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "OFAC_EXACT_MATCH_HALT",
+      "description": "Counterparty exact-matches a fixture SDN entry. Halt-and-pend unless override approved. If counterparty jurisdiction is EU, the OFAC_VS_GDPR_DATA_RETENTION conflict also applies (dual-authority resolution required).",
+      "callable_ref": "aureon.agents.jtac.compliance:_path_exact_match_halt",
+      "requires_approval": true,
+      "approval_predicates": ["override_match_with_attribution"],
+      "conflict_keys": ["OFAC_VS_GDPR_DATA_RETENTION"]
+    }
+  ]
+}

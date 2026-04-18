@@ -35,8 +35,10 @@ from typing import Any
 
 from aureon.agents.base import Agent, Intent, Advisory, Tasking, Result
 from aureon.agents.ranger import RANGER_AGENTS
+from aureon.agents.jtac import JTAC_AGENTS
 from aureon.agents.payloads import (
     ExecutionConfirmation, DSORIntent, BreachEvent, ReportingContext,
+    CounterpartyScreeningRequest,
 )
 
 # ── C2 Operating Constants ────────────────────────────────────────────────────
@@ -667,26 +669,30 @@ class ThifurC2(Agent):
         """
         Phase 1 governed lifecycle entry point.
 
-        Takes an approved decision from Kaladan, routes it through C2
-        coordination, Thifur-J pre-trade structuring, and Thifur-R
-        settlement preparation.
+        Takes an approved decision from Kaladan, routes it through:
+          Step 2.5 (Phase 4, NEW): Compliance counterparty OFAC screening
+                                    (AUR-J-COMP-001, runs BEFORE ThifurJ)
+          Step 3: Thifur-J pre-trade structuring
+          Steps 4–10: Existing Phase 3 Ranger lifecycle.
 
-        Returns the unified lifecycle result dict — DSOR-ready.
+        Compliance may halt-and-pend the lifecycle:
+          - APPROVAL_REQUIRED        — single-authority operator approval
+          - CONFLICT_RESOLUTION_REQUIRED — dual-authority (Compliance + Legal)
 
-        This is the function server.py calls after a human approves a decision.
+        On halt, the lifecycle is persisted to
+        aureon_state["paused_lifecycles"][task_id] and downstream agents
+        are NOT invoked. Resume via resume_paused_lifecycle().
+
+        Returns the unified lifecycle result dict — DSOR-ready on COMPLETE,
+        or a PAUSED dict when a halt fires.
         """
-        # ── Resolve Ranger roles from registry ────────────────────────
-        for required_role in ("AUR-R-SETTLEMENT-001", "AUR-R-TRADESUPPORT-001",
-                              "AUR-R-RECON-001", "AUR-R-REGREP-001"):
-            if required_role not in RANGER_AGENTS:
-                raise RuntimeError(
-                    f"[THIFUR-C2] Registry missing {required_role}. "
-                    "Cannot proceed with pre-trade lifecycle."
-                )
-        agent_settlement = RANGER_AGENTS["AUR-R-SETTLEMENT-001"](self._state, self._lock)
-        agent_ts = RANGER_AGENTS["AUR-R-TRADESUPPORT-001"](self._state, self._lock)
-        agent_recon = RANGER_AGENTS["AUR-R-RECON-001"](self._state, self._lock)
-        agent_regrep = RANGER_AGENTS["AUR-R-REGREP-001"](self._state, self._lock)
+        # ── Resolve Compliance via JTAC_AGENTS registry ──────────────
+        if "AUR-J-COMP-001" not in JTAC_AGENTS:
+            raise RuntimeError(
+                "[THIFUR-C2] Registry missing AUR-J-COMP-001 (Compliance). "
+                "Cannot proceed with pre-trade lifecycle."
+            )
+        agent_compliance = JTAC_AGENTS["AUR-J-COMP-001"](self._state, self._lock)
 
         # ── Step 1: Evaluate convergence scenario ────────────────────
         scenario = self.evaluate_convergence_scenario(decision)
@@ -704,16 +710,165 @@ class ThifurC2(Agent):
             convergence_scenario = scenario,
         )
 
+        # ── Step 2.5 (Phase 4 NEW): Compliance counterparty screening ─
+        screening_request = CounterpartyScreeningRequest(
+            task_id=task_id,
+            counterparty_name=decision.get("counterparty_name", "") or "",
+            counterparty_jurisdiction=decision.get("counterparty_jurisdiction", "") or "",
+            counterparty_lei=decision.get("counterparty_lei"),
+        )
+        path_selection = agent_compliance.screen_ofac(screening_request)
+        self.record_agent_telemetry(
+            task_id,
+            "AUR-J-COMP-001",
+            {
+                "selected_path_id": path_selection.selected_path_id,
+                "requires_approval": path_selection.requires_approval,
+                "requires_authority_resolution": path_selection.requires_authority_resolution,
+                "conflict_id": path_selection.conflict_id,
+            },
+        )
+
+        if path_selection.requires_authority_resolution:
+            # Dual-authority conflict halt — Compliance + Legal required
+            conflict = agent_compliance.escalate_for_conflict_resolution(path_selection)
+            self._persist_paused_lifecycle(
+                task_id=task_id,
+                pause_reason="CONFLICT_RESOLUTION_REQUIRED",
+                decision=decision,
+                path_selection=path_selection,
+                doctrine_version=path_selection.doctrine_version,
+                gate_context=None,
+                conflict=conflict,
+                convergence_scenario=scenario,
+                sequencing_rule=sequencing.get("rule"),
+                agents_activated=agents,
+            )
+            return self._lifecycle_paused_response(
+                task_id=task_id,
+                pause_reason="CONFLICT_RESOLUTION_REQUIRED",
+                path_selection=path_selection,
+                gate_context=None,
+                conflict=conflict,
+                convergence_scenario=scenario,
+                sequencing_rule=sequencing.get("rule"),
+                agents_activated=agents,
+            )
+
+        if path_selection.requires_approval:
+            # Single-authority approval halt
+            intent_summary = {
+                "decision_id":               decision.get("id"),
+                "symbol":                    decision.get("symbol"),
+                "action":                    decision.get("action"),
+                "notional":                  decision.get("notional"),
+                "counterparty_name":         decision.get("counterparty_name"),
+                "counterparty_jurisdiction": decision.get("counterparty_jurisdiction"),
+            }
+            risk_summary = {
+                "path_id":   path_selection.selected_path_id,
+                "rationale": path_selection.selection_rationale,
+            }
+            gate_context = agent_compliance.escalate_for_approval(
+                path_selection=path_selection,
+                intent_summary=intent_summary,
+                risk_summary=risk_summary,
+            )
+            self._persist_paused_lifecycle(
+                task_id=task_id,
+                pause_reason="APPROVAL_REQUIRED",
+                decision=decision,
+                path_selection=path_selection,
+                doctrine_version=path_selection.doctrine_version,
+                gate_context=gate_context,
+                conflict=None,
+                convergence_scenario=scenario,
+                sequencing_rule=sequencing.get("rule"),
+                agents_activated=agents,
+            )
+            return self._lifecycle_paused_response(
+                task_id=task_id,
+                pause_reason="APPROVAL_REQUIRED",
+                path_selection=path_selection,
+                gate_context=gate_context,
+                conflict=None,
+                convergence_scenario=scenario,
+                sequencing_rule=sequencing.get("rule"),
+                agents_activated=agents,
+            )
+
+        # ── Compliance cleared — continue to post-Compliance tail ────
+        return self._execute_post_compliance_lifecycle(
+            decision=decision,
+            task_id=task_id,
+            agent_j=agent_j,
+            agents_activated=agents,
+            sequencing_rule=sequencing.get("rule"),
+            doctrine_version=doctrine_version,
+            convergence_scenario=scenario,
+            compliance_clearance={
+                "path_id": path_selection.selected_path_id,
+                "rationale": path_selection.selection_rationale,
+            },
+        )
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # POST-COMPLIANCE LIFECYCLE TAIL — Steps 3–10
+    # ─────────────────────────────────────────────────────────────────────────
+    # Extracted from process_pretrade_lifecycle so resume_paused_lifecycle can
+    # re-enter at the same point after an approval. Behavior identical to the
+    # previous monolithic method; only call-site restructuring.
+
+    def _execute_post_compliance_lifecycle(self,
+                                           decision: dict,
+                                           task_id: str,
+                                           agent_j,
+                                           agents_activated: list,
+                                           sequencing_rule: str | None,
+                                           doctrine_version: str | None,
+                                           convergence_scenario: str | None = None,
+                                           compliance_clearance: dict | None = None,
+                                           resume_attribution: dict | None = None,
+                                           ) -> dict:
+        """Execute Phase 3 lifecycle (ThifurJ → TradeSupport → Reconciliation
+        → SettlementOps → RegReporting → unified lineage) given a task_id
+        that has already cleared Compliance. Called by both the initial
+        lifecycle entry (clear path) and by resume_paused_lifecycle after
+        operator approval.
+
+        doctrine_version is honored for downstream agents — on resume, pass
+        the doctrine_version that was active at pause so the entire lifecycle
+        runs under one version regardless of whether doctrine changed during
+        the pause.
+        """
+        # ── Resolve Ranger roles from registry ────────────────────────
+        for required_role in ("AUR-R-SETTLEMENT-001", "AUR-R-TRADESUPPORT-001",
+                              "AUR-R-RECON-001", "AUR-R-REGREP-001"):
+            if required_role not in RANGER_AGENTS:
+                raise RuntimeError(
+                    f"[THIFUR-C2] Registry missing {required_role}. "
+                    "Cannot proceed with pre-trade lifecycle."
+                )
+        agent_settlement = RANGER_AGENTS["AUR-R-SETTLEMENT-001"](self._state, self._lock)
+        agent_ts = RANGER_AGENTS["AUR-R-TRADESUPPORT-001"](self._state, self._lock)
+        agent_recon = RANGER_AGENTS["AUR-R-RECON-001"](self._state, self._lock)
+        agent_regrep = RANGER_AGENTS["AUR-R-REGREP-001"](self._state, self._lock)
+
+        agents = agents_activated
+
         result = {
             "task_id":             task_id,
-            "convergence_scenario": scenario,
-            "sequencing_rule":     sequencing.get("rule"),
+            "convergence_scenario": convergence_scenario,
+            "sequencing_rule":     sequencing_rule,
             "agents_activated":    agents,
             "j_result":            None,
             "r_result":            None,
             "unified_lineage":     None,
             "status":              "IN_PROGRESS",
+            "compliance_clearance": compliance_clearance,
         }
+        if resume_attribution is not None:
+            result["resume_attribution"] = resume_attribution
 
         # ── Step 3: Thifur-J pre-trade structuring ────────────────────
         if AGENT_J in agents:
@@ -983,6 +1138,291 @@ class ThifurC2(Agent):
         result["status"]          = "COMPLETE"
 
         return result
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # HALT-AND-PEND / RESUME-AFTER-APPROVAL (Phase 4)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _serialize_selection(self, path_selection) -> dict | None:
+        """Best-effort serialization of a JTACPathSelection for persistence."""
+        if path_selection is None:
+            return None
+        to_dict = getattr(path_selection, "to_dict", None)
+        if callable(to_dict):
+            return to_dict()
+        return dict(path_selection.__dict__) if hasattr(path_selection, "__dict__") else None
+
+    def _persist_paused_lifecycle(self,
+                                  *,
+                                  task_id: str,
+                                  pause_reason: str,
+                                  decision: dict,
+                                  path_selection,
+                                  doctrine_version: str | None,
+                                  gate_context=None,
+                                  conflict=None,
+                                  convergence_scenario: str | None,
+                                  sequencing_rule: str | None,
+                                  agents_activated: list) -> dict:
+        """Write a paused-lifecycle entry to aureon_state["paused_lifecycles"]
+        keyed by task_id. Persisted across restarts via save_state().
+        """
+        ts = datetime.now(timezone.utc).isoformat()
+        pinned_doctrine = doctrine_version or self._state.get("doctrine_version", "unknown")
+        entry = {
+            "task_id":                   task_id,
+            "pause_reason":              pause_reason,
+            "paused_at":                 ts,
+            "doctrine_version_at_pause": pinned_doctrine,
+            "path_selection":            self._serialize_selection(path_selection),
+            "gate_context":              gate_context.to_dict() if gate_context is not None else None,
+            "conflict":                  conflict.to_dict() if conflict is not None else None,
+            "lifecycle_context": {
+                "decision":              dict(decision),
+                "convergence_scenario":  convergence_scenario,
+                "sequencing_rule":       sequencing_rule,
+                "agents_activated":      list(agents_activated),
+            },
+            "resume_step":               "POST_COMPLIANCE_CONTINUE_TO_TRADESUPPORT",
+        }
+        with self._lock:
+            paused = self._state.setdefault("paused_lifecycles", {})
+            paused[task_id] = entry
+        self._authority_log_entry(
+            task_id    = task_id,
+            event_type = f"C2_LIFECYCLE_PAUSED_{pause_reason}",
+            detail     = (f"Task {task_id} paused | Reason: {pause_reason} | "
+                          f"Doctrine pinned at: {pinned_doctrine} | "
+                          f"Resume via /api/c2/resume/{task_id}"),
+        )
+        print(f"[THIFUR-C2] Lifecycle paused — {pause_reason} | task {task_id} | "
+              f"doctrine pinned: {pinned_doctrine}")
+        return entry
+
+    def _lifecycle_paused_response(self,
+                                   *,
+                                   task_id: str,
+                                   pause_reason: str,
+                                   path_selection,
+                                   gate_context,
+                                   conflict,
+                                   convergence_scenario: str | None,
+                                   sequencing_rule: str | None,
+                                   agents_activated: list) -> dict:
+        """Build the response dict returned to the caller when the lifecycle
+        has halted. Mirrors the shape of the complete-lifecycle result so
+        callers have a consistent field set."""
+        return {
+            "task_id":              task_id,
+            "convergence_scenario": convergence_scenario,
+            "sequencing_rule":      sequencing_rule,
+            "agents_activated":     agents_activated,
+            "j_result":             None,
+            "r_result":             None,
+            "unified_lineage":      None,
+            "status":               "PAUSED",
+            "pause_reason":         pause_reason,
+            "path_selection":       self._serialize_selection(path_selection),
+            "gate_context":         gate_context.to_dict() if gate_context is not None else None,
+            "conflict":             conflict.to_dict() if conflict is not None else None,
+            "resume_endpoint":      f"/api/c2/resume/{task_id}",
+        }
+
+    def resume_paused_lifecycle(self,
+                                task_id: str,
+                                approval_decision: str,
+                                approval_attribution: dict,
+                                agent_j) -> dict:
+        """Resume a paused lifecycle per operator decision.
+
+        approval_decision: "APPROVE" or "DENY".
+        approval_attribution keys required:
+          - operator: str
+          - rationale: str
+          - compliance_authority_decision: dict  (iff CONFLICT_RESOLUTION_REQUIRED)
+          - legal_authority_decision: dict       (iff CONFLICT_RESOLUTION_REQUIRED)
+
+        Returns one of:
+          - status="NOT_FOUND"         — no paused entry for task_id
+          - status="INVALID_APPROVAL"  — missing fields for the pause_reason
+          - status="DENIED"            — terminal halt recorded, entry removed
+          - status="COMPLETE" / other  — post-compliance lifecycle result
+
+        Doctrine-version pinning: the resumed lifecycle runs under
+        doctrine_version_at_pause (not the currently active version).
+
+        Replay safety: Compliance is NOT re-executed on resume — the path
+        was already selected. Resumption begins at the post-compliance tail.
+        """
+        with self._lock:
+            paused = self._state.get("paused_lifecycles", {})
+            entry = paused.get(task_id)
+
+        if entry is None:
+            return {"task_id": task_id, "status": "NOT_FOUND"}
+
+        pause_reason = entry.get("pause_reason")
+        attribution = approval_attribution or {}
+
+        # ── Payload completeness validation ──────────────────────────
+        if pause_reason == "CONFLICT_RESOLUTION_REQUIRED":
+            missing = []
+            if not attribution.get("compliance_authority_decision"):
+                missing.append("compliance_authority_decision")
+            if not attribution.get("legal_authority_decision"):
+                missing.append("legal_authority_decision")
+            if missing:
+                return {
+                    "task_id": task_id,
+                    "status":  "INVALID_APPROVAL",
+                    "missing": missing,
+                    "reason":  ("Dual-authority resolution required: both "
+                                "compliance and legal authority decisions."),
+                }
+        else:
+            if not attribution.get("operator") or not attribution.get("rationale"):
+                return {
+                    "task_id": task_id,
+                    "status":  "INVALID_APPROVAL",
+                    "missing": [k for k in ("operator", "rationale")
+                                if not attribution.get(k)],
+                    "reason":  "operator and rationale required for approval.",
+                }
+
+        # ── DENY branch — terminal halt, remove paused entry ─────────
+        if approval_decision == "DENY":
+            with self._lock:
+                self._state.setdefault("paused_lifecycles", {}).pop(task_id, None)
+            self.escalate(
+                task_id          = task_id,
+                escalating_agent = "AUR-J-COMP-001",
+                reason           = f"Lifecycle denied by operator: {attribution.get('rationale', 'no rationale')}",
+                severity         = "WARN",
+                context          = {"pause_reason": pause_reason, "attribution": attribution},
+            )
+            self._authority_log_entry(
+                task_id    = task_id,
+                event_type = "C2_LIFECYCLE_DENIED",
+                detail     = (f"Operator={attribution.get('operator', '?')} | "
+                              f"Reason={attribution.get('rationale', '?')} | "
+                              f"Original pause={pause_reason}"),
+            )
+            return {
+                "task_id":      task_id,
+                "status":       "DENIED",
+                "pause_reason": pause_reason,
+                "attribution":  dict(attribution),
+            }
+
+        if approval_decision != "APPROVE":
+            return {
+                "task_id": task_id,
+                "status":  "INVALID_APPROVAL",
+                "reason":  f"approval_decision must be APPROVE or DENY (got {approval_decision!r})",
+            }
+
+        # ── APPROVE branch — continue post-Compliance tail ───────────
+        lifecycle_context = entry.get("lifecycle_context", {})
+        decision = dict(lifecycle_context.get("decision", {}))
+        agents_activated = list(lifecycle_context.get("agents_activated", [AGENT_J, AGENT_R]))
+        sequencing_rule = lifecycle_context.get("sequencing_rule")
+        convergence_scenario = lifecycle_context.get("convergence_scenario")
+        doctrine_pinned = entry.get("doctrine_version_at_pause")
+
+        resume_attribution = {
+            "operator":                       attribution.get("operator"),
+            "rationale":                      attribution.get("rationale"),
+            "compliance_authority_decision":  attribution.get("compliance_authority_decision"),
+            "legal_authority_decision":       attribution.get("legal_authority_decision"),
+            "original_pause_reason":          pause_reason,
+            "paused_at":                      entry.get("paused_at"),
+            "resumed_at":                     datetime.now(timezone.utc).isoformat(),
+            "doctrine_version_pinned":        doctrine_pinned,
+        }
+
+        self._authority_log_entry(
+            task_id    = task_id,
+            event_type = "C2_LIFECYCLE_RESUMED",
+            detail     = (f"Operator={attribution.get('operator', '?')} | "
+                          f"Pause={pause_reason} | Doctrine pinned={doctrine_pinned}"),
+        )
+
+        # Reconstitute C2's in-memory task record if this process wasn't the
+        # one that issued the task (e.g. Railway restart spanned the pause).
+        # No-op when resuming within the same process.
+        self._reconstitute_task_on_resume(task_id, entry)
+
+        # Remove paused entry BEFORE continuing so a crash mid-resume leaves
+        # the lifecycle in a clean "not-paused" state.
+        with self._lock:
+            self._state.setdefault("paused_lifecycles", {}).pop(task_id, None)
+
+        # Run the post-compliance tail with the pinned doctrine version.
+        return self._execute_post_compliance_lifecycle(
+            decision             = decision,
+            task_id              = task_id,
+            agent_j              = agent_j,
+            agents_activated     = agents_activated,
+            sequencing_rule      = sequencing_rule,
+            doctrine_version     = doctrine_pinned,
+            convergence_scenario = convergence_scenario,
+            compliance_clearance = {
+                "path_id":   entry.get("path_selection", {}).get("selected_path_id") if entry.get("path_selection") else None,
+                "rationale": "Operator-approved override after compliance halt",
+            },
+            resume_attribution = resume_attribution,
+        )
+
+    def list_paused_lifecycles(self) -> list:
+        """Return a list of currently paused lifecycles for operator
+        inspection. Reads from aureon_state["paused_lifecycles"]."""
+        with self._lock:
+            paused = self._state.get("paused_lifecycles", {}) or {}
+            return list(paused.values())
+
+    def _reconstitute_task_on_resume(self, task_id: str, paused_entry: dict) -> None:
+        """Rebuild the in-memory C2 task record for a resumed lifecycle when
+        this process is not the one that issued the original task (i.e. after
+        a Railway restart crossed the pause). The internal _tasks/_handoff_log/
+        _lineage registers are in-memory only by design for Phase 4 — full C2
+        state persistence is the deferred "C2 log persistence gap" item in
+        TRACKERS.md.
+
+        No-op if the task is already registered (resume within the same process).
+        Does NOT emit a C2_TASK_ISSUED authority log — that was already written
+        when the task was first issued pre-pause.
+        """
+        with self._c2_lock:
+            if task_id in self._tasks:
+                return
+            ctx = paused_entry.get("lifecycle_context", {}) or {}
+            agents = list(ctx.get("agents_activated", []))
+            task = {
+                "task_id":              task_id,
+                "created_ts":           paused_entry.get("paused_at", datetime.now(timezone.utc).isoformat()),
+                "doctrine_version":     paused_entry.get("doctrine_version_at_pause", "unknown"),
+                "lifecycle_packet":     dict(ctx.get("decision", {})),
+                "agents_tasked":        agents,
+                # Compliance already ran, so mark it complete. The others will
+                # transition from ISSUED → COMPLETE as the post-compliance
+                # tail runs.
+                "agent_states":         {a: HS_ISSUED for a in agents},
+                "handoff_sequence":     [],
+                "telemetry":            {
+                    "AUR-J-COMP-001": {
+                        "received_ts": paused_entry.get("paused_at"),
+                        "agent_id":    "AUR-J-COMP-001",
+                        "data":        paused_entry.get("path_selection") or {},
+                    }
+                },
+                "escalations":          [],
+                "convergence_scenario": ctx.get("convergence_scenario"),
+                "unified_lineage_ready": False,
+                "dsor_submitted":       False,
+                "status":               "ACTIVE",
+                "resumed_from_pause":   True,
+            }
+            self._tasks[task_id] = task
 
     # ─────────────────────────────────────────────────────────────────────────
     # DASHBOARD VISIBILITY

@@ -95,6 +95,7 @@ from aureon.integration_adapters.ems_adapter import build_execution_release
 from aureon.session.session_protocol import SessionProtocol
 from aureon.data.market_data import get_price, get_prices_batch
 from aureon.agents import ThifurJ, SettlementOps
+from aureon.agents.c2.coordinator import ThifurC2
 
 # ── LOAD .env FILE ────────────────────────────────────────────────
 # Reads AUREON_EMAIL and AUREON_EMAIL_PW from the .env file in
@@ -270,6 +271,10 @@ aureon_state = {
     "prices":             {},
     "class_totals":       {},
 
+    # ── JTAC Phase 4 — halt-and-pend lifecycle + Compliance log ─────
+    "paused_lifecycles":   {},     # task_id -> paused lifecycle record (halt-and-pend + resume)
+    "c2_j_compliance_log": [],     # Compliance (AUR-J-COMP-001) screening trail
+
     # ── Emergency halt (Tier 0 — above all doctrine) ─────────────
     "halt_active":    False,   # True = all Thifur execution frozen
     "halt_ts":        None,    # ISO timestamp of halt activation
@@ -411,6 +416,11 @@ _session_protocol = SessionProtocol(aureon_state, _lock)
 # Instantiate advisory agents (ThifurJ and SettlementOps)
 _agent_j = ThifurJ(aureon_state, _lock)
 _agent_r = SettlementOps(aureon_state, _lock)
+
+# Thifur-C2 coordinator — one instance per server lifetime. Holds the
+# in-memory task/handoff/lineage registers. Exposed via the /api/c2/*
+# endpoints for paused-lifecycle inspection and resume. Phase 4.
+_thifur_c2 = ThifurC2(aureon_state, _lock)
 
 # Expose agents to session protocol for Step 4 readiness check
 app._aureon_agents = {
@@ -4245,6 +4255,9 @@ def run_doctrine_stack():
             aureon_state["sweep_log"]           = saved.get("sweep_log",           [])
             aureon_state["operational_journal"] = saved.get("operational_journal", [])
             aureon_state["decision_journal"]    = saved.get("decision_journal",    [])
+            # ── JTAC Phase 4 ─────────────────────────────────────
+            aureon_state["paused_lifecycles"]   = saved.get("paused_lifecycles",   {})
+            aureon_state["c2_j_compliance_log"] = saved.get("c2_j_compliance_log", [])
         else:
             # ── First-ever launch — seed from INITIAL_POSITIONS ───
             aureon_state["positions"] = [dict(p) for p in INITIAL_POSITIONS]
@@ -5627,6 +5640,55 @@ def api_test_email():
         return jsonify({"status": "sent", "to": recipient}), 200
     except Exception as exc:
         return jsonify({"status": "error", "detail": str(exc)}), 500
+
+
+@app.route("/api/c2/paused", methods=["GET"])
+def api_c2_paused():
+    """List currently paused lifecycles for operator inspection.
+    Phase 4 — halt-and-pend + resume-after-approval surface."""
+    return jsonify({
+        "paused_lifecycles": _thifur_c2.list_paused_lifecycles(),
+    })
+
+
+@app.route("/api/c2/resume/<task_id>", methods=["POST"])
+def api_c2_resume(task_id):
+    """Resume a paused lifecycle with operator approval payload.
+
+    Body:
+    {
+      "approval_decision": "APPROVE" | "DENY",
+      "approval_attribution": {
+        "operator": "<id>",
+        "rationale": "<text>",
+        "compliance_authority_decision": {...},  // required for CONFLICT_RESOLUTION_REQUIRED
+        "legal_authority_decision": {...}         // required for CONFLICT_RESOLUTION_REQUIRED
+      }
+    }
+    """
+    body = request.get_json(silent=True) or {}
+    decision = body.get("approval_decision")
+    attribution = body.get("approval_attribution") or {}
+    if not decision:
+        return jsonify({
+            "task_id": task_id,
+            "status": "INVALID_APPROVAL",
+            "reason": "approval_decision is required (APPROVE or DENY)",
+        }), 400
+
+    result = _thifur_c2.resume_paused_lifecycle(
+        task_id              = task_id,
+        approval_decision    = decision,
+        approval_attribution = attribution,
+        agent_j              = _agent_j,
+    )
+
+    status = result.get("status")
+    if status == "NOT_FOUND":
+        return jsonify(result), 404
+    if status == "INVALID_APPROVAL":
+        return jsonify(result), 400
+    return jsonify(result), 200
 
 
 @app.route("/api/snapshot")
