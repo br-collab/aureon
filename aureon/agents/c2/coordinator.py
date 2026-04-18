@@ -9,7 +9,7 @@
 ║    Hold the unified lineage record.                                  ║
 ║    Present a single human authority surface across all agents.       ║
 ║    Route escalation with complete multi-agent context.               ║
-║    Receive Neptune Spear outputs post-operator-approval via Kaladan. ║
+║    Receive Atrox outputs post-operator-approval via Kaladan. ║
 ║                                                                      ║
 ║  FIVE IMMUTABLE STOPS:                                               ║
 ║    1. No self-execution — C2 never takes a market action             ║
@@ -59,14 +59,14 @@ AGENT_R       = "THIFUR_R"
 AGENT_J       = "THIFUR_J"
 AGENT_H       = "THIFUR_H"
 AGENT_C2      = "THIFUR_C2"
-AGENT_NEPTUNE = "THIFUR_NEPTUNE_SPEAR"   # origination tier — above execution triplet
+AGENT_ATROX = "THIFUR_ATROX"   # origination tier — above execution triplet
 
-# ── Authority Chain (Neptune → Operator → Kaladan → C2 → R/J/H) ──────────────
-# Neptune Spear originates. Operator approves. Kaladan packages.
+# ── Authority Chain (Atrox → Operator → Kaladan → C2 → R/J/H) ──────────────
+# Atrox originates. Operator approves. Kaladan packages.
 # C2 receives from Kaladan and is the first execution-tier downstream point.
-# Doctrine ref: Thifur-Neptune Spear · Draft 1.0 — Neptune-to-C2 Handoff Protocol
+# Doctrine ref: Thifur-Atrox · Draft 1.0 — Atrox-to-C2 Handoff Protocol
 AUTHORITY_CHAIN = [
-    AGENT_NEPTUNE,   # origination — recommendation with full analytical lineage
+    AGENT_ATROX,   # origination — recommendation with full analytical lineage
     "OPERATOR",      # human authority — approval required, basis recorded
     "KALADAN",       # lifecycle structuring
     AGENT_C2,        # coordination, handoff governance, unified lineage

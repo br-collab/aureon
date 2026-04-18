@@ -167,8 +167,8 @@ nav {
   50%       { opacity: 0.4; transform: scale(0.8); }
 }
 
-/* ── NEPTUNE SPEAR TAB ───────────────────────────────── */
-.neptune-section-label {
+/* ── ATROX SPEAR TAB ───────────────────────────────── */
+.atrox-section-label {
   font-family: var(--font-display);
   font-size: 11px;
   font-weight: 700;
@@ -180,7 +180,7 @@ nav {
   align-items: center;
   gap: 12px;
 }
-.neptune-section-label::after {
+.atrox-section-label::after {
   content: '';
   flex: 1;
   height: 1px;
@@ -239,7 +239,7 @@ nav {
 .pipe-label.live    { color: var(--green); }
 .pipe-label.offline { color: var(--dim); }
 
-/* Neptune metric cells */
+/* Atrox metric cells */
 .npt-metric {
   text-align: center;
   padding: 10px 4px;
@@ -251,7 +251,7 @@ nav {
   line-height: 1;
 }
 
-/* Neptune inner card sections */
+/* Atrox inner card sections */
 .npt-inner-card {
   background: var(--deep);
   border: 1px solid var(--border2);
@@ -286,7 +286,7 @@ nav {
   line-height: 1.4;
 }
 
-/* Neptune recommendation cards */
+/* Atrox recommendation cards */
 .npt-rec {
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -1164,7 +1164,7 @@ main {
     <button class="nav-btn" onclick="showTab('governance')">Governance</button>
     <button class="nav-btn" onclick="showTab('reports')">Reports</button>
     <button class="nav-btn" onclick="showTab('treasury')">Treasury</button>
-    <button class="nav-btn" onclick="showTab('neptune')">Neptune Spear</button>
+    <button class="nav-btn" onclick="showTab('atrox')">Atrox</button>
     <button class="nav-btn" onclick="showTab('about')">Framework</button>
   </nav>
 
@@ -1831,8 +1831,8 @@ main {
     <div class="alert-row">
       <div class="alert-icon" style="background:var(--cyan)"></div>
       <div>
-        <div style="font-weight:600;margin-bottom:3px">MDU-004 — Neptune Spear &amp; C2 Doctrine Registration</div>
-        <div class="dim-t">Thifur-Neptune Spear (Alpha Generator, Draft 1.0) and Thifur-C2 (Command &amp; Control, Draft 1.0) formalized. Authority chain extended: Neptune → Operator → Kaladan → C2 → R/J/H. Five Immutable Stops codified.</div>
+        <div style="font-weight:600;margin-bottom:3px">MDU-004 — Atrox &amp; C2 Doctrine Registration</div>
+        <div class="dim-t">Thifur-Atrox (Alpha Generator, Draft 1.0) and Thifur-C2 (Command &amp; Control, Draft 1.0) formalized. Authority chain extended: Atrox → Operator → Kaladan → C2 → R/J/H. Five Immutable Stops codified.</div>
         <div class="hash" style="margin-top:4px">CAOM-001 · GR-001 · v1.2 → v1.3 · 2026-04-09</div>
       </div>
       <div class="layer-tag tag-cyan" style="margin-left:auto;flex-shrink:0">HUMAN AUTH</div>
@@ -2228,13 +2228,13 @@ main {
 
 
 <!-- ════════════════════════════════════════════════════════
-     TAB 8 — NEPTUNE SPEAR — Alpha Origination Intelligence
+     TAB 8 — ATROX SPEAR — Alpha Origination Intelligence
 ════════════════════════════════════════════════════════ -->
-<div id="tab-neptune" class="tab">
+<div id="tab-atrox" class="tab">
 
   <!-- ── PIPE STATUS ─────────────────────────────────── -->
-  <div class="neptune-section-label">Data Pipe Status</div>
-  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px" id="neptune-pipe-status">
+  <div class="atrox-section-label">Data Pipe Status</div>
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px" id="atrox-pipe-status">
     <div class="pipe-card">
       <div class="card-label">Unusual Whales</div>
       <div class="pipe-status-row" id="pipe-uw-status"><span class="pipe-dot"></span><span class="pipe-label">--</span></div>
@@ -2268,32 +2268,32 @@ main {
   </div>
 
   <!-- ── TRADE RECOMMENDATIONS ────────────────────────── -->
-  <div class="neptune-section-label">Trade Recommendations</div>
+  <div class="atrox-section-label">Trade Recommendations</div>
   <div class="card" style="padding:16px 20px;margin-bottom:20px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:10px">
-        <span class="card-label" style="margin-bottom:0">Neptune Origination — Awaiting Operator Review</span>
-        <span class="mcp-tool-tag" id="neptune-rec-count" style="font-size:9px;padding:2px 8px">0 active</span>
+        <span class="card-label" style="margin-bottom:0">Atrox Origination — Awaiting Operator Review</span>
+        <span class="mcp-tool-tag" id="atrox-rec-count" style="font-size:9px;padding:2px 8px">0 active</span>
       </div>
-      <button onclick="neptuneForceReScan()" style="background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.25);
+      <button onclick="atroxForceReScan()" style="background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.25);
               color:var(--cyan);padding:5px 14px;border-radius:4px;font-family:var(--font-mono);
               font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer">Re-Scan</button>
     </div>
-    <div id="neptune-recs-container">
+    <div id="atrox-recs-container">
       <div style="color:var(--dim);font-size:11px;padding:24px;text-align:center">
-        Neptune scanning pipe data for trade opportunities...
+        Atrox scanning pipe data for trade opportunities...
       </div>
     </div>
   </div>
 
   <!-- ── FEAR GAUGE + MARKET TIDE ────────────────────── -->
-  <div class="neptune-section-label">Market Regime</div>
+  <div class="atrox-section-label">Market Regime</div>
   <div class="grid g2" style="margin-bottom:20px">
 
     <!-- CBOE Fear Gauge -->
     <div class="card" style="padding:20px 24px">
       <div class="card-label" style="margin-bottom:16px">CBOE Fear Gauge</div>
-      <div id="neptune-fear-gauge">
+      <div id="atrox-fear-gauge">
         <div style="text-align:center;padding:12px 0 16px">
           <div style="font-size:42px;font-weight:800;font-family:var(--font-display);letter-spacing:3px" id="fear-level-label">--</div>
           <div style="font-size:10px;color:var(--dim);margin-top:6px;letter-spacing:1px" id="fear-level-sub">VIX TERM STRUCTURE + PUT/CALL + SKEW + VVIX</div>
@@ -2322,7 +2322,7 @@ main {
     <!-- Market Tide -->
     <div class="card" style="padding:20px 24px;display:flex;flex-direction:column">
       <div class="card-label" style="margin-bottom:16px">Market Tide — Options Sentiment</div>
-      <div id="neptune-market-tide" style="flex:1;display:flex;flex-direction:column;justify-content:center">
+      <div id="atrox-market-tide" style="flex:1;display:flex;flex-direction:column;justify-content:center">
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
           <div class="npt-metric">
             <div class="card-label">Net Premium Delta</div>
@@ -2343,41 +2343,41 @@ main {
   </div>
 
   <!-- ── OPTIONS FLOW + DARK POOL ────────────────────── -->
-  <div class="neptune-section-label">Flow Intelligence</div>
+  <div class="atrox-section-label">Flow Intelligence</div>
   <div class="grid g2" style="margin-bottom:20px">
     <div class="card" style="padding:16px 20px">
       <div class="card-label" style="margin-bottom:10px">Options Flow Alerts</div>
-      <div id="neptune-flow-alerts" style="max-height:320px;overflow-y:auto">
+      <div id="atrox-flow-alerts" style="max-height:320px;overflow-y:auto">
         <div style="color:var(--dim);font-size:11px;padding:24px;text-align:center">Awaiting pipe data...</div>
       </div>
     </div>
     <div class="card" style="padding:16px 20px">
       <div class="card-label" style="margin-bottom:10px">Dark Pool Prints</div>
-      <div id="neptune-darkpool" style="max-height:320px;overflow-y:auto">
+      <div id="atrox-darkpool" style="max-height:320px;overflow-y:auto">
         <div style="color:var(--dim);font-size:11px;padding:24px;text-align:center">Awaiting pipe data...</div>
       </div>
     </div>
   </div>
 
   <!-- ── MARKET SNAPSHOTS + INSTITUTIONAL ────────────── -->
-  <div class="neptune-section-label">Market Data</div>
+  <div class="atrox-section-label">Market Data</div>
   <div class="grid g2" style="margin-bottom:20px">
     <div class="card" style="padding:16px 20px">
       <div class="card-label" style="margin-bottom:10px">Market Snapshots — Alpaca</div>
-      <div id="neptune-snapshots" style="max-height:320px;overflow-y:auto">
+      <div id="atrox-snapshots" style="max-height:320px;overflow-y:auto">
         <div style="color:var(--dim);font-size:11px;padding:24px;text-align:center">Awaiting pipe data...</div>
       </div>
     </div>
     <div class="card" style="padding:16px 20px">
       <div class="card-label" style="margin-bottom:10px">Institutional Positioning — SEC EDGAR 13F</div>
-      <div id="neptune-institutional" style="max-height:320px;overflow-y:auto">
+      <div id="atrox-institutional" style="max-height:320px;overflow-y:auto">
         <div style="color:var(--dim);font-size:11px;padding:24px;text-align:center">Awaiting pipe data...</div>
       </div>
     </div>
   </div>
 
   <!-- ── ON-CHAIN INTELLIGENCE ───────────────────────── -->
-  <div class="neptune-section-label">On-Chain Intelligence</div>
+  <div class="atrox-section-label">On-Chain Intelligence</div>
   <div class="card" style="padding:20px 24px;margin-bottom:20px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
       <div class="card-label" style="margin-bottom:0">Blockscout — Ethereum Mainnet</div>
@@ -2421,7 +2421,7 @@ main {
   </div>
 
   <!-- ── CATO — VERANA L0 SETTLEMENT GATE ───────────── -->
-  <div class="neptune-section-label">Cato — Verana L0 Settlement Gate</div>
+  <div class="atrox-section-label">Cato — Verana L0 Settlement Gate</div>
   <div class="card" style="padding:20px 24px;margin-bottom:20px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap">
       <div class="card-label" style="margin-bottom:0">Tokenized Settlement Doctrine Gate</div>
@@ -2522,7 +2522,7 @@ main {
   </div>
 
   <!-- ── VERANA L0 MCP SERVER ────────────────────────── -->
-  <div class="neptune-section-label">MCP Server</div>
+  <div class="atrox-section-label">MCP Server</div>
   <div class="card" style="padding:20px 24px;margin-bottom:20px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
       <div class="card-label" style="margin-bottom:0">Verana L0 — Model Context Protocol</div>
@@ -2562,9 +2562,9 @@ main {
 
   <!-- ── GOVERNANCE FOOTER ───────────────────────────── -->
   <div style="text-align:center;padding:16px 0 8px;color:var(--dim);font-size:10px;letter-spacing:1.5px;line-height:2.2">
-    NEPTUNE SPEAR — ALPHA ORIGINATION LAYER · 50,000 FT<br>
+    ATROX SPEAR — ALPHA ORIGINATION LAYER · 50,000 FT<br>
     ADVISORY ONLY — ALL OUTPUTS REQUIRE HUMAN APPROVAL (CAOM-001)<br>
-    SIX DATA PIPES · VERANA L0 MCP · DOCTRINE v<span id="neptune-doctrine-ver">1.3</span>
+    SIX DATA PIPES · VERANA L0 MCP · DOCTRINE v<span id="atrox-doctrine-ver">1.3</span>
   </div>
 
 </div>
@@ -2707,14 +2707,14 @@ main {
   <div class="report-block" style="margin-bottom:24px">
     <h3>Target Institutional Architecture</h3>
     <pre style="font-size:11px;line-height:1.8;color:var(--muted);font-family:var(--font-mono);
-                overflow-x:auto;padding:16px;background:var(--deep);border-radius:8px;border:1px solid var(--border)">Neptune Spear — Alpha Origination (50,000 ft)
+                overflow-x:auto;padding:16px;background:var(--deep);border-radius:8px;border:1px solid var(--border)">Atrox — Alpha Origination (50,000 ft)
   Systematic signal generation, predictive analytics,
   market intelligence, product recommendations
   [Advisory only — all outputs require human approval]
                     |
                     v
       [HUMAN AUTHORITY — CAOM-001]
-      Operator reviews and approves Neptune output
+      Operator reviews and approves Atrox output
                     |
                     v
       Aureon Agent + Governance Layer
@@ -2754,7 +2754,7 @@ Aureon for replay, evidence, and audit packaging</pre>
         <th style="padding:8px">Doctrine</th><th style="padding:8px">Altitude</th><th style="padding:8px">Institutional Role</th>
       </tr>
       <tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:8px;font-weight:700;color:var(--cyan)">Neptune Spear</td>
+        <td style="padding:8px;font-weight:700;color:var(--cyan)">Atrox</td>
         <td style="padding:8px">50,000 ft</td>
         <td style="padding:8px;color:var(--muted)">Alpha origination — signal generation, predictive analytics, product recommendations (advisory only)</td>
       </tr>
@@ -2798,7 +2798,7 @@ Aureon for replay, evidence, and audit packaging</pre>
           <li>Risk framing and constraint visibility for human review</li>
           <li>Configurable role-based approval lineage</li>
           <li>DSOR evidence, replay context, and audit packaging</li>
-          <li>Neptune Spear origination intelligence — advisory layer</li>
+          <li>Atrox origination intelligence — advisory layer</li>
           <li>Thifur-C2 coordination and unified lineage assembly</li>
         </ul>
       </div>
@@ -2823,7 +2823,7 @@ Aureon for replay, evidence, and audit packaging</pre>
     </p>
     <div class="grid g4" style="text-align:center">
       <div style="padding:12px">
-        <div style="font-weight:700;color:var(--cyan);margin-bottom:4px">Neptune</div>
+        <div style="font-weight:700;color:var(--cyan);margin-bottom:4px">Atrox</div>
         <div style="font-size:11px;color:var(--muted)">Originates</div>
         <div style="font-size:10px;color:var(--green);margin-top:2px">Operator approves</div>
       </div>
@@ -2874,12 +2874,12 @@ Aureon for replay, evidence, and audit packaging</pre>
     </div>
   </div>
 
-  <!-- NEPTUNE DATA PIPES -->
+  <!-- ATROX DATA PIPES -->
   <div class="report-block" style="margin-bottom:24px">
-    <h3>Neptune Spear — Data Pipe Architecture</h3>
+    <h3>Atrox — Data Pipe Architecture</h3>
     <p style="font-size:12px;color:var(--muted);line-height:1.8;margin-bottom:16px">
-      Neptune consumes external data sources via structured MCP clients — giving every data input an auditable provenance trail.
-      Every data source is a named, versioned resource. If a regulator asks "what data did Neptune use?" — the MCP resource URI is the answer.
+      Atrox consumes external data sources via structured MCP clients — giving every data input an auditable provenance trail.
+      Every data source is a named, versioned resource. If a regulator asks "what data did Atrox use?" — the MCP resource URI is the answer.
     </p>
     <div class="grid g3" style="text-align:center;margin-bottom:12px">
       <div style="padding:12px;border:1px solid var(--border);border-radius:8px">
@@ -2924,7 +2924,7 @@ Aureon for replay, evidence, and audit packaging</pre>
         <td style="padding:6px 8px;color:var(--muted)">Program Trading, Delta One, OTC, all classes</td>
       </tr>
       <tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:6px 8px;color:var(--white)">Neptune Spear</td>
+        <td style="padding:6px 8px;color:var(--white)">Atrox</td>
         <td style="padding:6px 8px;color:var(--green)">6 data pipes live</td>
         <td style="padding:6px 8px;color:var(--muted)">Full activation with live trade origination</td>
       </tr>
@@ -2989,28 +2989,28 @@ const API = {
   catoCompareRails:      '/api/cato/compare-rails',
   catoMultichainGas:     '/api/cato/multichain-gas',
   catoPrices:            '/api/cato/prices',
-  // Neptune Spear data pipes
-  neptuneStatus:       '/api/neptune/status',
-  neptuneFlowAlerts:   '/api/neptune/flow-alerts',
-  neptuneDarkpool:     '/api/neptune/darkpool',
-  neptuneMarketTide:   '/api/neptune/market-tide',
-  neptuneTradierStatus:'/api/neptune/tradier/status',
-  neptuneAlpacaStatus: '/api/neptune/alpaca/status',
-  neptuneAlpacaSnaps:  '/api/neptune/alpaca/snapshots',
-  neptuneAlpacaNews:   '/api/neptune/alpaca/news',
-  neptuneCboeStatus:   '/api/neptune/cboe/status',
-  neptuneCboeFear:     '/api/neptune/cboe/fear-packet',
-  neptuneEdgarStatus:  '/api/neptune/edgar/status',
-  neptuneEdgarInst:    '/api/neptune/edgar/institutional-packet',
-  // Neptune recommendations
-  neptuneRecs:         '/api/neptune/recommendations',
-  neptuneRecsScan:     '/api/neptune/recommendations/scan',
-  neptuneRecPromote:   (id) => `/api/neptune/recommendations/${id}/promote`,
-  neptuneRecDismiss:   (id) => `/api/neptune/recommendations/${id}/dismiss`,
+  // Atrox data pipes
+  atroxStatus:       '/api/atrox/status',
+  atroxFlowAlerts:   '/api/atrox/flow-alerts',
+  atroxDarkpool:     '/api/atrox/darkpool',
+  atroxMarketTide:   '/api/atrox/market-tide',
+  atroxTradierStatus:'/api/atrox/tradier/status',
+  atroxAlpacaStatus: '/api/atrox/alpaca/status',
+  atroxAlpacaSnaps:  '/api/atrox/alpaca/snapshots',
+  atroxAlpacaNews:   '/api/atrox/alpaca/news',
+  atroxCboeStatus:   '/api/atrox/cboe/status',
+  atroxCboeFear:     '/api/atrox/cboe/fear-packet',
+  atroxEdgarStatus:  '/api/atrox/edgar/status',
+  atroxEdgarInst:    '/api/atrox/edgar/institutional-packet',
+  // Atrox recommendations
+  atroxRecs:         '/api/atrox/recommendations',
+  atroxRecsScan:     '/api/atrox/recommendations/scan',
+  atroxRecPromote:   (id) => `/api/atrox/recommendations/${id}/promote`,
+  atroxRecDismiss:   (id) => `/api/atrox/recommendations/${id}/dismiss`,
   // Blockscout on-chain
-  neptuneBsStatus:     '/api/neptune/blockscout/status',
-  neptuneBsStats:      '/api/neptune/blockscout/stats',
-  neptuneBsPacket:     '/api/neptune/blockscout/onchain-packet',
+  atroxBsStatus:     '/api/atrox/blockscout/status',
+  atroxBsStats:      '/api/atrox/blockscout/stats',
+  atroxBsPacket:     '/api/atrox/blockscout/onchain-packet',
   // MCP
   mcpDiscovery:        '/mcp',
 };
@@ -3053,17 +3053,17 @@ const state = {
   // Integration mode: 'standalone' | 'oms-overlay'
   integrationMode: 'standalone',
   selectedDecisionId: null,
-  // Neptune Spear
-  neptunePipes: {},
-  neptuneFear: null,
-  neptuneMarketTide: null,
-  neptuneFlowAlerts: [],
-  neptuneDarkpool: [],
-  neptuneSnapshots: {},
-  neptuneInstitutional: null,
-  neptuneRecs: [],
-  neptuneBlockscout: null,
-  neptuneMcp: null,
+  // Atrox
+  atroxPipes: {},
+  atroxFear: null,
+  atroxMarketTide: null,
+  atroxFlowAlerts: [],
+  atroxDarkpool: [],
+  atroxSnapshots: {},
+  atroxInstitutional: null,
+  atroxRecs: [],
+  atroxBlockscout: null,
+  atroxMcp: null,
   // Cato — Verana L0 tokenized-settlement doctrine gate
   catoGate: null,
   catoContext: null,
@@ -4804,129 +4804,129 @@ function renderReports() {
   document.getElementById('audit-ts').textContent       = today.toISOString().slice(0,19) + ' UTC';
 }
 
-// ── NEPTUNE SPEAR — fetch + render ───────────────────
-async function fetchNeptune() {
-  // Neptune recommendations
+// ── ATROX SPEAR — fetch + render ───────────────────
+async function fetchAtrox() {
+  // Atrox recommendations
   try {
-    const r = await fetch(API.neptuneRecs);
-    if (r.ok) { const d = await r.json(); state.neptuneRecs = d.recommendations || []; }
+    const r = await fetch(API.atroxRecs);
+    if (r.ok) { const d = await r.json(); state.atroxRecs = d.recommendations || []; }
   } catch(e) { /* silent */ }
 
   // Pipe statuses — fire all in parallel, catch individually
   const pipes = [
-    { key: 'uw',      url: API.neptuneStatus,        label: 'Unusual Whales' },
-    { key: 'tradier', url: API.neptuneTradierStatus,  label: 'Tradier' },
-    { key: 'alpaca',  url: API.neptuneAlpacaStatus,   label: 'Alpaca' },
-    { key: 'cboe',    url: API.neptuneCboeStatus,     label: 'CBOE' },
-    { key: 'edgar',   url: API.neptuneEdgarStatus,    label: 'SEC EDGAR' },
-    { key: 'blockscout', url: API.neptuneBsStatus,  label: 'Blockscout' },
+    { key: 'uw',      url: API.atroxStatus,        label: 'Unusual Whales' },
+    { key: 'tradier', url: API.atroxTradierStatus,  label: 'Tradier' },
+    { key: 'alpaca',  url: API.atroxAlpacaStatus,   label: 'Alpaca' },
+    { key: 'cboe',    url: API.atroxCboeStatus,     label: 'CBOE' },
+    { key: 'edgar',   url: API.atroxEdgarStatus,    label: 'SEC EDGAR' },
+    { key: 'blockscout', url: API.atroxBsStatus,  label: 'Blockscout' },
   ];
   const results = await Promise.allSettled(pipes.map(p =>
     fetch(p.url).then(r => r.ok ? r.json() : Promise.reject(r.status))
   ));
   results.forEach((r, i) => {
-    state.neptunePipes[pipes[i].key] = r.status === 'fulfilled' ? r.value : { status: 'offline' };
+    state.atroxPipes[pipes[i].key] = r.status === 'fulfilled' ? r.value : { status: 'offline' };
   });
 
   // CBOE Fear Gauge
   try {
-    const r = await fetch(API.neptuneCboeFear + '?lookback=30');
-    if (r.ok) state.neptuneFear = await r.json();
+    const r = await fetch(API.atroxCboeFear + '?lookback=30');
+    if (r.ok) state.atroxFear = await r.json();
   } catch(e) { /* silent */ }
 
   // Market Tide
   try {
-    const r = await fetch(API.neptuneMarketTide);
-    if (r.ok) state.neptuneMarketTide = await r.json();
+    const r = await fetch(API.atroxMarketTide);
+    if (r.ok) state.atroxMarketTide = await r.json();
   } catch(e) { /* silent */ }
 
   // Options Flow Alerts
   try {
-    const r = await fetch(API.neptuneFlowAlerts + '?limit=20');
-    if (r.ok) { const d = await r.json(); state.neptuneFlowAlerts = d.alerts || d.data || []; }
+    const r = await fetch(API.atroxFlowAlerts + '?limit=20');
+    if (r.ok) { const d = await r.json(); state.atroxFlowAlerts = d.alerts || d.data || []; }
   } catch(e) { /* silent */ }
 
   // Dark Pool
   try {
-    const r = await fetch(API.neptuneDarkpool + '?limit=20');
-    if (r.ok) { const d = await r.json(); state.neptuneDarkpool = d.prints || d.data || []; }
+    const r = await fetch(API.atroxDarkpool + '?limit=20');
+    if (r.ok) { const d = await r.json(); state.atroxDarkpool = d.prints || d.data || []; }
   } catch(e) { /* silent */ }
 
   // Alpaca Snapshots
   try {
-    const r = await fetch(API.neptuneAlpacaSnaps + '?symbols=SPY,QQQ,IWM,DIA');
-    if (r.ok) state.neptuneSnapshots = await r.json();
+    const r = await fetch(API.atroxAlpacaSnaps + '?symbols=SPY,QQQ,IWM,DIA');
+    if (r.ok) state.atroxSnapshots = await r.json();
   } catch(e) { /* silent */ }
 
   // EDGAR Institutional
   try {
-    const r = await fetch(API.neptuneEdgarInst, { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
-    if (r.ok) state.neptuneInstitutional = await r.json();
+    const r = await fetch(API.atroxEdgarInst, { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+    if (r.ok) state.atroxInstitutional = await r.json();
   } catch(e) { /* silent */ }
 
   // Blockscout On-Chain
   try {
-    const r = await fetch(API.neptuneBsStats + '?chain=1');
-    if (r.ok) state.neptuneBlockscout = await r.json();
+    const r = await fetch(API.atroxBsStats + '?chain=1');
+    if (r.ok) state.atroxBlockscout = await r.json();
   } catch(e) { /* silent */ }
 
   // MCP Discovery
   try {
     const r = await fetch(API.mcpDiscovery);
-    if (r.ok) state.neptuneMcp = await r.json();
+    if (r.ok) state.atroxMcp = await r.json();
   } catch(e) { /* silent */ }
 
-  renderNeptune();
+  renderAtrox();
 }
 
-// ── Neptune recommendation actions ───────────────────
-async function neptunePromote(recId) {
+// ── Atrox recommendation actions ───────────────────
+async function atroxPromote(recId) {
   try {
-    const r = await fetch(API.neptuneRecPromote(recId), { method: 'POST' });
+    const r = await fetch(API.atroxRecPromote(recId), { method: 'POST' });
     const d = await r.json();
     if (r.ok) {
       toast(`Promoted to ${d.decision_id} — ${d.action} ${d.symbol} $${d.notional?.toLocaleString()}`);
-      await fetchNeptune();
+      await fetchAtrox();
     } else {
       toast(d.error || 'Promote failed');
     }
   } catch(e) { toast('Promote failed'); }
 }
 
-async function neptuneDismiss(recId) {
+async function atroxDismiss(recId) {
   try {
-    const r = await fetch(API.neptuneRecDismiss(recId), { method: 'POST' });
+    const r = await fetch(API.atroxRecDismiss(recId), { method: 'POST' });
     if (r.ok) {
       toast('Recommendation dismissed');
-      await fetchNeptune();
+      await fetchAtrox();
     }
   } catch(e) { toast('Dismiss failed'); }
 }
 
-async function neptuneForceReScan() {
+async function atroxForceReScan() {
   try {
-    const r = await fetch(API.neptuneRecsScan, { method: 'POST' });
+    const r = await fetch(API.atroxRecsScan, { method: 'POST' });
     const d = await r.json();
     if (r.ok) {
-      state.neptuneRecs = d.recommendations || [];
-      toast(`Neptune scan complete — ${d.count} recommendation${d.count !== 1 ? 's' : ''}`);
-      renderNeptune();
+      state.atroxRecs = d.recommendations || [];
+      toast(`Atrox scan complete — ${d.count} recommendation${d.count !== 1 ? 's' : ''}`);
+      renderAtrox();
     } else {
       toast(d.error || 'Scan failed');
     }
   } catch(e) { toast('Scan failed'); }
 }
 
-function renderNeptuneRecs() {
-  const container = document.getElementById('neptune-recs-container');
-  const countEl = document.getElementById('neptune-rec-count');
+function renderAtroxRecs() {
+  const container = document.getElementById('atrox-recs-container');
+  const countEl = document.getElementById('atrox-rec-count');
   if (!container) return;
 
-  const recs = state.neptuneRecs || [];
+  const recs = state.atroxRecs || [];
   if (countEl) countEl.textContent = `${recs.length} active`;
 
   if (recs.length === 0) {
-    container.innerHTML = '<div style="color:var(--dim);font-size:11px;padding:24px;text-align:center">Neptune scanning pipe data for trade opportunities...</div>';
+    container.innerHTML = '<div style="color:var(--dim);font-size:11px;padding:24px;text-align:center">Atrox scanning pipe data for trade opportunities...</div>';
     return;
   }
 
@@ -4955,15 +4955,15 @@ function renderNeptuneRecs() {
           <span>·</span>
           <span>${new Date(rec.created).toLocaleTimeString()}</span>
           <div class="npt-rec-actions">
-            <button class="btn-dismiss" onclick="neptuneDismiss('${rec.id}')">Dismiss</button>
-            <button class="btn-promote" onclick="neptunePromote('${rec.id}')">Send to Approval</button>
+            <button class="btn-dismiss" onclick="atroxDismiss('${rec.id}')">Dismiss</button>
+            <button class="btn-promote" onclick="atroxPromote('${rec.id}')">Send to Approval</button>
           </div>
         </div>
       </div>`;
   }).join('');
 }
 
-function renderNeptune() {
+function renderAtrox() {
   // ── Pipe status cards (dot + label) ──
   const pipeMap = { uw: 'pipe-uw-status', tradier: 'pipe-tradier-status', alpaca: 'pipe-alpaca-status', cboe: 'pipe-cboe-status', edgar: 'pipe-edgar-status', blockscout: 'pipe-blockscout-status' };
   Object.entries(pipeMap).forEach(([key, id]) => {
@@ -4972,7 +4972,7 @@ function renderNeptune() {
     const dot = row.querySelector('.pipe-dot');
     const lbl = row.querySelector('.pipe-label');
     if (!dot || !lbl) return;
-    const p = state.neptunePipes[key];
+    const p = state.atroxPipes[key];
     if (!p) { dot.className = 'pipe-dot'; lbl.className = 'pipe-label'; lbl.textContent = '--'; return; }
     const live = (p.status === 'live' || p.status === 'ok' || p.operational === true || p.initialized === true);
     dot.className = live ? 'pipe-dot live' : 'pipe-dot offline';
@@ -4981,7 +4981,7 @@ function renderNeptune() {
   });
 
   // ── Fear Gauge ──
-  const fear = state.neptuneFear;
+  const fear = state.atroxFear;
   const fearLabel = document.getElementById('fear-level-label');
   if (fear && fearLabel) {
     const level = (fear.fear_level || fear.composite_level || '').toUpperCase();
@@ -5006,7 +5006,7 @@ function renderNeptune() {
   }
 
   // ── Market Tide ──
-  const tide = state.neptuneMarketTide;
+  const tide = state.atroxMarketTide;
   if (tide) {
     const data = tide.data || tide;
     const delta = data.net_premium_delta ?? data.net_delta ?? null;
@@ -5023,9 +5023,9 @@ function renderNeptune() {
   }
 
   // ── Options Flow Alerts ──
-  const flowEl = document.getElementById('neptune-flow-alerts');
-  if (flowEl && state.neptuneFlowAlerts.length > 0) {
-    flowEl.innerHTML = state.neptuneFlowAlerts.map(a => `
+  const flowEl = document.getElementById('atrox-flow-alerts');
+  if (flowEl && state.atroxFlowAlerts.length > 0) {
+    flowEl.innerHTML = state.atroxFlowAlerts.map(a => `
       <div class="alert-row" style="padding:8px 12px">
         <div class="alert-icon" style="background:${a.sentiment === 'bullish' || a.is_call ? 'var(--green)' : 'var(--red)'}"></div>
         <div style="flex:1;min-width:0">
@@ -5035,14 +5035,14 @@ function renderNeptune() {
         <span class="layer-tag ${a.sentiment === 'bullish' || a.is_call ? 'tag-green' : 'tag-red'}"
               style="margin-left:auto;flex-shrink:0;font-size:10px">${(a.sentiment || (a.is_call ? 'CALL' : 'PUT')).toUpperCase()}</span>
       </div>`).join('');
-  } else if (flowEl && state.neptunePipes.uw && state.neptunePipes.uw.status === 'offline') {
+  } else if (flowEl && state.atroxPipes.uw && state.atroxPipes.uw.status === 'offline') {
     flowEl.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">UW-PIPE-001 offline — no API token configured</div>';
   }
 
   // ── Dark Pool ──
-  const dpEl = document.getElementById('neptune-darkpool');
-  if (dpEl && state.neptuneDarkpool.length > 0) {
-    dpEl.innerHTML = state.neptuneDarkpool.map(p => `
+  const dpEl = document.getElementById('atrox-darkpool');
+  if (dpEl && state.atroxDarkpool.length > 0) {
+    dpEl.innerHTML = state.atroxDarkpool.map(p => `
       <div class="alert-row" style="padding:8px 12px">
         <div class="alert-icon" style="background:var(--indigo)"></div>
         <div style="flex:1;min-width:0">
@@ -5050,13 +5050,13 @@ function renderNeptune() {
           <div class="dim-t">Notional: $${((p.notional || (p.price * p.size) || 0) / 1e6).toFixed(2)}M · ${p.exchange || p.venue || 'Dark Pool'}</div>
         </div>
       </div>`).join('');
-  } else if (dpEl && state.neptunePipes.uw && state.neptunePipes.uw.status === 'offline') {
+  } else if (dpEl && state.atroxPipes.uw && state.atroxPipes.uw.status === 'offline') {
     dpEl.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">UW-PIPE-001 offline — no API token configured</div>';
   }
 
   // ── Alpaca Snapshots ──
-  const snapEl = document.getElementById('neptune-snapshots');
-  const snapData = state.neptuneSnapshots?.snapshots || state.neptuneSnapshots?.data || state.neptuneSnapshots;
+  const snapEl = document.getElementById('atrox-snapshots');
+  const snapData = state.atroxSnapshots?.snapshots || state.atroxSnapshots?.data || state.atroxSnapshots;
   if (snapEl && snapData && typeof snapData === 'object') {
     const symbols = Object.keys(snapData).filter(k => k !== 'pipe_id' && k !== 'source' && k !== 'timestamp' && k !== 'content_hash');
     if (symbols.length > 0) {
@@ -5087,8 +5087,8 @@ function renderNeptune() {
   }
 
   // ── Institutional Positioning ──
-  const instEl = document.getElementById('neptune-institutional');
-  const instData = state.neptuneInstitutional;
+  const instEl = document.getElementById('atrox-institutional');
+  const instData = state.atroxInstitutional;
   if (instEl && instData) {
     const institutions = instData.institutions || instData.data || [];
     if (institutions.length > 0) {
@@ -5105,7 +5105,7 @@ function renderNeptune() {
   }
 
   // ── Blockscout On-Chain ──
-  const bs = state.neptuneBlockscout;
+  const bs = state.atroxBlockscout;
   if (bs && bs.data) {
     const d = bs.data;
     const gasEl = document.getElementById('bs-gas');
@@ -5142,7 +5142,7 @@ function renderNeptune() {
   }
 
   // ── MCP Server ──
-  const mcp = state.neptuneMcp;
+  const mcp = state.atroxMcp;
   if (mcp) {
     const resCount = mcp.resources?.length ?? mcp.resource_count ?? 5;
     const toolCount = mcp.tools?.length ?? mcp.tool_count ?? 4;
@@ -5163,10 +5163,10 @@ function renderNeptune() {
   }
 
   // ── Recommendations ──
-  renderNeptuneRecs();
+  renderAtroxRecs();
 
   // Doctrine version footer
-  const verEl = document.getElementById('neptune-doctrine-ver');
+  const verEl = document.getElementById('atrox-doctrine-ver');
   if (verEl) verEl.textContent = state.doctrineVersion || '1.3';
 }
 
@@ -5470,7 +5470,7 @@ async function tick() {
 async function fetchCato() {
   // Cato — Verana L0 tokenized-settlement doctrine gate.
   // All Cato endpoints are pure in-memory reads (cache populated by
-  // _neptune_refresh_loop on the backend), so this is always fast.
+  // _atrox_refresh_loop on the backend), so this is always fast.
   try {
     const [gateR, ctxR] = await Promise.all([
       fetch(API.catoGate),
@@ -5602,10 +5602,10 @@ async function slowTick() {
     fetchMacro(),
     fetchCato(),
   ]);
-  // Neptune fetches are now safe — server-side endpoints serve from a
-  // cache refreshed every 60s by _neptune_refresh_loop. Fire-and-forget
-  // so the main poll loop never waits on Neptune.
-  fetchNeptune().catch(() => {});
+  // Atrox fetches are now safe — server-side endpoints serve from a
+  // cache refreshed every 60s by _atrox_refresh_loop. Fire-and-forget
+  // so the main poll loop never waits on Atrox.
+  fetchAtrox().catch(() => {});
   renderGovernance();
   renderCato();
 

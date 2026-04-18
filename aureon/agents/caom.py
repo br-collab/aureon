@@ -80,10 +80,10 @@ CAOM_ROLE_MAP: dict[str, dict] = {
 CAOM_AGENT_ADVISORY: dict[str, str] = {
     "TRADER":            "Thifur-H: execution strategy, slippage, liquidity depth",
     "RISK_MANAGER":      "Mentat: risk framing; Kaladan: drawdown + position status; Thifur-J: policy compliance",
-    "PORTFOLIO_MANAGER": "Mentat: mandate alignment, underweight/overweight flag, conviction score; Neptune Spear: origination theses and product recommendations",
+    "PORTFOLIO_MANAGER": "Mentat: mandate alignment, underweight/overweight flag, conviction score; Atrox: origination theses and product recommendations",
     "COMPLIANCE_OFFICER":"Verana: OFAC screening, doctrine integrity, systemic stress (auto-enforced)",
-    "RISK_COMMITTEE":    "All layers via Thifur-C2: unified risk picture; Neptune Spear: market intelligence input",
-    "EXECUTIVE":         "All layers via Thifur-C2: unified picture. Neptune Spear: strategic product-level intelligence. No agent substitution.",
+    "RISK_COMMITTEE":    "All layers via Thifur-C2: unified risk picture; Atrox: market intelligence input",
+    "EXECUTIVE":         "All layers via Thifur-C2: unified picture. Atrox: strategic product-level intelligence. No agent substitution.",
 }
 
 # ── Transition Triggers ───────────────────────────────────────────────────────

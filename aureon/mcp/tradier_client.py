@@ -2,7 +2,7 @@
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                         ║
 ║  aureon/mcp/tradier_client.py                                        ║
-║  Neptune Spear — Tradier Options Data Pipe                           ║
+║  Atrox — Tradier Options Data Pipe                           ║
 ║                                                                      ║
 ║  MANDATE:                                                            ║
 ║    Provides Thifur with live options chains, greeks, and IV          ║
@@ -40,11 +40,11 @@ from typing import Optional, List
 TRADIER_LIVE_BASE    = "https://api.tradier.com/v1"
 TRADIER_SANDBOX_BASE = "https://sandbox.tradier.com/v1"
 
-# ── Neptune Pipe Identity ─────────────────────────────────────────────────────
+# ── Atrox Pipe Identity ─────────────────────────────────────────────────────
 PIPE_ID          = "TRADIER-PIPE-001"
 PIPE_NAME        = "Tradier — Options Chains + Greeks + IV Surface"
 PIPE_VERSION     = "1.0"
-PIPE_URI_PREFIX  = "aureon://neptune/pipe/tradier"
+PIPE_URI_PREFIX  = "aureon://atrox/pipe/tradier"
 
 # Module-level client singleton
 _client: Optional["TradierClient"] = None
@@ -52,7 +52,7 @@ _client: Optional["TradierClient"] = None
 
 class TradierClient:
     """
-    Neptune Spear MCP data pipe client for Tradier.
+    Atrox MCP data pipe client for Tradier.
 
     Wraps the Tradier REST API as a structured data pipe with full
     provenance. Supports live and sandbox environments.
@@ -100,7 +100,7 @@ class TradierClient:
         req = urllib.request.Request(url)
         req.add_header("Authorization", f"Bearer {self._token}")
         req.add_header("Accept", "application/json")
-        req.add_header("User-Agent", "aureon-neptune/1.0")
+        req.add_header("User-Agent", "aureon-atrox/1.0")
 
         ts = datetime.now(timezone.utc).isoformat()
         env_label = "sandbox" if self._sandbox else "live"
@@ -218,7 +218,7 @@ class TradierClient:
         Build an IV surface across all available expirations.
         Calls expirations first, then pulls chains with greeks.
 
-        Neptune domain: Volatility regime + stress test calibration.
+        Atrox domain: Volatility regime + stress test calibration.
         """
         ts = datetime.now(timezone.utc).isoformat()
         exp_result = self.get_options_expirations(symbol)
@@ -291,7 +291,7 @@ class TradierClient:
         Full Thifur stress-test data packet for a list of symbols.
         Pulls: quotes, nearest expiration chain with greeks, HV.
 
-        Neptune domain: Pre-trade stress testing + concentration analysis.
+        Atrox domain: Pre-trade stress testing + concentration analysis.
         """
         ts     = datetime.now(timezone.utc).isoformat()
         result = {
@@ -335,7 +335,7 @@ class TradierClient:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Module-level pipe interface (matches neptune_client.py pattern)
+# Module-level pipe interface (matches atrox_client.py pattern)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def init_tradier_pipe(api_token: Optional[str] = None) -> "TradierClient":
@@ -351,7 +351,7 @@ def get_client() -> Optional["TradierClient"]:
 
 
 def pipe_status() -> dict:
-    """Return pipe health dict for /api/neptune/status aggregation."""
+    """Return pipe health dict for /api/atrox/status aggregation."""
     token_present = bool(os.environ.get("TRADIER_API_TOKEN", ""))
     sandbox       = os.environ.get("TRADIER_SANDBOX", "").lower() == "true"
     return {

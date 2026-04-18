@@ -3,25 +3,19 @@
 ## Active — Tech Debt
 [Items with explicit trigger conditions. Each entry names what must be true before it's addressed.]
 
-### Phase 4.2 — Pass 2 symbol rename (blocking)
-Display-layer rename Neptune Spear → Atrox and Red Wings → Argus
-completed April 16, 2026 (server.py and UI). Pass 2 — full symbol
-rename — remains outstanding: server.py internal identifiers
-(`_neptune_scan`, `NEPTUNE_WATCHLIST`, `_build_neptune_rec`), state
-key `aureon_state["neptune_recommendations"]` with Railway volume
-migration, routes `/api/neptune/*` → `/api/atrox/*`, signal_type
-literal `"NEPTUNE"` → `"ATROX"`, file renames
-`aureon/config/neptune_spear.py` → `aureon/config/atrox.py` and
-`aureon/mcp/neptune_client.py` → `aureon/mcp/atrox_client.py`,
-doctrine narrative rewrite (not find-and-replace — Atrox needs its
-own literary/constructed narrative anchor replacing the Operation
-Neptune Spear metaphor), source doc filename, equivalent work for
-Argus.
+### Atrox doctrine narrative rewrite (non-blocking)
+`aureon/config/atrox.py` (renamed from `neptune_spear.py` in Phase
+4.2) contains operational-metaphor paragraphs that still describe
+Atrox in the Operation Neptune Spear metaphor with just name
+substitution. A literary/constructed narrative anchor is needed to
+replace the GWOT operational metaphor. Scheduled for a separate
+focused prompt — not blocking any other work. User has drafted the
+replacement narrative; awaiting an integration prompt.
 
-**Trigger:** blocks the Thifur-H / Atrox architectural reconciliation
-described under Architectural Findings below. Must complete before
-Atrox agent implementation can absorb the SIC/PRED/EXEC domains
-currently misfiled in `aureon/agents/hunter_killer/_base.py`.
+**Trigger:** the existing prose is mechanically correct (Atrox
+instead of Neptune Spear) and causes no runtime issue. Swap in the
+new narrative when the user wants Atrox's identity to read as its
+own rather than a renamed version of Neptune Spear.
 
 ---
 
@@ -135,9 +129,10 @@ Arcadia Fund deployment context).
 (c) wire Atrox into Phase 4 halt-and-pend approval-gate pattern,
 (d) wire Thifur-H into C2 task dispatch pattern.
 
-**Dependency:** reconciliation requires Pass 2 symbol rename (Phase
-4.2) to complete first. See "Phase 4.2 — Pass 2 symbol rename
-(blocking)" under Tech Debt.
+**Dependency:** Pass 2 symbol rename completed in Phase 4.2 — no
+longer blocking. Reconciliation prompt (extract alpha-origination
+logic into Atrox agent, rebuild Thifur-H as C2-tasked advisory
+adaptive intelligence) can be scheduled whenever.
 
 **Phase 4.1 scope note:** `HUNTER_KILLER_AGENTS` registry key
 remained `"THIFUR_H"` (unchanged) — rekeying into `AUR-H-*` role_ids
@@ -212,4 +207,38 @@ no conflicts with any base method, zero behavior changes. 8/8 gate
 outputs preserved, all four Phase 4 lifecycle scenarios still pass,
 typed-payload audit still 23/23.
 
-**Closed:** Phase 4.1 (2026-04-18).
+**Closed:** bcf7590 (2026-04-18).
+
+---
+
+### Phase 4.2 — Pass 2 symbol rename (Neptune Spear → Atrox, Red Wings → Argus)
+Display-layer rename completed April 16, 2026 (Pass 1). Pass 2 —
+full symbol rename across internal identifiers, state keys with
+Railway volume migration, Flask routes, signal-type literals, file
+renames, imports, and doctrine prose — completed in Phase 4.2.
+
+Scope of Pass 2: 601 replacements across 546 lines in 18 files.
+Two files renamed via `git mv`:
+  `aureon/config/neptune_spear.py` → `aureon/config/atrox.py`
+  `aureon/mcp/neptune_client.py` → `aureon/mcp/atrox_client.py`
+State-key rename `neptune_recommendations` → `atrox_recommendations`
+implemented as a three-step safe migration in
+`aureon/persistence/store.py::migrate_neptune_to_atrox` (copy →
+verify → delete only on verification success). Idempotent. Covers
+pre-existing Railway volume data.
+
+The two doctrine-audit hash seeds (`b"AUREON-DOCTRINE-1.3-NEPTUNE-C2"`
+at server.py:320 and server.py:4211) were preserved byte-identical —
+changing them would alter the deterministic audit hash value and is
+doctrine-version territory, not a rename. Flagged pre-change; left
+intact by design.
+
+Red Wings → Argus half of the rename was a no-op: Pass 1 had fully
+cleared all code references; only TRACKERS.md historical prose
+remained.
+
+Atrox operational-metaphor narrative rewrite intentionally deferred
+— see "Atrox doctrine narrative rewrite (non-blocking)" under Active
+— Tech Debt.
+
+**Closed:** Phase 4.2 (2026-04-18).

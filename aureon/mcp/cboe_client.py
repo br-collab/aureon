@@ -2,7 +2,7 @@
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                         ║
 ║  aureon/mcp/cboe_client.py                                           ║
-║  Neptune Spear — CBOE Market Data Pipe                               ║
+║  Atrox — CBOE Market Data Pipe                               ║
 ║                                                                      ║
 ║  MANDATE:                                                            ║
 ║    Systemic fear gauge and market structure data for Thifur stress   ║
@@ -58,11 +58,11 @@ CBOE_PC_FILES = {
     "etf":          "etfpc.csv",      # ETF p/c ratio
 }
 
-# ── Neptune Pipe Identity ─────────────────────────────────────────────────────
+# ── Atrox Pipe Identity ─────────────────────────────────────────────────────
 PIPE_ID         = "CBOE-PIPE-001"
 PIPE_NAME       = "CBOE — VIX Term Structure + Put/Call Ratios"
 PIPE_VERSION    = "1.0"
-PIPE_URI_PREFIX = "aureon://neptune/pipe/cboe"
+PIPE_URI_PREFIX = "aureon://atrox/pipe/cboe"
 
 # Module-level client singleton
 _client: Optional["CboeClient"] = None
@@ -70,7 +70,7 @@ _client: Optional["CboeClient"] = None
 
 class CboeClient:
     """
-    Neptune Spear MCP data pipe client for CBOE public market data.
+    Atrox MCP data pipe client for CBOE public market data.
 
     No API key required — pulls from CBOE's public CDN.
     All responses are parsed from CSV into structured dicts with provenance.
@@ -107,7 +107,7 @@ class CboeClient:
         ts = datetime.now(timezone.utc).isoformat()
         try:
             req = urllib.request.Request(url)
-            req.add_header("User-Agent", "aureon-neptune/1.0")
+            req.add_header("User-Agent", "aureon-atrox/1.0")
             req.add_header("Accept", "text/csv,text/plain,*/*")
 
             with urllib.request.urlopen(req, timeout=20) as resp:
@@ -169,7 +169,7 @@ class CboeClient:
     def get_vix_history(self, limit: int = 252) -> dict:
         """
         VIX daily OHLC — last `limit` trading days.
-        Neptune domain: Volatility regime identification.
+        Atrox domain: Volatility regime identification.
         """
         url = f"{CBOE_CDN_BASE}/{CBOE_INDICES['VIX']}"
         return self._fetch_csv(url, limit=limit)
@@ -203,7 +203,7 @@ class CboeClient:
         primary input to Thifur's volatility regime classification.
         Backwardation (VIX9D > VIX > VIX3M) signals acute stress.
 
-        Neptune domain: Regime classification + drawdown risk escalation.
+        Atrox domain: Regime classification + drawdown risk escalation.
         """
         ts     = datetime.now(timezone.utc).isoformat()
         term   = {}
@@ -279,7 +279,7 @@ class CboeClient:
     def get_put_call_ratios(self, limit: int = 30) -> dict:
         """
         All put/call ratios in one call — equity, index, total, ETF.
-        Neptune domain: Sentiment / hedging demand gauge.
+        Atrox domain: Sentiment / hedging demand gauge.
         """
         ts     = datetime.now(timezone.utc).isoformat()
         result = {}
