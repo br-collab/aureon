@@ -1,5 +1,5 @@
 {
-  "_note": "Approved paths for Compliance (AUR-J-COMP-001). Phase 4 scope is OFAC counterparty screening only; other Compliance tasks (pre-trade policy checks, IPS eligibility, MiFID II algo inventory, approval lineage routing) are declared stubs in compliance.py and will gain paths in Phase 4.5.",
+  "_note": "Approved paths for Compliance (AUR-J-COMP-001). Phase 4 shipped OFAC screening (2 paths). Phase 4.5 adds pre-trade policy (3 paths) and algo inventory (2 paths).",
   "paths": [
     {
       "path_id": "OFAC_CLEAR_NO_MATCH",
@@ -16,6 +16,46 @@
       "requires_approval": true,
       "approval_predicates": ["override_match_with_attribution"],
       "conflict_keys": ["OFAC_VS_GDPR_DATA_RETENTION"]
+    },
+    {
+      "path_id": "PRETRADE_POLICY_PASS",
+      "description": "All pre-trade policy checks (mandate + IPS) passed. Lifecycle proceeds to ThifurJ.",
+      "callable_ref": "aureon.agents.jtac.compliance:_path_pretrade_policy_pass",
+      "requires_approval": false,
+      "approval_predicates": [],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "PRETRADE_POLICY_HOLD",
+      "description": "Pre-trade policy produced a HOLD — mandate or IPS constraint approach. Halt-and-pend single-authority (Compliance) override review.",
+      "callable_ref": "aureon.agents.jtac.compliance:_path_pretrade_policy_hold",
+      "requires_approval": true,
+      "approval_predicates": ["compliance_policy_override"],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "PRETRADE_POLICY_BLOCK",
+      "description": "Pre-trade policy hard violation (prohibited asset class, jurisdiction, or explicit BLOCK rule). Terminal halt — no override.",
+      "callable_ref": "aureon.agents.jtac.compliance:_path_pretrade_policy_block",
+      "requires_approval": false,
+      "approval_predicates": [],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "ALGO_INVENTORY_REGISTERED",
+      "description": "All active algorithms registered per MiFID II RTS 6 with valid last_validated_at. Operational continuity permitted.",
+      "callable_ref": "aureon.agents.jtac.compliance:_path_algo_inventory_registered",
+      "requires_approval": false,
+      "approval_predicates": [],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "ALGO_INVENTORY_MISSING_HALT",
+      "description": "Active algorithm not registered or registration stale. Halt-and-pend dual-authority resolution (Compliance + Legal) per approval_lineage_rules.",
+      "callable_ref": "aureon.agents.jtac.compliance:_path_algo_inventory_missing_halt",
+      "requires_approval": true,
+      "approval_predicates": ["compliance_override", "legal_sign_off"],
+      "conflict_keys": []
     }
   ]
 }

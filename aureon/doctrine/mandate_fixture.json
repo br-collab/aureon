@@ -1,0 +1,14 @@
+{
+  "_note": "Phase 4.5 fixture — sample mandate constraints for the Arcadia Fund paper-trading deployment. Fixture-level enforcement logic only; a production mandate engine would read this from the custody agreement or IPS engine. YAML equivalent planned; JSON used because PyYAML is not a repo dep.",
+  "mandate_version": "ARCADIA-MANDATE-v1.0",
+  "effective": "2026-04-01",
+  "prohibited_asset_classes": ["crypto_spot", "leveraged_etf"],
+  "max_position_size_pct": 5.0,
+  "max_sector_concentration_pct": 25.0,
+  "permitted_jurisdictions": ["US", "EU", "UK", "JP", "SG", "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE"],
+  "prohibited_counterparty_types": ["unrated_broker"],
+  "hold_thresholds": {
+    "position_size_pct_hold_at": 4.5,
+    "sector_concentration_pct_hold_at": 22.0
+  }
+}

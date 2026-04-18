@@ -3,6 +3,44 @@
 ## Active — Tech Debt
 [Items with explicit trigger conditions. Each entry names what must be true before it's addressed.]
 
+### IPS rule engine integration (future)
+Phase 4.5 implements `Compliance.validate_ips_eligibility` against a
+JSON fixture at `aureon/doctrine/ips_fixture.json` (asset class,
+duration, credit rating, currency, issuer concentration, ESG
+exclusions). Real deployment requires integration with a commercial
+IPS engine (Aladdin, custom) or a full rule-engine build-out.
+
+**Trigger:** first engagement that requires a real fund's IPS
+instead of the Endowment Series I / Argus fixture. The loader seam
+already exists — `source_path` override on the fixture read lets a
+future commercial-vendor adapter plug in without changing
+Compliance's public surface.
+
+**Not blocking:** the current fixture is doctrinally representative
+enough to exercise the PASS / HOLD flow end-to-end.
+
+---
+
+### Algo inventory ongoing validation (future)
+Phase 4.5 implements `Compliance.check_algo_inventory` against a
+static fixture at `aureon/doctrine/algo_inventory_fixture.json`
+with a 180-day `validation_frequency_days` per registered algorithm.
+Real deployment requires automated revalidation triggers on:
+algorithm code changes (tied to git commit hash), model updates
+(tied to SR 11-7 model-governance events), regulatory requirement
+changes (DORA / MiFID II / RTS 6 amendment feeds).
+
+**Trigger:** before any live-trading activation that crosses a
+180-day boundary past `last_validated_at`. At that point the
+fixture's time-based staleness check (implemented in
+check_algo_inventory) will correctly surface a MISSING_REGISTRATION
+halt — but the operator will want auto-revalidation rather than
+manual re-writes of the fixture.
+
+**Not blocking:** paper-trading activation, demo usage.
+
+---
+
 ### Atrox doctrine narrative rewrite (non-blocking)
 `aureon/config/atrox.py` (renamed from `neptune_spear.py` in Phase
 4.2) contains operational-metaphor paragraphs that still describe

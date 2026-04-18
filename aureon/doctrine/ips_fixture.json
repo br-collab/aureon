@@ -1,0 +1,14 @@
+{
+  "_note": "Phase 4.5 fixture — sample IPS eligibility rules for Endowment Series I (Argus). Fixture-level enforcement; a production IPS engine (Aladdin or custom) plugs into Compliance.validate_ips_eligibility via a loader seam. YAML equivalent planned; JSON used because PyYAML is not a repo dep.",
+  "ips_version": "ENDOWMENT-SERIES-I-IPS-v1.0",
+  "effective": "2026-04-01",
+  "permitted_asset_classes": ["equity", "fixed_income", "cash_equivalent", "equities", "real_assets", "commodities"],
+  "duration_bounds": {"min_years": 0, "max_years": 30},
+  "credit_rating_floor": "BBB-",
+  "credit_rating_hierarchy": ["AAA", "AA+", "AA", "AA-", "A+", "A", "A-", "BBB+", "BBB", "BBB-", "BB+", "BB", "BB-", "B+", "B", "B-", "CCC+", "CCC", "CCC-", "CC", "C", "D"],
+  "permitted_currencies": ["USD", "EUR", "GBP", "JPY"],
+  "max_single_issuer_concentration_pct": 10.0,
+  "esg_constraints": {
+    "excluded_sectors": ["tobacco", "controversial_weapons"]
+  }
+}

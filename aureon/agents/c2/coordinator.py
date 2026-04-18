@@ -38,7 +38,7 @@ from aureon.agents.ranger import RANGER_AGENTS
 from aureon.agents.jtac import JTAC_AGENTS
 from aureon.agents.payloads import (
     ExecutionConfirmation, DSORIntent, BreachEvent, ReportingContext,
-    CounterpartyScreeningRequest,
+    CounterpartyScreeningRequest, PreTradePolicyCheckRequest,
 )
 
 # ── C2 Operating Constants ────────────────────────────────────────────────────
@@ -732,6 +732,9 @@ class ThifurC2(Agent):
         if path_selection.requires_authority_resolution:
             # Dual-authority conflict halt — Compliance + Legal required
             conflict = agent_compliance.escalate_for_conflict_resolution(path_selection)
+            lineage = agent_compliance.determine_approval_lineage(
+                pause_reason="CONFLICT_RESOLUTION_REQUIRED", task_id=task_id,
+            )
             self._persist_paused_lifecycle(
                 task_id=task_id,
                 pause_reason="CONFLICT_RESOLUTION_REQUIRED",
@@ -743,6 +746,7 @@ class ThifurC2(Agent):
                 convergence_scenario=scenario,
                 sequencing_rule=sequencing.get("rule"),
                 agents_activated=agents,
+                approval_lineage=lineage,
             )
             return self._lifecycle_paused_response(
                 task_id=task_id,
@@ -753,6 +757,7 @@ class ThifurC2(Agent):
                 convergence_scenario=scenario,
                 sequencing_rule=sequencing.get("rule"),
                 agents_activated=agents,
+                approval_lineage=lineage,
             )
 
         if path_selection.requires_approval:
@@ -774,6 +779,9 @@ class ThifurC2(Agent):
                 intent_summary=intent_summary,
                 risk_summary=risk_summary,
             )
+            lineage = agent_compliance.determine_approval_lineage(
+                pause_reason="APPROVAL_REQUIRED", task_id=task_id,
+            )
             self._persist_paused_lifecycle(
                 task_id=task_id,
                 pause_reason="APPROVAL_REQUIRED",
@@ -785,6 +793,7 @@ class ThifurC2(Agent):
                 convergence_scenario=scenario,
                 sequencing_rule=sequencing.get("rule"),
                 agents_activated=agents,
+                approval_lineage=lineage,
             )
             return self._lifecycle_paused_response(
                 task_id=task_id,
@@ -795,6 +804,7 @@ class ThifurC2(Agent):
                 convergence_scenario=scenario,
                 sequencing_rule=sequencing.get("rule"),
                 agents_activated=agents,
+                approval_lineage=lineage,
             )
 
         # ── Compliance cleared — continue to post-Compliance tail ────
@@ -829,12 +839,21 @@ class ThifurC2(Agent):
                                            convergence_scenario: str | None = None,
                                            compliance_clearance: dict | None = None,
                                            resume_attribution: dict | None = None,
+                                           skip_policy_check: bool = False,
                                            ) -> dict:
         """Execute Phase 3 lifecycle (ThifurJ → TradeSupport → Reconciliation
         → SettlementOps → RegReporting → unified lineage) given a task_id
-        that has already cleared Compliance. Called by both the initial
-        lifecycle entry (clear path) and by resume_paused_lifecycle after
-        operator approval.
+        that has already cleared Compliance OFAC screening.
+
+        Phase 4.5 adds the pre-trade policy gate BEFORE ThifurJ. On HOLD,
+        the lifecycle halts-and-pends with pause_reason=POLICY_HOLD; on
+        BLOCK, the lifecycle terminally halts with no resume. On PASS,
+        control continues to ThifurJ as before.
+
+        skip_policy_check: set True on resume from a POLICY_HOLD pause —
+        the policy check already ran and was operator-overridden; do not
+        re-run it. Fresh entry (after OFAC clear) and OFAC-pause resumes
+        leave this False so the gate runs.
 
         doctrine_version is honored for downstream agents — on resume, pass
         the doctrine_version that was active at pause so the entire lifecycle
@@ -869,6 +888,97 @@ class ThifurC2(Agent):
         }
         if resume_attribution is not None:
             result["resume_attribution"] = resume_attribution
+
+        # ── Step 2.7 (Phase 4.5 NEW): Pre-trade policy gate ───────────
+        # Runs AFTER OFAC clearance and BEFORE ThifurJ. Skipped when
+        # resuming from a prior POLICY_HOLD pause (operator already
+        # overrode the HOLD). On BLOCK: terminal halt. On HOLD:
+        # halt-and-pend single-authority.
+        if not skip_policy_check:
+            agent_compliance = JTAC_AGENTS["AUR-J-COMP-001"](self._state, self._lock)
+            policy_request = PreTradePolicyCheckRequest(
+                task_id=task_id,
+                decision_id=decision.get("id") or f"UNKNOWN-{task_id}",
+                intent_summary={
+                    "asset_class":       decision.get("asset_class"),
+                    "side":              decision.get("action"),
+                    "notional":          decision.get("notional"),
+                    "instrument":        decision.get("symbol"),
+                    "counterparty":      decision.get("counterparty_name"),
+                    "counterparty_type": decision.get("counterparty_type"),
+                    "jurisdiction":      decision.get("counterparty_jurisdiction") or decision.get("jurisdiction"),
+                    "currency":          decision.get("currency"),
+                    "duration_years":    decision.get("duration_years"),
+                    "credit_rating":     decision.get("credit_rating"),
+                    "sector":            decision.get("sector"),
+                    "issuer_concentration_pct": decision.get("issuer_concentration_pct"),
+                },
+                mandate_version=self._state.get("active_mandate_version", "ARCADIA-MANDATE-v1.0"),
+                ips_version=self._state.get("active_ips_version", "ENDOWMENT-SERIES-I-IPS-v1.0"),
+            )
+            policy_result = agent_compliance.check_pretrade_policy(policy_request)
+            self.record_agent_telemetry(
+                task_id,
+                "AUR-J-COMP-001",
+                {"event_type": "PRETRADE_POLICY", "status": policy_result.status,
+                 "selected_path_id": policy_result.selected_path_id,
+                 "failures_count": len(policy_result.failures)},
+            )
+            result["policy_result"] = policy_result.to_dict()
+
+            if policy_result.status == "BLOCK":
+                # Terminal halt — no pend, no resume
+                return self._lifecycle_blocked_response(
+                    task_id=task_id,
+                    block_reason="PRETRADE_POLICY_BLOCK",
+                    failures=policy_result.failures,
+                    policy_result=policy_result,
+                    convergence_scenario=convergence_scenario,
+                    sequencing_rule=sequencing_rule,
+                    agents_activated=agents,
+                    compliance_clearance=compliance_clearance,
+                )
+
+            if policy_result.status == "HOLD":
+                path_selection = agent_compliance.get_pending_policy_selection(task_id)
+                intent_summary = dict(policy_request.intent_summary)
+                risk_summary = {
+                    "path_id":  policy_result.selected_path_id,
+                    "failures": list(policy_result.failures),
+                    "rationale": "Pre-trade policy threshold approach or IPS ineligibility",
+                }
+                gate_context = agent_compliance.escalate_for_approval(
+                    path_selection=path_selection,
+                    intent_summary=intent_summary,
+                    risk_summary=risk_summary,
+                )
+                lineage = agent_compliance.determine_approval_lineage(
+                    pause_reason="POLICY_HOLD", task_id=task_id,
+                )
+                self._persist_paused_lifecycle(
+                    task_id=task_id,
+                    pause_reason="POLICY_HOLD",
+                    decision=decision,
+                    path_selection=path_selection,
+                    doctrine_version=doctrine_version,
+                    gate_context=gate_context,
+                    conflict=None,
+                    convergence_scenario=convergence_scenario,
+                    sequencing_rule=sequencing_rule,
+                    agents_activated=agents,
+                    approval_lineage=lineage,
+                )
+                return self._lifecycle_paused_response(
+                    task_id=task_id,
+                    pause_reason="POLICY_HOLD",
+                    path_selection=path_selection,
+                    gate_context=gate_context,
+                    conflict=None,
+                    convergence_scenario=convergence_scenario,
+                    sequencing_rule=sequencing_rule,
+                    agents_activated=agents,
+                    approval_lineage=lineage,
+                )
 
         # ── Step 3: Thifur-J pre-trade structuring ────────────────────
         if AGENT_J in agents:
@@ -1163,12 +1273,26 @@ class ThifurC2(Agent):
                                   conflict=None,
                                   convergence_scenario: str | None,
                                   sequencing_rule: str | None,
-                                  agents_activated: list) -> dict:
+                                  agents_activated: list,
+                                  approval_lineage=None) -> dict:
         """Write a paused-lifecycle entry to aureon_state["paused_lifecycles"]
         keyed by task_id. Persisted across restarts via save_state().
+
+        approval_lineage (ApprovalLineageRequirement, Phase 4.5) is serialized
+        into the paused entry so resume-time validation can look up required
+        authorities without re-querying the rules fixture. Backward-compatible:
+        entries persisted before Phase 4.5 have approval_lineage=None and
+        resume_paused_lifecycle falls back to a live rules lookup.
         """
         ts = datetime.now(timezone.utc).isoformat()
         pinned_doctrine = doctrine_version or self._state.get("doctrine_version", "unknown")
+        # Per-pause-reason resume step — skip policy check on POLICY_HOLD
+        # resume (it already ran and was overridden).
+        resume_step = (
+            "POST_POLICY_CONTINUE_TO_JTAC"
+            if pause_reason == "POLICY_HOLD"
+            else "POST_OFAC_CONTINUE_TO_POLICY"
+        )
         entry = {
             "task_id":                   task_id,
             "pause_reason":              pause_reason,
@@ -1177,13 +1301,14 @@ class ThifurC2(Agent):
             "path_selection":            self._serialize_selection(path_selection),
             "gate_context":              gate_context.to_dict() if gate_context is not None else None,
             "conflict":                  conflict.to_dict() if conflict is not None else None,
+            "approval_lineage":          approval_lineage.to_dict() if approval_lineage is not None else None,
             "lifecycle_context": {
                 "decision":              dict(decision),
                 "convergence_scenario":  convergence_scenario,
                 "sequencing_rule":       sequencing_rule,
                 "agents_activated":      list(agents_activated),
             },
-            "resume_step":               "POST_COMPLIANCE_CONTINUE_TO_TRADESUPPORT",
+            "resume_step":               resume_step,
         }
         with self._lock:
             paused = self._state.setdefault("paused_lifecycles", {})
@@ -1208,7 +1333,8 @@ class ThifurC2(Agent):
                                    conflict,
                                    convergence_scenario: str | None,
                                    sequencing_rule: str | None,
-                                   agents_activated: list) -> dict:
+                                   agents_activated: list,
+                                   approval_lineage=None) -> dict:
         """Build the response dict returned to the caller when the lifecycle
         has halted. Mirrors the shape of the complete-lifecycle result so
         callers have a consistent field set."""
@@ -1225,7 +1351,57 @@ class ThifurC2(Agent):
             "path_selection":       self._serialize_selection(path_selection),
             "gate_context":         gate_context.to_dict() if gate_context is not None else None,
             "conflict":             conflict.to_dict() if conflict is not None else None,
+            "approval_lineage":     approval_lineage.to_dict() if approval_lineage is not None else None,
             "resume_endpoint":      f"/api/c2/resume/{task_id}",
+        }
+
+    def _lifecycle_blocked_response(self,
+                                    *,
+                                    task_id: str,
+                                    block_reason: str,
+                                    failures: list,
+                                    policy_result=None,
+                                    convergence_scenario: str | None,
+                                    sequencing_rule: str | None,
+                                    agents_activated: list,
+                                    compliance_clearance: dict | None = None) -> dict:
+        """Terminal halt response — no pend, no resume. Used when a
+        policy check returns BLOCK (hard violation: prohibited asset
+        class, prohibited counterparty type, mandate hard cap breach).
+        Writes an authority-log + compliance-alert escalation entry.
+        """
+        ts = datetime.now(timezone.utc).isoformat()
+        self._authority_log_entry(
+            task_id    = task_id,
+            event_type = f"C2_LIFECYCLE_BLOCKED_{block_reason}",
+            detail     = (f"Task {task_id} terminally blocked | Reason: "
+                          f"{block_reason} | Failures: "
+                          f"{[f.get('check_name') for f in (failures or [])]}"),
+        )
+        with self._lock:
+            alerts = self._state.setdefault("compliance_alerts", [])
+            alerts.insert(0, {
+                "id":       f"BLOCK-{task_id[-6:]}",
+                "severity": "HALT",
+                "title":    f"Lifecycle BLOCK: {block_reason}",
+                "detail":   f"Task {task_id} | {len(failures or [])} failure(s)",
+                "ts":       ts,
+                "resolved": False,
+                "source":   "THIFUR_C2",
+            })
+        return {
+            "task_id":              task_id,
+            "convergence_scenario": convergence_scenario,
+            "sequencing_rule":      sequencing_rule,
+            "agents_activated":     agents_activated,
+            "j_result":             None,
+            "r_result":             None,
+            "unified_lineage":      None,
+            "status":               "BLOCKED",
+            "block_reason":         block_reason,
+            "failures":             list(failures or []),
+            "policy_result":        policy_result.to_dict() if policy_result is not None else None,
+            "compliance_clearance": compliance_clearance,
         }
 
     def resume_paused_lifecycle(self,
@@ -1264,30 +1440,59 @@ class ThifurC2(Agent):
         pause_reason = entry.get("pause_reason")
         attribution = approval_attribution or {}
 
-        # ── Payload completeness validation ──────────────────────────
-        if pause_reason == "CONFLICT_RESOLUTION_REQUIRED":
-            missing = []
-            if not attribution.get("compliance_authority_decision"):
-                missing.append("compliance_authority_decision")
-            if not attribution.get("legal_authority_decision"):
-                missing.append("legal_authority_decision")
-            if missing:
-                return {
-                    "task_id": task_id,
-                    "status":  "INVALID_APPROVAL",
-                    "missing": missing,
-                    "reason":  ("Dual-authority resolution required: both "
-                                "compliance and legal authority decisions."),
-                }
-        else:
-            if not attribution.get("operator") or not attribution.get("rationale"):
-                return {
-                    "task_id": task_id,
-                    "status":  "INVALID_APPROVAL",
-                    "missing": [k for k in ("operator", "rationale")
-                                if not attribution.get(k)],
-                    "reason":  "operator and rationale required for approval.",
-                }
+        # ── Payload completeness validation (Phase 4.5: data-driven) ──
+        # Determine required authorities via Compliance.determine_approval_lineage
+        # (uses approval_lineage_rules.json). Fallback to the lineage persisted
+        # on the entry if it's present and the lookup fails. Backward-compat:
+        # operator+rationale alone satisfy single-authority pauses; dual-
+        # authority pauses additionally require explicit per-authority
+        # decisions.
+        agent_compliance = JTAC_AGENTS["AUR-J-COMP-001"](self._state, self._lock) \
+            if "AUR-J-COMP-001" in JTAC_AGENTS else None
+        lineage = None
+        if agent_compliance is not None:
+            lineage = agent_compliance.determine_approval_lineage(
+                pause_reason=pause_reason, task_id=task_id,
+            )
+        if lineage is None and entry.get("approval_lineage"):
+            # Fall back to persisted lineage if live lookup unavailable
+            persisted = entry["approval_lineage"]
+            from aureon.agents.payloads import ApprovalLineageRequirement
+            lineage = ApprovalLineageRequirement(
+                task_id=persisted.get("task_id") or task_id,
+                pause_reason=persisted.get("pause_reason") or pause_reason,
+                required_authorities=list(persisted.get("required_authorities") or []),
+                sla_seconds=persisted.get("sla_seconds"),
+                fallback_authorities=list(persisted.get("fallback_authorities") or []),
+            )
+
+        required_auths = list(lineage.required_authorities) if lineage else ["compliance"]
+
+        missing = []
+        if not attribution.get("operator"):
+            missing.append("operator")
+        if not attribution.get("rationale"):
+            missing.append("rationale")
+        # Explicit per-authority decisions required when 2+ authorities mandated.
+        # Single-authority pauses (OFAC non-EU, POLICY_HOLD) treat operator +
+        # rationale under CAOM-001 as the compliance decision — preserves
+        # Phase 4 behavior.
+        if len(required_auths) >= 2:
+            for auth in required_auths:
+                key = f"{auth}_authority_decision"
+                if not attribution.get(key):
+                    missing.append(key)
+        if missing:
+            return {
+                "task_id": task_id,
+                "status":  "INVALID_APPROVAL",
+                "missing": missing,
+                "reason":  (f"{pause_reason} requires operator+rationale"
+                            + (f" and explicit decisions from "
+                               f"{required_auths}" if len(required_auths) >= 2 else "")
+                            + "."),
+                "required_authorities": required_auths,
+            }
 
         # ── DENY branch — terminal halt, remove paused entry ─────────
         if approval_decision == "DENY":
@@ -1357,6 +1562,34 @@ class ThifurC2(Agent):
         with self._lock:
             self._state.setdefault("paused_lifecycles", {}).pop(task_id, None)
 
+        # Phase 4.5: ALGO_INVENTORY_MISSING is a session-level (non-trade)
+        # halt. Resume just records the authorization — it does NOT trigger
+        # a trade lifecycle. Downstream agents (TradeSupport, ThifurJ, etc.)
+        # do not run for this pause reason.
+        if pause_reason == "ALGO_INVENTORY_MISSING":
+            self._authority_log_entry(
+                task_id    = task_id,
+                event_type = "C2_ALGO_INVENTORY_OVERRIDE_APPROVED",
+                detail     = (f"Operator={attribution.get('operator','?')} | "
+                              f"Rationale={attribution.get('rationale','?')} | "
+                              f"Dual-authority (compliance+legal) approval recorded."),
+            )
+            return {
+                "task_id":              task_id,
+                "status":               "ALGO_INVENTORY_OVERRIDE_APPROVED",
+                "pause_reason":         pause_reason,
+                "resume_attribution":   resume_attribution,
+                "doctrine_version_pinned": doctrine_pinned,
+                "active_algorithms":    dict(lifecycle_context.get("decision", {})).get("active_algorithms", []),
+            }
+
+        # On POLICY_HOLD resume, the policy check already ran and was
+        # operator-overridden — do not re-run it. Phase 4 OFAC pauses
+        # (APPROVAL_REQUIRED, CONFLICT_RESOLUTION_REQUIRED) resume into
+        # the policy gate as normal (operator's OFAC override doesn't
+        # skip downstream checks).
+        skip_policy = pause_reason == "POLICY_HOLD"
+
         # Run the post-compliance tail with the pinned doctrine version.
         return self._execute_post_compliance_lifecycle(
             decision             = decision,
@@ -1371,6 +1604,7 @@ class ThifurC2(Agent):
                 "rationale": "Operator-approved override after compliance halt",
             },
             resume_attribution = resume_attribution,
+            skip_policy_check  = skip_policy,
         )
 
     def list_paused_lifecycles(self) -> list:
