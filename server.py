@@ -94,7 +94,7 @@ from aureon.integration_adapters.oms_adapter import send as oms_send
 from aureon.integration_adapters.ems_adapter import build_execution_release
 from aureon.session.session_protocol import SessionProtocol
 from aureon.data.market_data import get_price, get_prices_batch
-from aureon.agents import ThifurJ, ThifurR
+from aureon.agents import ThifurJ, SettlementOps
 
 # ── LOAD .env FILE ────────────────────────────────────────────────
 # Reads AUREON_EMAIL and AUREON_EMAIL_PW from the .env file in
@@ -408,9 +408,9 @@ aureon_state = {
 # CAOM-001 — Session protocol instance (one per server lifetime)
 _session_protocol = SessionProtocol(aureon_state, _lock)
 
-# Instantiate advisory agents (ThifurJ and ThifurR)
+# Instantiate advisory agents (ThifurJ and SettlementOps)
 _agent_j = ThifurJ(aureon_state, _lock)
-_agent_r = ThifurR(aureon_state, _lock)
+_agent_r = SettlementOps(aureon_state, _lock)
 
 # Expose agents to session protocol for Step 4 readiness check
 app._aureon_agents = {

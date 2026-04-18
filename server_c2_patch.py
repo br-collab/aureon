@@ -10,13 +10,13 @@
 ║                                                                      ║
 ║     from aureon.agents import ThifurC2                           ║
 ║     from aureon.agents import ThifurJ                       ║
-║     from aureon.agents import ThifurR                       ║
+║     from aureon.agents import SettlementOps                       ║
 ║                                                                      ║
 ║  2. After the aureon_state dict definition, initialize the agents:  ║
 ║                                                                      ║
 ║     _thifur_c2 = ThifurC2(aureon_state=aureon_state, state_lock=_lock)  ║
 ║     _thifur_j  = ThifurJ(aureon_state=aureon_state, state_lock=_lock)   ║
-║     _thifur_r  = ThifurR(aureon_state=aureon_state, state_lock=_lock)   ║
+║     _thifur_r  = SettlementOps(aureon_state=aureon_state, state_lock=_lock)   ║
 ║                                                                      ║
 ║  3. In the HITL approval route (wherever a decision is approved),   ║
 ║     replace the direct _apply_approved_trade() call with the        ║
@@ -35,7 +35,7 @@
 
 # from aureon.agents import ThifurC2
 # from aureon.agents import ThifurJ
-# from aureon.agents import ThifurR
+# from aureon.agents import SettlementOps
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@
 
 # _thifur_c2 = ThifurC2(aureon_state=aureon_state, state_lock=_lock)
 # _thifur_j  = ThifurJ(aureon_state=aureon_state, state_lock=_lock)
-# _thifur_r  = ThifurR(aureon_state=aureon_state, state_lock=_lock)
+# _thifur_r  = SettlementOps(aureon_state=aureon_state, state_lock=_lock)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

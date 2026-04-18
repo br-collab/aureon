@@ -659,7 +659,7 @@ class ThifurC2(Agent):
     def process_pretrade_lifecycle(self,
                                    decision: dict,
                                    agent_j,   # ThifurJ instance
-                                   agent_r,   # ThifurR instance
+                                   agent_r,   # SettlementOps instance
                                    doctrine_version: str | None = None) -> dict:
         """
         Phase 1 governed lifecycle entry point.
