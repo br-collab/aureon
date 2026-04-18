@@ -1,7 +1,7 @@
 """
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  PROJECT AUREON — The Grid 3                                         ║
-║  aureon/agents/jtac/_base.py                                         ║
+║  aureon/agents/jtac/pretrade_structuring.py                          ║
 ║  Thifur-J — JTAC — Bounded Autonomy Agent                           ║
 ║                                                                      ║
 ║  MANDATE (Phase 1):                                                  ║

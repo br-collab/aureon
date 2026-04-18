@@ -1,10 +1,10 @@
 """aureon.agents.jtac — JTAC agents (Tier 2, bounded autonomy)."""
 
 from aureon.agents.base import JTACAgent
-from aureon.agents.jtac._base import ThifurJ
+from aureon.agents.jtac.pretrade_structuring import ThifurJ
 
 JTAC_AGENTS: dict[str, type[JTACAgent]] = {
-    "THIFUR_J": ThifurJ,
+    "AUR-J-TRADE-001": ThifurJ,
 }
 
 __all__ = ["JTACAgent", "ThifurJ", "JTAC_AGENTS"]
