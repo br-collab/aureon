@@ -1,0 +1,15 @@
+{
+  "execution_confirmation": {
+    "symbol": "TLT",
+    "action": "BUY",
+    "shares": 5000
+  },
+  "dsor_intent": {
+    "id": "DEC-FIXTURE-002",
+    "symbol": "TLT",
+    "action": "BUY",
+    "shares": 5000,
+    "task_id": "TSK-FIXTURE-002",
+    "notional": 457500
+  }
+}

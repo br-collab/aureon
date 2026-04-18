@@ -1,0 +1,10 @@
+{
+  "breach_event": {
+    "breach_ts": "2026-04-17T21:00:00+00:00",
+    "breach_type": "CONCENTRATION_BREACH",
+    "symbol": "TLT",
+    "detail": "Position > 15% mandate limit",
+    "decision_id": "DEC-FIXTURE-003",
+    "task_id": "TSK-FIXTURE-003"
+  }
+}
