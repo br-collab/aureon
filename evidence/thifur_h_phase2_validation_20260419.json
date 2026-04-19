@@ -1,0 +1,2465 @@
+{
+  "dsor_entries": [
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "ORDER_PLACED",
+      "details": {
+        "order_response": {
+          "error": [],
+          "result": {
+            "descr": {
+              "order": "buy 0.00010 XBTUSD @ limit 74083.1"
+            },
+            "txid": [
+              "OLFM7O-P2XCG-5PCIUT"
+            ]
+          }
+        },
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:27.400997+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.72,
+          "rationale": "Live execution against Kraken. XBTUSD buy 0.0001 @ limit $74083.1 (0.1% below live market $74157.3). Position size $7.41 within $10.0 live doctrine cap. Post-only \u2014 no immediate fill.",
+          "side": "buy",
+          "signal_id": "ATROX-AEF5A8A2",
+          "suggested_price": 74083.1,
+          "suggested_qty": 0.0001,
+          "symbol": "XBTUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0000",
+      "gate_result": "PASS",
+      "order_id": "OLFM7O-P2XCG-5PCIUT",
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-AEF5A8A2",
+      "timestamp": "2026-04-19T22:40:27.566262+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "ROLLBACK",
+      "details": {
+        "order_id": "OLFM7O-P2XCG-5PCIUT",
+        "reason": "protocol cycle 1 rollback",
+        "response": {
+          "error": [],
+          "result": {
+            "count": 1
+          }
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0001",
+      "gate_result": null,
+      "order_id": "OLFM7O-P2XCG-5PCIUT",
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ROLLBACK",
+      "timestamp": "2026-04-19T22:40:27.933832+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "ORDER_PLACED",
+      "details": {
+        "order_response": {
+          "error": [],
+          "result": {
+            "descr": {
+              "order": "buy 0.00010 XBTUSD @ limit 74083.1"
+            },
+            "txid": [
+              "OOEEPZ-EOJYL-Q37AKG"
+            ]
+          }
+        },
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:28.733975+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.72,
+          "rationale": "Live execution against Kraken. XBTUSD buy 0.0001 @ limit $74083.1 (0.1% below live market $74157.3). Position size $7.41 within $10.0 live doctrine cap. Post-only \u2014 no immediate fill.",
+          "side": "buy",
+          "signal_id": "ATROX-16D81870",
+          "suggested_price": 74083.1,
+          "suggested_qty": 0.0001,
+          "symbol": "XBTUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0002",
+      "gate_result": "PASS",
+      "order_id": "OOEEPZ-EOJYL-Q37AKG",
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-16D81870",
+      "timestamp": "2026-04-19T22:40:28.891151+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "ROLLBACK",
+      "details": {
+        "order_id": "OOEEPZ-EOJYL-Q37AKG",
+        "reason": "protocol cycle 2 rollback",
+        "response": {
+          "error": [],
+          "result": {
+            "count": 1
+          }
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0003",
+      "gate_result": null,
+      "order_id": "OOEEPZ-EOJYL-Q37AKG",
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ROLLBACK",
+      "timestamp": "2026-04-19T22:40:29.299307+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "ORDER_PLACED",
+      "details": {
+        "order_response": {
+          "error": [],
+          "result": {
+            "descr": {
+              "order": "buy 0.00010 XBTUSD @ limit 74083.1"
+            },
+            "txid": [
+              "OJT2XS-MMULQ-CFEWFP"
+            ]
+          }
+        },
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:30.083620+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.72,
+          "rationale": "Live execution against Kraken. XBTUSD buy 0.0001 @ limit $74083.1 (0.1% below live market $74157.3). Position size $7.41 within $10.0 live doctrine cap. Post-only \u2014 no immediate fill.",
+          "side": "buy",
+          "signal_id": "ATROX-0A575608",
+          "suggested_price": 74083.1,
+          "suggested_qty": 0.0001,
+          "symbol": "XBTUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0004",
+      "gate_result": "PASS",
+      "order_id": "OJT2XS-MMULQ-CFEWFP",
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-0A575608",
+      "timestamp": "2026-04-19T22:40:30.245919+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "ROLLBACK",
+      "details": {
+        "order_id": "OJT2XS-MMULQ-CFEWFP",
+        "reason": "protocol cycle 3 rollback",
+        "response": {
+          "error": [],
+          "result": {
+            "count": 1
+          }
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0005",
+      "gate_result": null,
+      "order_id": "OJT2XS-MMULQ-CFEWFP",
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ROLLBACK",
+      "timestamp": "2026-04-19T22:40:30.629141+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "ORDER_PLACED",
+      "details": {
+        "order_response": {
+          "error": [],
+          "result": {
+            "descr": {
+              "order": "buy 0.00010 XBTUSD @ limit 74083.1"
+            },
+            "txid": [
+              "O7SZCZ-UMYFD-CHISBY"
+            ]
+          }
+        },
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:31.329638+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.72,
+          "rationale": "Live execution against Kraken. XBTUSD buy 0.0001 @ limit $74083.1 (0.1% below live market $74157.3). Position size $7.41 within $10.0 live doctrine cap. Post-only \u2014 no immediate fill.",
+          "side": "buy",
+          "signal_id": "ATROX-FEAA353B",
+          "suggested_price": 74083.1,
+          "suggested_qty": 0.0001,
+          "symbol": "XBTUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0006",
+      "gate_result": "PASS",
+      "order_id": "O7SZCZ-UMYFD-CHISBY",
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-FEAA353B",
+      "timestamp": "2026-04-19T22:40:31.484241+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "ROLLBACK",
+      "details": {
+        "order_id": "O7SZCZ-UMYFD-CHISBY",
+        "reason": "protocol cycle 4 rollback",
+        "response": {
+          "error": [],
+          "result": {
+            "count": 1
+          }
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0007",
+      "gate_result": null,
+      "order_id": "O7SZCZ-UMYFD-CHISBY",
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ROLLBACK",
+      "timestamp": "2026-04-19T22:40:31.756841+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "ORDER_PLACED",
+      "details": {
+        "order_response": {
+          "error": [],
+          "result": {
+            "descr": {
+              "order": "buy 0.00010 XBTUSD @ limit 74083.1"
+            },
+            "txid": [
+              "O5W43A-4QWI2-PNLADC"
+            ]
+          }
+        },
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:32.344702+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.72,
+          "rationale": "Live execution against Kraken. XBTUSD buy 0.0001 @ limit $74083.1 (0.1% below live market $74157.3). Position size $7.41 within $10.0 live doctrine cap. Post-only \u2014 no immediate fill.",
+          "side": "buy",
+          "signal_id": "ATROX-D7C38222",
+          "suggested_price": 74083.1,
+          "suggested_qty": 0.0001,
+          "symbol": "XBTUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0008",
+      "gate_result": "PASS",
+      "order_id": "O5W43A-4QWI2-PNLADC",
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-D7C38222",
+      "timestamp": "2026-04-19T22:40:32.533449+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "ROLLBACK",
+      "details": {
+        "order_id": "O5W43A-4QWI2-PNLADC",
+        "reason": "protocol cycle 5 rollback",
+        "response": {
+          "error": [],
+          "result": {
+            "count": 1
+          }
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0009",
+      "gate_result": null,
+      "order_id": "O5W43A-4QWI2-PNLADC",
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ROLLBACK",
+      "timestamp": "2026-04-19T22:40:32.809215+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:33.390352+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-5DF345",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:33.390473+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SIZE-5DF345",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:33.390548+00:00"
+          },
+          {
+            "checked_value": 741.8767,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Position $741.88 exceeds hard limit $10.0",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SIZE-5DF345",
+            "threshold": 10.0,
+            "timestamp": "2026-04-19T22:40:33.390597+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-5DF345",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:33.390625+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:33.390352+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-5DF345",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:33.390649+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:33.390352+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 3 BREACH TEST \u2014 position size exceeds $50 hard limit",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-SIZE-5DF345",
+          "suggested_price": 74187.67,
+          "suggested_qty": 0.01,
+          "symbol": "BTCUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0010",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-SIZE-5DF345",
+      "timestamp": "2026-04-19T22:40:33.390721+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:34.013613+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-482FFE",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:34.013751+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SIZE-482FFE",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:34.013819+00:00"
+          },
+          {
+            "checked_value": 741.8767,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Position $741.88 exceeds hard limit $10.0",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SIZE-482FFE",
+            "threshold": 10.0,
+            "timestamp": "2026-04-19T22:40:34.013880+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-482FFE",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:34.013912+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:34.013613+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-482FFE",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:34.013939+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:34.013613+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 3 BREACH TEST \u2014 position size exceeds $50 hard limit",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-SIZE-482FFE",
+          "suggested_price": 74187.67,
+          "suggested_qty": 0.01,
+          "symbol": "BTCUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0011",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-SIZE-482FFE",
+      "timestamp": "2026-04-19T22:40:34.014015+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:34.589721+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-B02ACC",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:34.589854+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SIZE-B02ACC",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:34.589922+00:00"
+          },
+          {
+            "checked_value": 741.8767,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Position $741.88 exceeds hard limit $10.0",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SIZE-B02ACC",
+            "threshold": 10.0,
+            "timestamp": "2026-04-19T22:40:34.589969+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-B02ACC",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:34.589999+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:34.589721+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-B02ACC",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:34.590025+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:34.589721+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 3 BREACH TEST \u2014 position size exceeds $50 hard limit",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-SIZE-B02ACC",
+          "suggested_price": 74187.67,
+          "suggested_qty": 0.01,
+          "symbol": "BTCUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0012",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-SIZE-B02ACC",
+      "timestamp": "2026-04-19T22:40:34.590099+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:35.177158+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-8A7A14",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:35.177275+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SIZE-8A7A14",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:35.177341+00:00"
+          },
+          {
+            "checked_value": 741.8767,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Position $741.88 exceeds hard limit $10.0",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SIZE-8A7A14",
+            "threshold": 10.0,
+            "timestamp": "2026-04-19T22:40:35.177385+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-8A7A14",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:35.177414+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:35.177158+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-8A7A14",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:35.177442+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:35.177158+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 3 BREACH TEST \u2014 position size exceeds $50 hard limit",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-SIZE-8A7A14",
+          "suggested_price": 74187.67,
+          "suggested_qty": 0.01,
+          "symbol": "BTCUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0013",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-SIZE-8A7A14",
+      "timestamp": "2026-04-19T22:40:35.177524+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:35.836708+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-483CCE",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:35.836834+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SIZE-483CCE",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:35.836902+00:00"
+          },
+          {
+            "checked_value": 741.8767,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Position $741.88 exceeds hard limit $10.0",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SIZE-483CCE",
+            "threshold": 10.0,
+            "timestamp": "2026-04-19T22:40:35.836950+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-483CCE",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:35.836977+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:35.836708+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SIZE-483CCE",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:35.837005+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:35.836708+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 3 BREACH TEST \u2014 position size exceeds $50 hard limit",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-SIZE-483CCE",
+          "suggested_price": 74187.67,
+          "suggested_qty": 0.01,
+          "symbol": "BTCUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0014",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-SIZE-483CCE",
+      "timestamp": "2026-04-19T22:40:35.837082+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:36.418320+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-C47BDF",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:36.418438+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol ETHUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SYM-C47BDF",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:36.418506+00:00"
+          },
+          {
+            "checked_value": 0.001,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Qty 0.001 BTC exceeds max 0.0001 BTC",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SYM-C47BDF",
+            "threshold": 0.0001,
+            "timestamp": "2026-04-19T22:40:36.418556+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-C47BDF",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:36.418588+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:36.418320+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-C47BDF",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:36.418613+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:36.418320+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 2 BREACH TEST \u2014 symbol not in whitelist",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-SYM-C47BDF",
+          "suggested_price": 3000.0,
+          "suggested_qty": 0.001,
+          "symbol": "ETHUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0015",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-SYM-C47BDF",
+      "timestamp": "2026-04-19T22:40:36.418690+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:37.130715+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-160F1B",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:37.130826+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol ETHUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SYM-160F1B",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:37.130889+00:00"
+          },
+          {
+            "checked_value": 0.001,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Qty 0.001 BTC exceeds max 0.0001 BTC",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SYM-160F1B",
+            "threshold": 0.0001,
+            "timestamp": "2026-04-19T22:40:37.130935+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-160F1B",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:37.130963+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:37.130715+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-160F1B",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:37.130986+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:37.130715+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 2 BREACH TEST \u2014 symbol not in whitelist",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-SYM-160F1B",
+          "suggested_price": 3000.0,
+          "suggested_qty": 0.001,
+          "symbol": "ETHUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0016",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-SYM-160F1B",
+      "timestamp": "2026-04-19T22:40:37.131065+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:37.777163+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-4529E7",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:37.777276+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol ETHUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SYM-4529E7",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:37.777342+00:00"
+          },
+          {
+            "checked_value": 0.001,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Qty 0.001 BTC exceeds max 0.0001 BTC",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SYM-4529E7",
+            "threshold": 0.0001,
+            "timestamp": "2026-04-19T22:40:37.777391+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-4529E7",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:37.777424+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:37.777163+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-4529E7",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:37.777456+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:37.777163+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 2 BREACH TEST \u2014 symbol not in whitelist",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-SYM-4529E7",
+          "suggested_price": 3000.0,
+          "suggested_qty": 0.001,
+          "symbol": "ETHUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0017",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-SYM-4529E7",
+      "timestamp": "2026-04-19T22:40:37.777562+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:38.459557+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-22FC7F",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:38.459708+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol ETHUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SYM-22FC7F",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:38.459781+00:00"
+          },
+          {
+            "checked_value": 0.001,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Qty 0.001 BTC exceeds max 0.0001 BTC",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SYM-22FC7F",
+            "threshold": 0.0001,
+            "timestamp": "2026-04-19T22:40:38.459827+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-22FC7F",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:38.459856+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:38.459557+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-22FC7F",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:38.459880+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:38.459557+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 2 BREACH TEST \u2014 symbol not in whitelist",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-SYM-22FC7F",
+          "suggested_price": 3000.0,
+          "suggested_qty": 0.001,
+          "symbol": "ETHUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0018",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-SYM-22FC7F",
+      "timestamp": "2026-04-19T22:40:38.459969+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:39.033252+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-D33651",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:39.033386+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol ETHUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SYM-D33651",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:39.033457+00:00"
+          },
+          {
+            "checked_value": 0.001,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Qty 0.001 BTC exceeds max 0.0001 BTC",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-SYM-D33651",
+            "threshold": 0.0001,
+            "timestamp": "2026-04-19T22:40:39.033505+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-D33651",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:39.033536+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:39.033252+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-SYM-D33651",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:39.033561+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:39.033252+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 2 BREACH TEST \u2014 symbol not in whitelist",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-SYM-D33651",
+          "suggested_price": 3000.0,
+          "suggested_qty": 0.001,
+          "symbol": "ETHUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0019",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-SYM-D33651",
+      "timestamp": "2026-04-19T22:40:39.033634+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:39.904168+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-513DB8",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:39.904289+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-AUTH-513DB8",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:39.904354+00:00"
+          },
+          {
+            "checked_value": 29.645392932,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Position $29.65 exceeds hard limit $10.0",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-AUTH-513DB8",
+            "threshold": 10.0,
+            "timestamp": "2026-04-19T22:40:39.904400+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-513DB8",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:39.904428+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:39.904168+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-513DB8",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:39.904451+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:39.904168+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 1 BREACH TEST \u2014 no CAOM-001 approval",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-AUTH-513DB8",
+          "suggested_price": 74113.48233,
+          "suggested_qty": 0.0004,
+          "symbol": "BTCUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0020",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-AUTH-513DB8",
+      "timestamp": "2026-04-19T22:40:39.904542+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:40.545874+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-3E4DAA",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:40.545997+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-AUTH-3E4DAA",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:40.546084+00:00"
+          },
+          {
+            "checked_value": 29.645392932,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Position $29.65 exceeds hard limit $10.0",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-AUTH-3E4DAA",
+            "threshold": 10.0,
+            "timestamp": "2026-04-19T22:40:40.546149+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-3E4DAA",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:40.546185+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:40.545874+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-3E4DAA",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:40.546217+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:40.545874+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 1 BREACH TEST \u2014 no CAOM-001 approval",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-AUTH-3E4DAA",
+          "suggested_price": 74113.48233,
+          "suggested_qty": 0.0004,
+          "symbol": "BTCUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0021",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-AUTH-3E4DAA",
+      "timestamp": "2026-04-19T22:40:40.546313+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:41.167132+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-77826C",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:41.167249+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-AUTH-77826C",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:41.167349+00:00"
+          },
+          {
+            "checked_value": 29.645392932,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Position $29.65 exceeds hard limit $10.0",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-AUTH-77826C",
+            "threshold": 10.0,
+            "timestamp": "2026-04-19T22:40:41.167401+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-77826C",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:41.167433+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:41.167132+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-77826C",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:41.167461+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:41.167132+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 1 BREACH TEST \u2014 no CAOM-001 approval",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-AUTH-77826C",
+          "suggested_price": 74113.48233,
+          "suggested_qty": 0.0004,
+          "symbol": "BTCUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0022",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-AUTH-77826C",
+      "timestamp": "2026-04-19T22:40:41.167542+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:41.934033+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-CAEC15",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:41.934147+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-AUTH-CAEC15",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:41.934214+00:00"
+          },
+          {
+            "checked_value": 29.645392932,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Position $29.65 exceeds hard limit $10.0",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-AUTH-CAEC15",
+            "threshold": 10.0,
+            "timestamp": "2026-04-19T22:40:41.934259+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-CAEC15",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:41.934290+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:41.934033+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-CAEC15",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:41.934314+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:41.934033+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 1 BREACH TEST \u2014 no CAOM-001 approval",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-AUTH-CAEC15",
+          "suggested_price": 74113.48233,
+          "suggested_qty": 0.0004,
+          "symbol": "BTCUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0023",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-AUTH-CAEC15",
+      "timestamp": "2026-04-19T22:40:41.934390+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "GATE_BLOCK",
+      "details": {
+        "gates": [
+          {
+            "checked_value": null,
+            "gate_id": "G1",
+            "gate_name": "CAOM-001 Authorization",
+            "reason": "Approved by CAOM-001 at 2026-04-19T22:40:42.663417+00:00",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-096BE4",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:42.663542+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G2",
+            "gate_name": "Symbol Whitelist",
+            "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-AUTH-096BE4",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:42.663623+00:00"
+          },
+          {
+            "checked_value": 29.645392932,
+            "gate_id": "G3",
+            "gate_name": "Position Size",
+            "reason": "Position $29.65 exceeds hard limit $10.0",
+            "result": "BLOCK",
+            "signal_id": "ATROX-BREACH-AUTH-096BE4",
+            "threshold": 10.0,
+            "timestamp": "2026-04-19T22:40:42.663671+00:00"
+          },
+          {
+            "checked_value": 0.0,
+            "gate_id": "G4",
+            "gate_name": "Session Drawdown",
+            "reason": "Session loss $0.00, orders 5/20",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-096BE4",
+            "threshold": 5.0,
+            "timestamp": "2026-04-19T22:40:42.663699+00:00"
+          },
+          {
+            "checked_value": null,
+            "gate_id": "G5",
+            "gate_name": "HITL",
+            "reason": "CAOM-001 operator approved at 2026-04-19T22:40:42.663417+00:00 (pre-gate stamp)",
+            "result": "PASS",
+            "signal_id": "ATROX-BREACH-AUTH-096BE4",
+            "threshold": null,
+            "timestamp": "2026-04-19T22:40:42.663725+00:00"
+          }
+        ],
+        "signal": {
+          "approval_timestamp": "2026-04-19T22:40:42.663417+00:00",
+          "approved_by": "CAOM-001",
+          "caom_approved": true,
+          "confidence": 0.99,
+          "rationale": "INTENTIONAL GATE 1 BREACH TEST \u2014 no CAOM-001 approval",
+          "side": "buy",
+          "signal_id": "ATROX-BREACH-AUTH-096BE4",
+          "suggested_price": 74113.48233,
+          "suggested_qty": 0.0004,
+          "symbol": "BTCUSD"
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0024",
+      "gate_result": "BLOCK",
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "ATROX-BREACH-AUTH-096BE4",
+      "timestamp": "2026-04-19T22:40:42.663803+00:00"
+    },
+    {
+      "caom_operator": "CAOM-001",
+      "decision_type": "KILL_SWITCH",
+      "details": {
+        "open_positions_at_halt": {},
+        "reason": "20-cycle protocol complete \u2014 CAOM-001",
+        "response": {
+          "error": [],
+          "result": {
+            "count": 0
+          }
+        }
+      },
+      "entry_id": "DSOR-THIFUR-H-1776638426-0025",
+      "gate_result": null,
+      "order_id": null,
+      "session_id": "THIFUR-H-1776638426",
+      "signal_id": "KILL_SWITCH",
+      "timestamp": "2026-04-19T22:40:43.201025+00:00"
+    }
+  ],
+  "exported_at": "2026-04-19T22:40:43.411455+00:00",
+  "gate_records": [
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:27.400997+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-AEF5A8A2",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:27.401158+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "XBTUSD buy \u2014 whitelisted",
+      "result": "PASS",
+      "signal_id": "ATROX-AEF5A8A2",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:27.401256+00:00"
+    },
+    {
+      "checked_value": 7.408310000000001,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $7.41 within limit $10.0",
+      "result": "PASS",
+      "signal_id": "ATROX-AEF5A8A2",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:27.401297+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 0/20",
+      "result": "PASS",
+      "signal_id": "ATROX-AEF5A8A2",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:27.401327+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:27.400997+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-AEF5A8A2",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:27.401353+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:28.733975+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-16D81870",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:28.734104+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "XBTUSD buy \u2014 whitelisted",
+      "result": "PASS",
+      "signal_id": "ATROX-16D81870",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:28.734181+00:00"
+    },
+    {
+      "checked_value": 7.408310000000001,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $7.41 within limit $10.0",
+      "result": "PASS",
+      "signal_id": "ATROX-16D81870",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:28.734218+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 1/20",
+      "result": "PASS",
+      "signal_id": "ATROX-16D81870",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:28.734250+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:28.733975+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-16D81870",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:28.734279+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:30.083620+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-0A575608",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:30.083757+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "XBTUSD buy \u2014 whitelisted",
+      "result": "PASS",
+      "signal_id": "ATROX-0A575608",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:30.083827+00:00"
+    },
+    {
+      "checked_value": 7.408310000000001,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $7.41 within limit $10.0",
+      "result": "PASS",
+      "signal_id": "ATROX-0A575608",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:30.083862+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 2/20",
+      "result": "PASS",
+      "signal_id": "ATROX-0A575608",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:30.083892+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:30.083620+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-0A575608",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:30.083918+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:31.329638+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-FEAA353B",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:31.329770+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "XBTUSD buy \u2014 whitelisted",
+      "result": "PASS",
+      "signal_id": "ATROX-FEAA353B",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:31.329836+00:00"
+    },
+    {
+      "checked_value": 7.408310000000001,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $7.41 within limit $10.0",
+      "result": "PASS",
+      "signal_id": "ATROX-FEAA353B",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:31.329870+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 3/20",
+      "result": "PASS",
+      "signal_id": "ATROX-FEAA353B",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:31.329899+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:31.329638+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-FEAA353B",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:31.329925+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:32.344702+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-D7C38222",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:32.344843+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "XBTUSD buy \u2014 whitelisted",
+      "result": "PASS",
+      "signal_id": "ATROX-D7C38222",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:32.344909+00:00"
+    },
+    {
+      "checked_value": 7.408310000000001,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $7.41 within limit $10.0",
+      "result": "PASS",
+      "signal_id": "ATROX-D7C38222",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:32.344944+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 4/20",
+      "result": "PASS",
+      "signal_id": "ATROX-D7C38222",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:32.344972+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:32.344702+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-D7C38222",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:32.344998+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:33.390352+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-5DF345",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:33.390473+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SIZE-5DF345",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:33.390548+00:00"
+    },
+    {
+      "checked_value": 741.8767,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $741.88 exceeds hard limit $10.0",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SIZE-5DF345",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:33.390597+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-5DF345",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:33.390625+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:33.390352+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-5DF345",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:33.390649+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:34.013613+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-482FFE",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:34.013751+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SIZE-482FFE",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:34.013819+00:00"
+    },
+    {
+      "checked_value": 741.8767,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $741.88 exceeds hard limit $10.0",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SIZE-482FFE",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:34.013880+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-482FFE",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:34.013912+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:34.013613+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-482FFE",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:34.013939+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:34.589721+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-B02ACC",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:34.589854+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SIZE-B02ACC",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:34.589922+00:00"
+    },
+    {
+      "checked_value": 741.8767,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $741.88 exceeds hard limit $10.0",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SIZE-B02ACC",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:34.589969+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-B02ACC",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:34.589999+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:34.589721+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-B02ACC",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:34.590025+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:35.177158+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-8A7A14",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:35.177275+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SIZE-8A7A14",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:35.177341+00:00"
+    },
+    {
+      "checked_value": 741.8767,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $741.88 exceeds hard limit $10.0",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SIZE-8A7A14",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:35.177385+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-8A7A14",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:35.177414+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:35.177158+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-8A7A14",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:35.177442+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:35.836708+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-483CCE",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:35.836834+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SIZE-483CCE",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:35.836902+00:00"
+    },
+    {
+      "checked_value": 741.8767,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $741.88 exceeds hard limit $10.0",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SIZE-483CCE",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:35.836950+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-483CCE",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:35.836977+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:35.836708+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SIZE-483CCE",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:35.837005+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:36.418320+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-C47BDF",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:36.418438+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol ETHUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SYM-C47BDF",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:36.418506+00:00"
+    },
+    {
+      "checked_value": 0.001,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Qty 0.001 BTC exceeds max 0.0001 BTC",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SYM-C47BDF",
+      "threshold": 0.0001,
+      "timestamp": "2026-04-19T22:40:36.418556+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-C47BDF",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:36.418588+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:36.418320+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-C47BDF",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:36.418613+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:37.130715+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-160F1B",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:37.130826+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol ETHUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SYM-160F1B",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:37.130889+00:00"
+    },
+    {
+      "checked_value": 0.001,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Qty 0.001 BTC exceeds max 0.0001 BTC",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SYM-160F1B",
+      "threshold": 0.0001,
+      "timestamp": "2026-04-19T22:40:37.130935+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-160F1B",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:37.130963+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:37.130715+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-160F1B",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:37.130986+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:37.777163+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-4529E7",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:37.777276+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol ETHUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SYM-4529E7",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:37.777342+00:00"
+    },
+    {
+      "checked_value": 0.001,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Qty 0.001 BTC exceeds max 0.0001 BTC",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SYM-4529E7",
+      "threshold": 0.0001,
+      "timestamp": "2026-04-19T22:40:37.777391+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-4529E7",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:37.777424+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:37.777163+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-4529E7",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:37.777456+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:38.459557+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-22FC7F",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:38.459708+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol ETHUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SYM-22FC7F",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:38.459781+00:00"
+    },
+    {
+      "checked_value": 0.001,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Qty 0.001 BTC exceeds max 0.0001 BTC",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SYM-22FC7F",
+      "threshold": 0.0001,
+      "timestamp": "2026-04-19T22:40:38.459827+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-22FC7F",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:38.459856+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:38.459557+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-22FC7F",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:38.459880+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:39.033252+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-D33651",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:39.033386+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol ETHUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SYM-D33651",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:39.033457+00:00"
+    },
+    {
+      "checked_value": 0.001,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Qty 0.001 BTC exceeds max 0.0001 BTC",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-SYM-D33651",
+      "threshold": 0.0001,
+      "timestamp": "2026-04-19T22:40:39.033505+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-D33651",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:39.033536+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:39.033252+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-SYM-D33651",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:39.033561+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:39.904168+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-513DB8",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:39.904289+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-AUTH-513DB8",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:39.904354+00:00"
+    },
+    {
+      "checked_value": 29.645392932,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $29.65 exceeds hard limit $10.0",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-AUTH-513DB8",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:39.904400+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-513DB8",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:39.904428+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:39.904168+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-513DB8",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:39.904451+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:40.545874+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-3E4DAA",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:40.545997+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-AUTH-3E4DAA",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:40.546084+00:00"
+    },
+    {
+      "checked_value": 29.645392932,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $29.65 exceeds hard limit $10.0",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-AUTH-3E4DAA",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:40.546149+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-3E4DAA",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:40.546185+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:40.545874+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-3E4DAA",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:40.546217+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:41.167132+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-77826C",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:41.167249+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-AUTH-77826C",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:41.167349+00:00"
+    },
+    {
+      "checked_value": 29.645392932,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $29.65 exceeds hard limit $10.0",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-AUTH-77826C",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:41.167401+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-77826C",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:41.167433+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:41.167132+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-77826C",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:41.167461+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:41.934033+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-CAEC15",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:41.934147+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-AUTH-CAEC15",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:41.934214+00:00"
+    },
+    {
+      "checked_value": 29.645392932,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $29.65 exceeds hard limit $10.0",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-AUTH-CAEC15",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:41.934259+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-CAEC15",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:41.934290+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:41.934033+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-CAEC15",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:41.934314+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G1",
+      "gate_name": "CAOM-001 Authorization",
+      "reason": "Approved by CAOM-001 at 2026-04-19T22:40:42.663417+00:00",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-096BE4",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:42.663542+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G2",
+      "gate_name": "Symbol Whitelist",
+      "reason": "Symbol BTCUSD not in whitelist ('XBTUSD',)",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-AUTH-096BE4",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:42.663623+00:00"
+    },
+    {
+      "checked_value": 29.645392932,
+      "gate_id": "G3",
+      "gate_name": "Position Size",
+      "reason": "Position $29.65 exceeds hard limit $10.0",
+      "result": "BLOCK",
+      "signal_id": "ATROX-BREACH-AUTH-096BE4",
+      "threshold": 10.0,
+      "timestamp": "2026-04-19T22:40:42.663671+00:00"
+    },
+    {
+      "checked_value": 0.0,
+      "gate_id": "G4",
+      "gate_name": "Session Drawdown",
+      "reason": "Session loss $0.00, orders 5/20",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-096BE4",
+      "threshold": 5.0,
+      "timestamp": "2026-04-19T22:40:42.663699+00:00"
+    },
+    {
+      "checked_value": null,
+      "gate_id": "G5",
+      "gate_name": "HITL",
+      "reason": "CAOM-001 operator approved at 2026-04-19T22:40:42.663417+00:00 (pre-gate stamp)",
+      "result": "PASS",
+      "signal_id": "ATROX-BREACH-AUTH-096BE4",
+      "threshold": null,
+      "timestamp": "2026-04-19T22:40:42.663725+00:00"
+    }
+  ],
+  "open_positions": {},
+  "session_summary": {
+    "doctrine": {
+      "allowed_symbols": [
+        "XBTUSD"
+      ],
+      "hitl_required": true,
+      "max_orders": 20,
+      "max_position_usd": 10.0,
+      "max_session_loss_usd": 5.0,
+      "sandbox_only": false
+    },
+    "dsor_entries_count": 26,
+    "gate_records_count": 100,
+    "open_positions": 0,
+    "orders_cancelled": 5,
+    "orders_filled": 0,
+    "orders_placed": 5,
+    "session_id": "THIFUR-H-1776638426",
+    "session_loss_usd": 0.0,
+    "started_at": "2026-04-19T22:40:26.676081+00:00",
+    "state": "HALTED"
+  }
+}
