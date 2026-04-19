@@ -8000,7 +8000,128 @@ def _start_background_threads():
     threading.Thread(target=_atrox_refresh_loop, daemon=True).start()
     print("[AUREON] Background threads started — CAOM-001 session OPEN")
 
+# THIFUR-H PHASE 2 ACTIVATION
+from aureon.thifur.thifur_h import ThifurH, AtroxSignal, SessionState
+from aureon.thifur.atrox_sandbox import AtroxSandboxSignalGenerator
+from aureon.thifur.kraken_client import KrakenLiveClient, ThifurHDoctrineLive
+import time as _time
+
+_thifur_h_session = None
+_pending_signal = None
+_atrox_generator = AtroxSandboxSignalGenerator()
+
+def _get_kraken_engine():
+    from aureon.thifur.thifur_h import SessionLedger, ThifurHGates
+    from datetime import datetime, timezone
+    api_key = os.environ.get("KRAKEN_API_KEY", "")
+    api_secret = os.environ.get("KRAKEN_API_SECRET", "")
+    if not api_key or not api_secret:
+        return None, "KRAKEN credentials not set"
+    engine = ThifurH.__new__(ThifurH)
+    engine.session_id = f"THIFUR-H-{int(_time.time())}"
+    engine.ledger = SessionLedger(session_id=engine.session_id, started_at=datetime.now(timezone.utc).isoformat())
+    engine.gates = ThifurHGates(engine.ledger)
+    engine.exchange = KrakenLiveClient(api_key, api_secret)
+    engine.ledger.state = SessionState.ACTIVE
+    return engine, None
+
+@app.route("/api/thifur-h/session/start", methods=["POST"])
+def thifur_h_start_session():
+    global _thifur_h_session
+    if _thifur_h_session and _thifur_h_session.ledger.state == SessionState.ACTIVE:
+        return jsonify({"status": "error", "message": "Session already active", "session_id": _thifur_h_session.session_id}), 400
+    engine, error = _get_kraken_engine()
+    if error:
+        return jsonify({"status": "error", "message": error}), 500
+    _thifur_h_session = engine
+    return jsonify({"status": "ok", "session_id": engine.session_id, "doctrine": {"max_position_usd": ThifurHDoctrineLive.MAX_POSITION_USD, "max_session_loss_usd": ThifurHDoctrineLive.MAX_SESSION_LOSS_USD, "hitl_required": ThifurHDoctrineLive.HITL_REQUIRED, "allowed_symbols": list(ThifurHDoctrineLive.ALLOWED_SYMBOLS)}})
+
+@app.route("/api/thifur-h/signal", methods=["POST"])
+def thifur_h_generate_signal():
+    global _pending_signal
+    if not _thifur_h_session:
+        return jsonify({"status": "error", "message": "No active session"}), 400
+    body = request.get_json(silent=True) or {}
+    breach_test = body.get("breach_test")
+    side = body.get("side", "buy")
+    if breach_test:
+        signal = _atrox_generator.generate_breach_signal(breach_test)
+    elif side == "sell":
+        signal = _atrox_generator.generate_sell_signal()
+    else:
+        signal = _atrox_generator.generate_buy_signal()
+    if not signal:
+        return jsonify({"status": "error", "message": "Atrox: no price data"}), 503
+    live_price = _thifur_h_session.exchange.get_current_price("XBTUSD")
+    if live_price > 0 and not breach_test:
+        offset = -0.001 if side == "buy" else 0.001
+        signal.suggested_price = round(live_price * (1 + offset), 2)
+        signal.symbol = "XBTUSD"
+        signal.suggested_qty = ThifurHDoctrineLive.MAX_ORDER_QTY_BTC
+    _pending_signal = signal
+    return jsonify({"status": "pending_caom_approval", "signal_id": signal.signal_id, "symbol": signal.symbol, "side": signal.side, "price": signal.suggested_price, "qty": signal.suggested_qty, "position_usd": round(signal.suggested_price * signal.suggested_qty, 2), "rationale": signal.rationale, "next_step": "POST /api/thifur-h/approve"})
+
+@app.route("/api/thifur-h/approve", methods=["POST"])
+def thifur_h_approve_signal():
+    global _pending_signal
+    if not _thifur_h_session:
+        return jsonify({"status": "error", "message": "No active session"}), 400
+    if not _pending_signal:
+        return jsonify({"status": "error", "message": "No pending signal"}), 400
+    body = request.get_json(silent=True) or {}
+    if not body.get("approved", False):
+        sid = _pending_signal.signal_id
+        _pending_signal = None
+        return jsonify({"status": "declined", "signal_id": sid})
+    from datetime import datetime, timezone
+    _pending_signal.caom_approved = True
+    _pending_signal.approval_timestamp = datetime.now(timezone.utc).isoformat()
+    result = _thifur_h_session.process_signal(_pending_signal)
+    _pending_signal = None
+    return jsonify({"status": "ok", "result": result, "session": _thifur_h_session.session_report()})
+
+@app.route("/api/thifur-h/rollback", methods=["POST"])
+def thifur_h_rollback():
+    if not _thifur_h_session:
+        return jsonify({"status": "error", "message": "No active session"}), 400
+    body = request.get_json(silent=True) or {}
+    txid = body.get("txid")
+    if not txid:
+        return jsonify({"status": "error", "message": "txid required"}), 400
+    result = _thifur_h_session.rollback(txid, body.get("reason", "Manual rollback"))
+    return jsonify({"status": "ok", "result": result})
+
+@app.route("/api/thifur-h/kill-switch", methods=["POST"])
+def thifur_h_kill_switch():
+    global _thifur_h_session, _pending_signal
+    if not _thifur_h_session:
+        return jsonify({"status": "error", "message": "No active session"}), 400
+    body = request.get_json(silent=True) or {}
+    result = _thifur_h_session.kill_switch(body.get("reason", "Manual kill switch"))
+    _pending_signal = None
+    return jsonify({"status": "halted", "result": result, "session": _thifur_h_session.session_report()})
+
+@app.route("/api/thifur-h/session", methods=["GET"])
+def thifur_h_session_status():
+    if not _thifur_h_session:
+        return jsonify({"status": "no_session"})
+    return jsonify({"status": "ok", "session": _thifur_h_session.session_report(), "pending_signal": _pending_signal.signal_id if _pending_signal else None})
+
+@app.route("/api/thifur-h/dsor", methods=["GET"])
+def thifur_h_dsor_export():
+    if not _thifur_h_session:
+        return jsonify({"status": "no_session"}), 404
+    import json as _json
+    return jsonify(_json.loads(_thifur_h_session.export_dsor()))
+
+@app.route("/api/thifur-h/balance", methods=["GET"])
+def thifur_h_balance():
+    if not _thifur_h_session:
+        return jsonify({"status": "error", "message": "No active session"}), 400
+    return jsonify({"status": "ok", "balance": _thifur_h_session.exchange.get_balance()})
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", os.environ.get("AUREON_PORT", "5001")))
     _start_background_threads()
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+
