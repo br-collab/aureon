@@ -447,7 +447,7 @@ setInterval(tickClock, 1000); tickClock();
 function renderHealth() {
   const list = $('health-list');
   list.innerHTML = '';
-  const order = ['railway','kraken_rest','kraken_auth','github','vercel','twelve_data','dsor_volume'];
+  const order = ['railway','kraken_rest','kraken_auth','github','dsor_volume'];
   let mostRecent = null;
   for (const k of order) {
     const d = HEALTH_STATE.deps[k];
@@ -486,7 +486,7 @@ function applyTradingGates() {
     banner.textContent = '⚠ ' + blocked;
     banner.classList.add('show');
     banner.classList.remove('warn');
-  } else if (HEALTH_STATE.deps.vercel?.status === 'DOWN' || HEALTH_STATE.deps.twelve_data?.status === 'DEGRADED') {
+  } else {
     const downs = [];
     for (const [k, v] of Object.entries(HEALTH_STATE.deps)) {
       if (v.tier !== 1 && (v.status === 'DOWN' || v.status === 'DEGRADED')) {
@@ -499,8 +499,6 @@ function applyTradingGates() {
     } else {
       banner.classList.remove('show');
     }
-  } else {
-    banner.classList.remove('show');
   }
   $('btn-start').disabled = !!blocked;
   $('btn-signal-buy').disabled = !!blocked || !SESSION_STATE || SESSION_STATE.state !== 'ACTIVE';
