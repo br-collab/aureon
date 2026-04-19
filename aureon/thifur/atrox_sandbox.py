@@ -83,11 +83,10 @@ class AtroxSandboxSignalGenerator:
             symbol="BTCUSD",
             side="buy",
             rationale=rationale_override or (
-                f"Sandbox validation cycle {self.signal_count}. "
-                f"BTC/USD last ${price:,.2f}. "
-                f"Limit buy ${limit_price:,.2f} (0.1% below market). "
-                f"Maker-or-cancel — no immediate fill risk. "
-                f"Position size ${limit_price * self.SANDBOX_QTY:.2f} within $50 governance bound."
+                f"Atrox validation cycle {self.signal_count}. "
+                f"Reference price ${price:,.2f}. "
+                f"Limit buy 0.1% below market, maker-or-cancel. "
+                f"Concrete price/qty/symbol set by execution layer against live doctrine."
             ),
             confidence=0.72,
             suggested_price=limit_price,
@@ -111,10 +110,10 @@ class AtroxSandboxSignalGenerator:
             symbol="BTCUSD",
             side="sell",
             rationale=rationale_override or (
-                f"Sandbox validation cycle {self.signal_count}. "
-                f"BTC/USD last ${price:,.2f}. "
-                f"Limit sell ${limit_price:,.2f} (0.1% above market). "
-                f"Position size ${limit_price * self.SANDBOX_QTY:.2f} within $50 governance bound."
+                f"Atrox validation cycle {self.signal_count}. "
+                f"Reference price ${price:,.2f}. "
+                f"Limit sell 0.1% above market. "
+                f"Concrete price/qty/symbol set by execution layer against live doctrine."
             ),
             confidence=0.68,
             suggested_price=limit_price,
