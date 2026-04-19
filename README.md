@@ -128,7 +128,7 @@ Strict determinism. Zero variance permitted. The same input always produces the 
 Governs the TradFi-DeFi convergence zone. Manages tokenized asset lifecycle and multi-constraint flows. Selects among approved paths — never generates new ones. Doctrine always overrides smart contract execution logic.
 
 **Thifur-H — Hunter-Killer — Adaptive Intelligence**
-Adaptive optimization for execution strategy, liquidity routing, collateral optimization, FX hedging, and repo. Phase 2 activated — live validation in progress against Kraken exchange under CAOM-001 sole-operator mode. Five-gate governance layer active (CAOM-001 authorization, symbol whitelist, position size, session drawdown, HITL). Session ledger, rollback, and MiFID II RTS 6 kill switch implemented. DSOR evidence package generating per SR 11-7 Tier 1 requirements. Exchange connectivity via Gemini exchange MCP server pattern — model-agnostic, doctrine-governed.
+Adaptive optimization for execution strategy, liquidity routing, collateral optimization, FX hedging, and repo. **Phase 2 first-light validation complete** — end-to-end signal cycle exercised against the live Kraken exchange under CAOM-001 sole-operator mode, with $10 position cap, $5 session-loss cap, XBTUSD-only whitelist, and post-only limit orders. Five-gate governance layer enforced and recorded (CAOM-001 authorization, symbol whitelist, position size, session drawdown, HITL); every gate evaluated for every signal regardless of upstream block, for SR 11-7 evidence completeness. Session ledger tracks orders by Kraken txid, supports per-order rollback, and exposes a MiFID II RTS 6 kill switch that cancels all open orders. The full Decision System of Record export from a 20-cycle validation protocol (5 clean execution, 15 intentional breach tests across symbol/size/authorization gates) is committed under `evidence/`. Exchange connectivity is direct Kraken REST with HMAC-SHA512 signing — no MCP intermediary on the live path.
 
 ### Governance Boundary
 
@@ -244,7 +244,7 @@ Aureon's governance architecture is mapped against six regulatory frameworks:
 | Thifur-C2 | Declared — coordination architecture specified | Full multi-agent coordination live |
 | Thifur-R | Core settlement determinism active | Full clearing governance, cross-border rails |
 | Thifur-J | Pre-trade structuring, policy checks | Full tokenized asset lifecycle, DeFi convergence |
-| Thifur-H | **Phase 2 activated** — five-gate governance layer live, Kraken exchange validation in progress, DSOR evidence generating, SR 11-7 Tier 1 | VWAP/TWAP/POV recommendations, multi-venue expansion, tokenized equity rails |
+| Thifur-H | **Phase 2 validated** — five-gate governance layer live on Kraken, 20-cycle protocol passed end-to-end (5 clean execution + 15 breach tests), DSOR evidence committed under `evidence/`, SR 11-7 Tier 1 | VWAP/TWAP/POV recommendations, multi-venue expansion, tokenized equity rails |
 | AI usage | Controlled, role-bound workflow support with HITL | Expanded supervised agent coverage |
 | Regulatory | SR 11-7 Tier 2, OCC 2023-17, BCBS 239 P3/P5 | Full six-framework coverage |
 
