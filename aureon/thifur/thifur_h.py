@@ -358,6 +358,11 @@ class ThifurHGates:
                                 GateResult.PASS, signal.signal_id,
                                 "HITL bypassed — doctrine flag off (not permitted in production)")
 
+        if signal.caom_approved and signal.approval_timestamp:
+            return self._record("G5", "HITL",
+                                GateResult.PASS, signal.signal_id,
+                                f"CAOM-001 operator approved at {signal.approval_timestamp} (pre-gate stamp)")
+
         # Sandbox HITL simulation
         print(f"\n{'='*60}")
         print(f"  THIFUR-H HITL GATE — HUMAN APPROVAL REQUIRED")
