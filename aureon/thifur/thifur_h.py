@@ -262,8 +262,9 @@ class ThifurHGates:
     Gate 5: HITL — human approval queue
     """
 
-    def __init__(self, ledger: SessionLedger):
+    def __init__(self, ledger: SessionLedger, doctrine=ThifurHDoctrine):
         self.ledger = ledger
+        self.doctrine = doctrine
 
     def _record(self, gate_id, name, result, signal_id, reason,
                 checked=None, threshold=None) -> GateRecord:
@@ -293,11 +294,11 @@ class ThifurHGates:
 
     def gate2_symbol_whitelist(self, signal: AtroxSignal) -> GateRecord:
         """Gate 2: Symbol and side within doctrine whitelist?"""
-        if signal.symbol not in ThifurHDoctrine.ALLOWED_SYMBOLS:
+        if signal.symbol not in self.doctrine.ALLOWED_SYMBOLS:
             return self._record("G2", "Symbol Whitelist",
                                 GateResult.BLOCK, signal.signal_id,
-                                f"Symbol {signal.symbol} not in whitelist {ThifurHDoctrine.ALLOWED_SYMBOLS}")
-        if signal.side not in ThifurHDoctrine.ALLOWED_SIDES:
+                                f"Symbol {signal.symbol} not in whitelist {self.doctrine.ALLOWED_SYMBOLS}")
+        if signal.side not in self.doctrine.ALLOWED_SIDES:
             return self._record("G2", "Symbol Whitelist",
                                 GateResult.BLOCK, signal.signal_id,
                                 f"Side {signal.side} not allowed")
@@ -308,43 +309,43 @@ class ThifurHGates:
     def gate3_position_size(self, signal: AtroxSignal) -> GateRecord:
         """Gate 3: Position value within hard limit?"""
         position_usd = signal.suggested_price * signal.suggested_qty
-        if position_usd > ThifurHDoctrine.MAX_POSITION_USD:
+        if position_usd > self.doctrine.MAX_POSITION_USD:
             return self._record("G3", "Position Size",
                                 GateResult.BLOCK, signal.signal_id,
-                                f"Position ${position_usd:.2f} exceeds hard limit ${ThifurHDoctrine.MAX_POSITION_USD}",
+                                f"Position ${position_usd:.2f} exceeds hard limit ${self.doctrine.MAX_POSITION_USD}",
                                 checked=position_usd,
-                                threshold=ThifurHDoctrine.MAX_POSITION_USD)
-        if signal.suggested_qty > ThifurHDoctrine.MAX_ORDER_QTY_BTC:
+                                threshold=self.doctrine.MAX_POSITION_USD)
+        if signal.suggested_qty > self.doctrine.MAX_ORDER_QTY_BTC:
             return self._record("G3", "Position Size",
                                 GateResult.BLOCK, signal.signal_id,
-                                f"Qty {signal.suggested_qty} BTC exceeds max {ThifurHDoctrine.MAX_ORDER_QTY_BTC} BTC",
+                                f"Qty {signal.suggested_qty} BTC exceeds max {self.doctrine.MAX_ORDER_QTY_BTC} BTC",
                                 checked=signal.suggested_qty,
-                                threshold=ThifurHDoctrine.MAX_ORDER_QTY_BTC)
+                                threshold=self.doctrine.MAX_ORDER_QTY_BTC)
         return self._record("G3", "Position Size",
                             GateResult.PASS, signal.signal_id,
-                            f"Position ${position_usd:.2f} within limit ${ThifurHDoctrine.MAX_POSITION_USD}",
+                            f"Position ${position_usd:.2f} within limit ${self.doctrine.MAX_POSITION_USD}",
                             checked=position_usd,
-                            threshold=ThifurHDoctrine.MAX_POSITION_USD)
+                            threshold=self.doctrine.MAX_POSITION_USD)
 
     def gate4_session_drawdown(self, signal: AtroxSignal) -> GateRecord:
         """Gate 4: Session loss within kill threshold?"""
-        if self.ledger.session_loss_usd >= ThifurHDoctrine.MAX_SESSION_LOSS_USD:
+        if self.ledger.session_loss_usd >= self.doctrine.MAX_SESSION_LOSS_USD:
             return self._record("G4", "Session Drawdown",
                                 GateResult.BLOCK, signal.signal_id,
-                                f"Session loss ${self.ledger.session_loss_usd:.2f} at or beyond kill threshold ${ThifurHDoctrine.MAX_SESSION_LOSS_USD}",
+                                f"Session loss ${self.ledger.session_loss_usd:.2f} at or beyond kill threshold ${self.doctrine.MAX_SESSION_LOSS_USD}",
                                 checked=self.ledger.session_loss_usd,
-                                threshold=ThifurHDoctrine.MAX_SESSION_LOSS_USD)
-        if self.ledger.orders_placed >= ThifurHDoctrine.MAX_ORDERS_PER_SESSION:
+                                threshold=self.doctrine.MAX_SESSION_LOSS_USD)
+        if self.ledger.orders_placed >= self.doctrine.MAX_ORDERS_PER_SESSION:
             return self._record("G4", "Session Drawdown",
                                 GateResult.BLOCK, signal.signal_id,
-                                f"Session order count {self.ledger.orders_placed} at max {ThifurHDoctrine.MAX_ORDERS_PER_SESSION}",
+                                f"Session order count {self.ledger.orders_placed} at max {self.doctrine.MAX_ORDERS_PER_SESSION}",
                                 checked=float(self.ledger.orders_placed),
-                                threshold=float(ThifurHDoctrine.MAX_ORDERS_PER_SESSION))
+                                threshold=float(self.doctrine.MAX_ORDERS_PER_SESSION))
         return self._record("G4", "Session Drawdown",
                             GateResult.PASS, signal.signal_id,
-                            f"Session loss ${self.ledger.session_loss_usd:.2f}, orders {self.ledger.orders_placed}/{ThifurHDoctrine.MAX_ORDERS_PER_SESSION}",
+                            f"Session loss ${self.ledger.session_loss_usd:.2f}, orders {self.ledger.orders_placed}/{self.doctrine.MAX_ORDERS_PER_SESSION}",
                             checked=self.ledger.session_loss_usd,
-                            threshold=ThifurHDoctrine.MAX_SESSION_LOSS_USD)
+                            threshold=self.doctrine.MAX_SESSION_LOSS_USD)
 
     def gate5_hitl(self, signal: AtroxSignal) -> GateRecord:
         """
@@ -352,7 +353,7 @@ class ThifurHGates:
         In sandbox validation, HITL is simulated as a console prompt.
         In production: routes to CAOM-001 approval queue.
         """
-        if not ThifurHDoctrine.HITL_REQUIRED:
+        if not self.doctrine.HITL_REQUIRED:
             return self._record("G5", "HITL",
                                 GateResult.PASS, signal.signal_id,
                                 "HITL bypassed — doctrine flag off (not permitted in production)")
@@ -414,13 +415,14 @@ class ThifurH:
     Every action is: Signal → Gates → HITL → Exchange → Ledger → DSOR.
     """
 
-    def __init__(self, api_key: str, api_secret: str):
+    def __init__(self, api_key: str, api_secret: str, doctrine=ThifurHDoctrine):
         self.session_id = f"THIFUR-H-{int(time.time())}"
         self.ledger = SessionLedger(
             session_id=self.session_id,
             started_at=datetime.now(timezone.utc).isoformat(),
         )
-        self.gates = ThifurHGates(self.ledger)
+        self.doctrine = doctrine
+        self.gates = ThifurHGates(self.ledger, doctrine)
         self.exchange = GeminiSandboxClient(api_key, api_secret)
         self.ledger.state = SessionState.ACTIVE
         logger.info(f"Thifur-H activated | Session: {self.session_id} | SANDBOX ONLY")
@@ -568,11 +570,12 @@ class ThifurH:
             "gate_records_count": len(self.ledger.gate_records),
             "dsor_entries_count": len(self.ledger.dsor_entries),
             "doctrine": {
-                "max_position_usd": ThifurHDoctrine.MAX_POSITION_USD,
-                "max_session_loss_usd": ThifurHDoctrine.MAX_SESSION_LOSS_USD,
-                "max_orders": ThifurHDoctrine.MAX_ORDERS_PER_SESSION,
-                "sandbox_only": ThifurHDoctrine.SANDBOX_ONLY,
-                "hitl_required": ThifurHDoctrine.HITL_REQUIRED,
+                "max_position_usd": self.doctrine.MAX_POSITION_USD,
+                "max_session_loss_usd": self.doctrine.MAX_SESSION_LOSS_USD,
+                "max_orders": self.doctrine.MAX_ORDERS_PER_SESSION,
+                "sandbox_only": self.doctrine.SANDBOX_ONLY,
+                "hitl_required": self.doctrine.HITL_REQUIRED,
+                "allowed_symbols": list(self.doctrine.ALLOWED_SYMBOLS),
             },
         }
 
