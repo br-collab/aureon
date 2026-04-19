@@ -143,7 +143,7 @@ class KrakenLiveClient:
             "pair": symbol,
             "price": price,
             "oflags": "post",        # Post-only — maker order, no immediate fill
-            "cl_ord_id": client_order_id[:36],  # Kraken max 36 chars
+            "userref": int(hashlib.sha256(client_order_id.encode()).hexdigest(), 16) % (2**31),
         }
         result = self._post("/0/private/AddOrder", data)
         logger.info(f"Kraken order placed: {result}")
@@ -160,6 +160,10 @@ class KrakenLiveClient:
         result = self._post("/0/private/CancelAll", {})
         logger.warning(f"Kraken CANCEL ALL: {result}")
         return result
+
+    def cancel_all_session_orders(self) -> dict:
+        """Interface-compatible alias used by ThifurH.kill_switch()."""
+        return self.cancel_all_orders()
 
     def get_open_orders(self) -> dict:
         return self._post("/0/private/OpenOrders", {})

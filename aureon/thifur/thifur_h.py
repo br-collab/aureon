@@ -40,6 +40,16 @@ logging.basicConfig(
 )
 
 
+class _DSOREncoder(json.JSONEncoder):
+    """Handles enums and datetimes in DSOR export — both leak through asdict()."""
+    def default(self, o):
+        if isinstance(o, Enum):
+            return o.value
+        if isinstance(o, datetime):
+            return o.isoformat()
+        return super().default(o)
+
+
 # ─────────────────────────────────────────────
 # DOCTRINE CONSTANTS — NOT CONFIGURABLE BY AGENT
 # ─────────────────────────────────────────────
@@ -595,6 +605,6 @@ class ThifurH:
         }
         if path:
             with open(path, "w") as f:
-                json.dump(export, f, indent=2)
+                json.dump(export, f, indent=2, cls=_DSOREncoder)
             logger.info(f"DSOR exported → {path}")
-        return json.dumps(export, indent=2)
+        return json.dumps(export, indent=2, cls=_DSOREncoder)
