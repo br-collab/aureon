@@ -159,8 +159,6 @@ HEALTH: dict[str, DepStatus] = {
     "kraken_rest": DepStatus(name="Kraken REST",    tier=1),
     "kraken_auth": DepStatus(name="Kraken Auth",    tier=1),
     "github":      DepStatus(name="GitHub",         tier=2),
-    "vercel":      DepStatus(name="Vercel",         tier=2),
-    "twelve_data": DepStatus(name="Twelve Data",    tier=3),
     "dsor_volume": DepStatus(name="DSOR Archive",   tier=3),
 }
 
@@ -270,47 +268,6 @@ def _check_github() -> None:
         s.detail = err or f"HTTP {code}"
 
 
-def _check_vercel() -> None:
-    s = HEALTH["vercel"]
-    s.last_checked = _now_iso()
-    if not VERCEL_URL:
-        s.status = "UNKNOWN"
-        s.detail = "VERCEL_URL not configured"
-        s.latency_ms = None
-        return
-    code, lat, err = _http_ping(VERCEL_URL, timeout=6.0)
-    s.latency_ms = lat
-    if code and 200 <= code < 400:
-        s.status = "UP" if lat < 800 else "DEGRADED"
-        s.last_ok = _now_iso()
-        s.detail = ""
-    else:
-        s.status = "DOWN"
-        s.detail = err or f"HTTP {code}"
-
-
-def _check_twelve_data() -> None:
-    s = HEALTH["twelve_data"]
-    s.last_checked = _now_iso()
-    if not TWELVE_DATA_API_KEY:
-        s.status = "UNKNOWN"
-        s.detail = "TWELVE_DATA_API_KEY not configured"
-        s.latency_ms = None
-        return
-    code, lat, err = _http_ping(
-        f"https://api.twelvedata.com/api_usage?apikey={TWELVE_DATA_API_KEY}",
-        timeout=6.0,
-    )
-    s.latency_ms = lat
-    if code == 200:
-        s.status = "UP" if lat < 1000 else "DEGRADED"
-        s.last_ok = _now_iso()
-        s.detail = ""
-    else:
-        s.status = "DOWN"
-        s.detail = err or f"HTTP {code}"
-
-
 def _check_dsor_volume() -> None:
     s = HEALTH["dsor_volume"]
     s.last_checked = _now_iso()
@@ -334,8 +291,6 @@ CHECKS = [
     _check_kraken_rest,
     _check_kraken_auth,
     _check_github,
-    _check_vercel,
-    _check_twelve_data,
     _check_dsor_volume,
 ]
 
