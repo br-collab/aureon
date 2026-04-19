@@ -8020,7 +8020,8 @@ def _get_kraken_engine():
     engine = ThifurH.__new__(ThifurH)
     engine.session_id = f"THIFUR-H-{int(_time.time())}"
     engine.ledger = SessionLedger(session_id=engine.session_id, started_at=datetime.now(timezone.utc).isoformat())
-    engine.gates = ThifurHGates(engine.ledger)
+    engine.doctrine = ThifurHDoctrineLive
+    engine.gates = ThifurHGates(engine.ledger, ThifurHDoctrineLive)
     engine.exchange = KrakenLiveClient(api_key, api_secret)
     engine.ledger.state = SessionState.ACTIVE
     return engine, None
