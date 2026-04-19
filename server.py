@@ -8056,7 +8056,7 @@ def thifur_h_generate_signal():
     live_price = _thifur_h_session.exchange.get_current_price("XBTUSD")
     if live_price > 0 and not breach_test:
         offset = -0.001 if side == "buy" else 0.001
-        signal.suggested_price = round(live_price * (1 + offset), 2)
+        signal.suggested_price = round(live_price * (1 + offset), 1)
         signal.symbol = "XBTUSD"
         signal.suggested_qty = ThifurHDoctrineLive.MAX_ORDER_QTY_BTC
     _pending_signal = signal
