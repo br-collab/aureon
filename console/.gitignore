@@ -1,8 +1,0 @@
-.env
-dsor_archive/
-sam_inbox/
-sam_outbox/
-__pycache__/
-*.pyc
-.venv/
-console.log
