@@ -1,0 +1,232 @@
+
+<h2 class="sr-only">Cato settlement gate live briefing for institutional review</h2>
+
+<style>
+  .cato-wrap { font-family: var(--font-mono); max-width: 780px; padding: 2rem 0; }
+  .cato-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .cato-title { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-text-secondary); margin: 0 0 6px; }
+  .cato-name { font-size: 22px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 4px; font-family: var(--font-sans); }
+  .cato-sub { font-size: 13px; color: var(--color-text-secondary); margin: 0; }
+  .cato-version { font-size: 11px; color: var(--color-text-tertiary); text-align: right; }
+
+  .gate-banner { border-radius: var(--border-radius-lg); padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; border: 0.5px solid var(--color-border-success); background: var(--color-background-success); }
+  .gate-banner.hold { border-color: var(--color-border-warning); background: var(--color-background-warning); }
+  .gate-banner.escalate { border-color: var(--color-border-danger); background: var(--color-background-danger); }
+  .gate-decision { font-size: 20px; font-weight: 500; font-family: var(--font-sans); color: var(--color-text-success); }
+  .gate-banner.hold .gate-decision { color: var(--color-text-warning); }
+  .gate-banner.escalate .gate-decision { color: var(--color-text-danger); }
+  .gate-reason { font-size: 12px; color: var(--color-text-success); margin-top: 2px; }
+  .gate-banner.hold .gate-reason { color: var(--color-text-warning); }
+  .gate-ts { font-size: 11px; color: var(--color-text-tertiary); text-align: right; }
+
+  .metrics-row { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 1.5rem; }
+  .metric { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 14px 16px; }
+  .metric-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-tertiary); margin: 0 0 6px; }
+  .metric-value { font-size: 18px; font-weight: 500; color: var(--color-text-primary); font-family: var(--font-sans); margin: 0; }
+  .metric-sub { font-size: 11px; color: var(--color-text-tertiary); margin: 4px 0 0; }
+  .metric-ok { color: var(--color-text-success); }
+  .metric-warn { color: var(--color-text-warning); }
+
+  .section-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-text-tertiary); margin: 0 0 10px; }
+
+  .rails-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 1.5rem; }
+  .rail-card { border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-tertiary); padding: 14px 16px; background: var(--color-background-primary); position: relative; }
+  .rail-card.recommended { border: 2px solid var(--color-border-info); }
+  .rail-rec-badge { position: absolute; top: -10px; left: 12px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; background: var(--color-background-info); color: var(--color-text-info); padding: 2px 8px; border-radius: var(--border-radius-md); }
+  .rail-name { font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 4px; font-family: var(--font-sans); }
+  .rail-cost { font-size: 20px; font-weight: 500; color: var(--color-text-primary); margin: 8px 0 4px; font-family: var(--font-sans); }
+  .rail-cost-label { font-size: 11px; color: var(--color-text-tertiary); }
+  .rail-speed { font-size: 11px; color: var(--color-text-secondary); margin: 6px 0 0; }
+  .rail-status { display: inline-block; font-size: 10px; margin-top: 6px; padding: 2px 8px; border-radius: 20px; }
+  .rail-status.live { background: var(--color-background-success); color: var(--color-text-success); }
+  .rail-status.pending { background: var(--color-background-secondary); color: var(--color-text-tertiary); }
+
+  .thresholds-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-bottom: 1.5rem; }
+  .thresh { display: flex; align-items: center; justify-content: space-between; background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 14px; }
+  .thresh-name { font-size: 12px; color: var(--color-text-secondary); }
+  .thresh-val { font-size: 12px; font-weight: 500; }
+  .thresh-val.ok { color: var(--color-text-success); }
+  .thresh-val.warn { color: var(--color-text-warning); }
+
+  .thesis-box { border-radius: var(--border-radius-lg); border: 0.5px solid var(--color-border-tertiary); padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; }
+  .thesis-text { font-size: 13px; color: var(--color-text-secondary); line-height: 1.7; margin: 0 0 10px; font-family: var(--font-sans); }
+  .thesis-link { font-size: 12px; color: var(--color-text-info); text-decoration: none; }
+
+  .footer-row { display: flex; align-items: center; justify-content: space-between; padding-top: 1rem; border-top: 0.5px solid var(--color-border-tertiary); }
+  .footer-text { font-size: 11px; color: var(--color-text-tertiary); }
+  .refresh-btn { font-size: 12px; padding: 6px 14px; cursor: pointer; border-radius: var(--border-radius-md); }
+  .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--color-text-success); margin-right: 6px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+</style>
+
+<div class="cato-wrap">
+
+  <div class="cato-header">
+    <div>
+      <p class="cato-title">Verana L0 · Pre-Settlement Doctrine Gate</p>
+      <p class="cato-name">Cato</p>
+      <p class="cato-sub">Tokenized institutional repo · Settlement rail selection · Live market state</p>
+    </div>
+    <div class="cato-version">
+      <div style="font-size:11px;color:var(--color-text-tertiary);">v0.2.2 · paper trading</div>
+      <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px;" id="live-ts"><span class="live-dot"></span>Fetching live data…</div>
+    </div>
+  </div>
+
+  <div id="gate-banner" class="gate-banner">
+    <div>
+      <div class="gate-decision" id="gate-decision">—</div>
+      <div class="gate-reason" id="gate-reason">Loading gate decision…</div>
+    </div>
+    <div class="gate-ts" id="gate-rec">—</div>
+  </div>
+
+  <p class="section-label">Live doctrine inputs</p>
+  <div class="metrics-row">
+    <div class="metric">
+      <p class="metric-label">SOFR</p>
+      <p class="metric-value" id="m-sofr">—</p>
+      <p class="metric-sub" id="m-sofr-delta">1-day Δ: —</p>
+    </div>
+    <div class="metric">
+      <p class="metric-label">OFR stress index</p>
+      <p class="metric-value" id="m-ofr">—</p>
+      <p class="metric-sub" id="m-ofr-status">—</p>
+    </div>
+    <div class="metric">
+      <p class="metric-label">ETH gas</p>
+      <p class="metric-value" id="m-gas">—</p>
+      <p class="metric-sub" id="m-gas-status">—</p>
+    </div>
+    <div class="metric">
+      <p class="metric-label">Settlement posture</p>
+      <p class="metric-value" id="m-posture">—</p>
+      <p class="metric-sub">Verana L0 assessment</p>
+    </div>
+  </div>
+
+  <p class="section-label">Settlement rails · $100M notional · 1-day repo</p>
+  <div class="rails-grid" id="rails-grid">
+    <div class="rail-card"><p class="rail-name">—</p><p class="rail-cost">—</p></div>
+    <div class="rail-card"><p class="rail-name">—</p><p class="rail-cost">—</p></div>
+    <div class="rail-card"><p class="rail-name">—</p><p class="rail-cost">—</p></div>
+  </div>
+
+  <p class="section-label">Doctrine thresholds · all four checked on every gate call</p>
+  <div class="thresholds-grid" id="thresh-grid">
+    <div class="thresh"><span class="thresh-name">OFR STLFSI4 escalate</span><span class="thresh-val" id="t1">—</span></div>
+    <div class="thresh"><span class="thresh-name">OFR STLFSI4 hold</span><span class="thresh-val" id="t2">—</span></div>
+    <div class="thresh"><span class="thresh-name">ETH gas hold</span><span class="thresh-val" id="t3">—</span></div>
+    <div class="thresh"><span class="thresh-name">SOFR 1-day delta hold</span><span class="thresh-val" id="t4">—</span></div>
+  </div>
+
+  <div class="thesis-box">
+    <p class="thesis-text">
+      Cato answers one question before every tokenized repo settlement: <em>is atomic on-chain DvP (Delivery versus Payment) viable right now, or should this trade route to FICC?</em> The gate runs four deterministic checks — overnight funding-market shock (SOFR delta), broad financial stress (OFR STLFSI4), and on-chain congestion (ETH gas) — and emits a PROCEED / HOLD / ESCALATE decision with a recommended settlement rail. The Fed L1 slot is reserved for PORTS (Duffie 2025, Brookings) pending GENIUS Act.
+    </p>
+    <a class="thesis-link" href="https://aureon-production.up.railway.app" target="_blank">→ Live Aureon dashboard · Atrox tab</a>
+    &nbsp;&nbsp;
+    <a class="thesis-link" href="https://aureon-production.up.railway.app/api/cato/gate" target="_blank">→ Live API · /api/cato/gate</a>
+  </div>
+
+  <div class="footer-row">
+    <span class="footer-text">Ravelo Strategic Solutions LLC · Columbia MS Technology Management · Paper trading — no real capital at risk</span>
+    <button class="refresh-btn" onclick="loadData()">Refresh live data ↗</button>
+  </div>
+
+</div>
+
+<script>
+const API_BASE = "https://aureon-production.up.railway.app/api/cato";
+
+function fmt(n, decimals=2) {
+  if (n === null || n === undefined) return "—";
+  return Number(n).toFixed(decimals);
+}
+function fmtCost(n) {
+  if (n === null || n === undefined) return "—";
+  if (n < 0.01) return "$" + Number(n).toFixed(6);
+  if (n < 1) return "$" + Number(n).toFixed(4);
+  if (n > 1000) return "$" + Math.round(n).toLocaleString();
+  return "$" + Number(n).toFixed(2);
+}
+
+async function loadData() {
+  try {
+    const [gate, rails] = await Promise.all([
+      fetch(API_BASE + "/gate").then(r=>r.json()),
+      fetch(API_BASE + "/compare-rails?notional_usd=100000000&term_days=1&sofr_pct=3.63").then(r=>r.json()).catch(()=>null)
+    ]);
+
+    const d = gate.gate_decision || "PROCEED";
+    const banner = document.getElementById("gate-banner");
+    banner.className = "gate-banner" + (d==="HOLD"?" hold":d==="ESCALATE"?" escalate":"");
+    document.getElementById("gate-decision").textContent = d;
+    const reasons = gate.reasons || [];
+    document.getElementById("gate-reason").textContent = reasons[0] || "—";
+    document.getElementById("gate-rec").innerHTML = "Recommended rail: <strong>" + (gate.recommended_rail||"—") + "</strong><br>Recommended chain: " + (gate.recommended_chain||"—");
+    document.getElementById("live-ts").innerHTML = '<span class="live-dot"></span>' + "Live · " + new Date().toLocaleTimeString();
+
+    const inp = gate.inputs || {};
+    document.getElementById("m-sofr").textContent = fmt(inp.sofr_rate) + "%";
+    document.getElementById("m-sofr-delta").textContent = "1-day Δ: " + fmt(inp.sofr_delta_bps,1) + " bps";
+    const ofrEl = document.getElementById("m-ofr");
+    ofrEl.textContent = fmt(inp.ofr_stress,3);
+    ofrEl.className = "metric-value " + (inp.ofr_stress > 1.0 ? "metric-warn" : "metric-ok");
+    document.getElementById("m-ofr-status").textContent = inp.ofr_stress > 1.0 ? "Systemic stress" : inp.ofr_stress > 0.5 ? "Elevated" : "Normal";
+    const gasEl = document.getElementById("m-gas");
+    gasEl.textContent = fmt(inp.gas_gwei,2) + " gwei";
+    gasEl.className = "metric-value " + (inp.gas_gwei > 50 ? "metric-warn" : "metric-ok");
+    document.getElementById("m-gas-status").textContent = inp.gas_gwei > 50 ? "Above threshold" : "Clear";
+    const postureEl = document.getElementById("m-posture");
+    postureEl.textContent = inp.settlement_posture || "—";
+    postureEl.className = "metric-value " + (inp.settlement_posture === "favorable" ? "metric-ok" : "metric-warn");
+
+    const thr = gate.thresholds || {};
+    document.getElementById("t1").textContent = "> " + thr.escalate_ofr + "  ·  live: " + fmt(inp.ofr_stress,3);
+    document.getElementById("t1").className = "thresh-val " + (inp.ofr_stress > thr.escalate_ofr ? "warn" : "ok");
+    document.getElementById("t2").textContent = "> " + thr.hold_ofr + "  ·  live: " + fmt(inp.ofr_stress,3);
+    document.getElementById("t2").className = "thresh-val " + (inp.ofr_stress > thr.hold_ofr ? "warn" : "ok");
+    document.getElementById("t3").textContent = "> " + thr.hold_gas_gwei + " gwei  ·  live: " + fmt(inp.gas_gwei,2);
+    document.getElementById("t3").className = "thresh-val " + (inp.gas_gwei > thr.hold_gas_gwei ? "warn" : "ok");
+    document.getElementById("t4").textContent = "> " + thr.hold_sofr_delta_bps + " bps  ·  live: " + fmt(inp.sofr_delta_bps,1);
+    document.getElementById("t4").className = "thresh-val " + (inp.sofr_delta_bps > thr.hold_sofr_delta_bps ? "warn" : "ok");
+
+    if (rails && rails.rails) {
+      const r = rails.rails;
+      const rec = rails.recommended_rail;
+      const railDefs = [
+        { key:"ficc_traditional", label:"FICC traditional", notional:"$100M notional" },
+        { key:"solana", label:"Solana", notional:"atomic DvP" },
+        { key:"base", label:"Base L2", notional:"Ethereum L2" },
+        { key:"ethereum_l1", label:"Ethereum L1", notional:"on-chain" },
+      ];
+      const grid = document.getElementById("rails-grid");
+      grid.innerHTML = "";
+      let shown = 0;
+      for (const rd of railDefs) {
+        if (shown >= 3) break;
+        const rail = r[rd.key];
+        if (!rail) continue;
+        const isRec = rd.key === rec;
+        const card = document.createElement("div");
+        card.className = "rail-card" + (isRec ? " recommended" : "");
+        card.innerHTML = (isRec ? '<span class="rail-rec-badge">Recommended</span>' : "") +
+          '<p class="rail-name">' + rd.label + '</p>' +
+          '<p class="rail-cost">' + fmtCost(rail.cost_usd) + '</p>' +
+          '<p class="rail-cost-label">all-in · ' + rd.notional + '</p>' +
+          '<p class="rail-speed">' + (rail.speed||"—") + ' settlement</p>' +
+          '<span class="rail-status ' + (rail.status==="live"?"live":"pending") + '">' + (rail.status||"—") + '</span>';
+        grid.appendChild(card);
+        shown++;
+      }
+    }
+
+  } catch(e) {
+    document.getElementById("gate-reason").textContent = "Could not reach live API — check connection.";
+  }
+}
+
+loadData();
+setInterval(loadData, 30000);
+</script>

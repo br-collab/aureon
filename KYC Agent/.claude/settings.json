@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(PORT=8787 node server.js)",
+      "Bash(curl -sS http://localhost:8787/healthz)",
+      "Bash(curl -sS -X POST http://localhost:8787/api/chat -H \"Content-Type: application/json\" -d '{\"messages\":[]}')",
+      "Bash(curl -sS -I http://localhost:8787/)",
+      "Bash(kill %1)",
+      "Bash(awk '{print $2}')",
+      "Bash(xargs -r kill)",
+      "Bash(curl -sS -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(curl -sS -X POST http://localhost:8787/api/chat -H \"Content-Type: application/json\" -d '{\"messages\":[{\"role\":\"user\",\"content\":\"Reply with the single word: ok\"}],\"system\":\"Be terse.\",\"max_tokens\":20}')",
+      "Bash(curl -sS http://localhost:5173/ -o /dev/null -w \"client: %{http_code}\\\\n\")"
+    ],
+    "additionalDirectories": [
+      "/Users/guillermoravelo/Desktop/Programming for Fun + Other local Projects/Project Aureon/Programing/The Grid 3/KYC Agent/aureon-kyc"
+    ]
+  }
+}

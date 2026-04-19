@@ -26,7 +26,19 @@
       "Bash(curl -s -m 15 -o /dev/null -w \"%{http_code} %{time_total}s\" \"https://aureon-production.up.railway.app/api/snapshot\")",
       "Bash(curl -s -m 20 \"https://aureon-production.up.railway.app/api/snapshot\")",
       "Bash(python3 -c \" import sys, json d = json.load\\(sys.stdin\\) pv = d.get\\('portfolio_value', 0\\) cash = d.get\\('cash', 0\\) pnl = d.get\\('pnl', 0\\) pos = len\\(d.get\\('positions', []\\)\\) trades = len\\(d.get\\('trades', []\\)\\) dd = d.get\\('drawdown', 0\\) print\\(f'Portfolio: \\\\${pv:,.0f}'\\) print\\(f'Cash: \\\\${cash:,.0f}'\\) print\\(f'P&L: \\\\${pnl:,.0f}'\\) print\\(f'Drawdown: {dd:.2f}%'\\) print\\(f'Positions: {pos}'\\) print\\(f'Trades: {trades}'\\) print\\(f'Stack: {d.get\\(\\\\\"stack_status\\\\\", \\\\\"?\\\\\"\\)}'\\) print\\(f'Doctrine: {d.get\\(\\\\\"doctrine_version\\\\\", \\\\\"?\\\\\"\\)}'\\) \")",
-      "Bash(python3 -c \" import sys, json d = json.load\\(sys.stdin\\) pv = d.get\\('portfolio_value', 0\\) cash = d.get\\('cash', 0\\) pnl = d.get\\('pnl', 0\\) pos = len\\(d.get\\('positions', []\\)\\) trades = len\\(d.get\\('trades', []\\)\\) dd = d.get\\('drawdown', 0\\) print\\(f'Portfolio: \\\\${pv:,.0f}'\\) print\\(f'Cash: \\\\${cash:,.0f}'\\) print\\(f'P&L: \\\\${pnl:,.0f}'\\) print\\(f'Drawdown: {dd:.2f}%'\\) print\\(f'Positions: {pos}'\\) print\\(f'Trades: {trades}'\\) print\\(f'Stack: {d.get\\(\\\\\"stack_status\\\\\", \\\\\"?\\\\\"\\)}'\\) print\\(f'Doctrine: v{d.get\\(\\\\\"doctrine_version\\\\\", \\\\\"?\\\\\"\\)}'\\) \")"
+      "Bash(python3 -c \" import sys, json d = json.load\\(sys.stdin\\) pv = d.get\\('portfolio_value', 0\\) cash = d.get\\('cash', 0\\) pnl = d.get\\('pnl', 0\\) pos = len\\(d.get\\('positions', []\\)\\) trades = len\\(d.get\\('trades', []\\)\\) dd = d.get\\('drawdown', 0\\) print\\(f'Portfolio: \\\\${pv:,.0f}'\\) print\\(f'Cash: \\\\${cash:,.0f}'\\) print\\(f'P&L: \\\\${pnl:,.0f}'\\) print\\(f'Drawdown: {dd:.2f}%'\\) print\\(f'Positions: {pos}'\\) print\\(f'Trades: {trades}'\\) print\\(f'Stack: {d.get\\(\\\\\"stack_status\\\\\", \\\\\"?\\\\\"\\)}'\\) print\\(f'Doctrine: v{d.get\\(\\\\\"doctrine_version\\\\\", \\\\\"?\\\\\"\\)}'\\) \")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('aureon_state_persist.json'\\)\\); print\\('top-level keys:', sorted\\(d.keys\\(\\)\\)\\); print\\('positions:', len\\(d.get\\('positions',[]\\)\\)\\); print\\('trades:', len\\(d.get\\('trades',[]\\)\\)\\); print\\('authority_log:', len\\(d.get\\('authority_log',[]\\)\\)\\); print\\('saved_at:', d.get\\('saved_at'\\)\\)\")",
+      "Bash(git mv *)",
+      "Bash(git commit -m ' *)",
+      "Bash(curl -s -o /dev/null -w \"snapshot:  %{http_code} \\(%{time_total}s\\)\\\\n\" https://aureon-production.up.railway.app/api/snapshot)",
+      "Bash(curl -s -o /dev/null -w \"treasury:  %{http_code}\\\\n\" https://aureon-production.up.railway.app/api/treasury)",
+      "Bash(curl -s -o /dev/null -w \"compliance:%{http_code}\\\\n\" https://aureon-production.up.railway.app/api/compliance)",
+      "Bash(curl -s -o /dev/null -w \"c2/paused: %{http_code}\\\\n\" https://aureon-production.up.railway.app/api/c2/paused)",
+      "Bash(curl -s https://aureon-production.up.railway.app/api/c2/paused)",
+      "Bash(curl -s -o /dev/null -w \"snapshot:   %{http_code}\\\\n\" https://aureon-production.up.railway.app/api/snapshot)",
+      "Bash(curl -s -o /dev/null -w \"treasury:   %{http_code}\\\\n\" https://aureon-production.up.railway.app/api/treasury)",
+      "Bash(curl -s -o /dev/null -w \"compliance: %{http_code}\\\\n\" https://aureon-production.up.railway.app/api/compliance)",
+      "Bash(curl -s -o /dev/null -w \"c2/paused:  %{http_code}\\\\n\" https://aureon-production.up.railway.app/api/c2/paused)"
     ]
   }
 }
