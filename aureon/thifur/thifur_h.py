@@ -499,7 +499,7 @@ class ThifurH:
             client_order_id=client_order_id,
         )
 
-        if "error" in order_response:
+        if order_response.get("error"):
             self._dsor("ORDER_ERROR", signal.signal_id,
                        {"error": order_response, "signal": asdict(signal)})
             logger.error(f"Order placement failed: {order_response}")
