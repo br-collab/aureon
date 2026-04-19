@@ -128,7 +128,7 @@ Strict determinism. Zero variance permitted. The same input always produces the 
 Governs the TradFi-DeFi convergence zone. Manages tokenized asset lifecycle and multi-constraint flows. Selects among approved paths — never generates new ones. Doctrine always overrides smart contract execution logic.
 
 **Thifur-H — Hunter-Killer — Adaptive Intelligence**
-Adaptive optimization for execution strategy, liquidity routing, collateral optimization, FX hedging, and repo. Declared at architectural level. Phase 2 activation pending independent validation per SR 11-7 Tier 1 requirements.
+Adaptive optimization for execution strategy, liquidity routing, collateral optimization, FX hedging, and repo. Phase 2 activated — live validation in progress against Kraken exchange under CAOM-001 sole-operator mode. Five-gate governance layer active (CAOM-001 authorization, symbol whitelist, position size, session drawdown, HITL). Session ledger, rollback, and MiFID II RTS 6 kill switch implemented. DSOR evidence package generating per SR 11-7 Tier 1 requirements. Exchange connectivity via Gemini exchange MCP server pattern — model-agnostic, doctrine-governed.
 
 ### Governance Boundary
 
@@ -244,7 +244,7 @@ Aureon's governance architecture is mapped against six regulatory frameworks:
 | Thifur-C2 | Declared — coordination architecture specified | Full multi-agent coordination live |
 | Thifur-R | Core settlement determinism active | Full clearing governance, cross-border rails |
 | Thifur-J | Pre-trade structuring, policy checks | Full tokenized asset lifecycle, DeFi convergence |
-| Thifur-H | Declared — not activated | VWAP/TWAP/POV recommendations, Phase 2 |
+| Thifur-H | **Phase 2 activated** — five-gate governance layer live, Kraken exchange validation in progress, DSOR evidence generating, SR 11-7 Tier 1 | VWAP/TWAP/POV recommendations, multi-venue expansion, tokenized equity rails |
 | AI usage | Controlled, role-bound workflow support with HITL | Expanded supervised agent coverage |
 | Regulatory | SR 11-7 Tier 2, OCC 2023-17, BCBS 239 P3/P5 | Full six-framework coverage |
 
@@ -530,7 +530,7 @@ TWELVE_DATA_API_KEY=your_key
 - Thifur-C2 is fully specified at the doctrine level — coordination implementation is the next phase
 - The codebase is still structurally compressed and does not yet reflect the target service boundaries
 - FIX support is a translation stub, not a live broker, EMS, or OMS session
-- Thifur-H is declared but not activated pending independent validation
+- Thifur-H Phase 2 activated — five-gate governance layer live, Kraken live account validation in progress under CAOM-001, 20-cycle stress test protocol executing, DSOR export active for SR 11-7 evidence packaging; production expansion pending full validation cycle completion
 - The repository should be read as an institutional product prototype, not as a claim of full OMS, SOR, treasury, settlement, or books-and-records replacement
 
 ---
@@ -546,8 +546,9 @@ The near-term objective is much narrower and more credible:
 - demonstrate clean boundaries with OMS, EMS, SOR, and downstream post-trade systems
 - build trust through governed approvals, replayability, and evidence quality
 - activate Atrox as the alpha origination layer on live data pipes
+- complete Thifur-H 20-cycle validation against Kraken live account and advance to full $500 live capital deployment
 
 ---
 
 *Project Aureon · Guillermo "Bill" Ravelo · Columbia University MS Technology Management*
-*The Grid 3 · CAOM-001 · Crawl Phase — Paper Trade Data Collection*
+*The Grid 3 · CAOM-001 · Crawl Phase — Paper Trade Data Collection · Thifur-H Phase 2 Activated*
