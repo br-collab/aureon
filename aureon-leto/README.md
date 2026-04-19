@@ -1,17 +1,16 @@
-# CAOM-001 Operator Console
+# Aureon-Leto
 
-Local single-pane-of-glass for everything the operator and Sam (Claude Code) execute against The Grid 3 production stack.
+CAOM-001 Operator Console — local single pane of glass for everything the operator and Sam (Claude Code) execute against The Grid 3 production stack.
 
 Runs on **port 5002** (configurable). Bind is `127.0.0.1` only — not exposed to the network.
 
 ```
-CAOM-001 Operator Console (local, port 5002)
+Aureon-Leto (local, port 5002)
           │
           ├── Railway Production API   (Thifur-H routes, snapshot, portfolio)
           ├── Kraken Pro API (direct)  (balance, kill-switch fallback, order history)
           ├── Sam (Claude Code)        (file-queue bridge: sam_inbox/ + sam_outbox/)
           ├── GitHub                   (commit health, repo pings)
-          ├── Vercel / Twelve Data     (HTTP pings, optional)
           └── DSOR Archive (local)     (mirror of every /api/dsor/live response)
 ```
 
@@ -20,7 +19,7 @@ CAOM-001 Operator Console (local, port 5002)
 ## Boot
 
 ```bash
-cd console
+cd aureon-leto
 cp .env.example .env       # then edit .env and add KRAKEN_API_KEY / KRAKEN_API_SECRET
 chmod +x start.sh
 ./start.sh
@@ -28,7 +27,7 @@ chmod +x start.sh
 
 Open **http://127.0.0.1:5002** in your browser.
 
-The console has zero external pip dependencies beyond Flask itself. Standard library only: `urllib`, `hashlib`, `hmac`, `base64`, `json`, `threading`, `queue`, `pathlib`.
+Aureon-Leto has zero external pip dependencies beyond Flask itself. Standard library only: `urllib`, `hashlib`, `hmac`, `base64`, `json`, `threading`, `queue`, `pathlib`.
 
 ---
 
@@ -37,7 +36,7 @@ The console has zero external pip dependencies beyond Flask itself. Standard lib
 | Panel | What it shows |
 |---|---|
 | **Mission Status** | Cycle, doctrine, portfolio, P&L, market, alerts, session state. Polls Railway `/api/snapshot` every 5s. |
-| **System Health** | 7 dependencies in 3 tiers, with latency and last-OK time. Pushed via SSE on every check (default 30s). |
+| **System Health** | 5 dependencies in 3 tiers, with latency and last-OK time. Pushed via SSE on every check (default 30s). |
 | **Thifur-H · HITL Console** | Open session, generate signal, APPROVE/DECLINE pending signal, view live gate state. |
 | **DSOR · Audit Trail** | Decision-system-of-record entries for the active session. Refresh, download, browse local archive. |
 | **Session Ledger** | Counters and SR 11-7 evidence summary for the active session. |
@@ -56,8 +55,6 @@ Three tiers, polled every 30s in a background thread, broadcast to the UI via SS
 | 1 | Kraken REST | `/0/public/Time` | Trading halted, **circuit OPEN** |
 | 1 | Kraken Auth | `/0/private/Balance` (signed) | Trading halted, **circuit OPEN** |
 | 2 | GitHub | `api.github.com/repos/...` | Informational; doesn't block trading |
-| 2 | Vercel | HTTP ping (if `VERCEL_URL` set) | Informational |
-| 3 | Twelve Data | `api_usage` (if key set) | Informational |
 | 3 | DSOR Archive | local write probe | DSOR mirroring fails silently to log |
 
 ### Circuit breaker
@@ -76,13 +73,13 @@ This matches doctrine: no automatic resume into live trading after an exchange d
 
 ## Sam command-surface workflow (file-queue bridge)
 
-The console doesn't have a direct hook into your Claude Code session. The bridge is a file queue:
+Aureon-Leto doesn't have a direct hook into your Claude Code session. The bridge is a file queue:
 
 1. **Operator submits a task** via the UI input box.
-2. Console writes `console/sam_inbox/task-<timestamp>-<rand>.md`.
+2. Aureon-Leto writes `aureon-leto/sam_inbox/task-<timestamp>-<rand>.md`.
 3. UI shows a popup with the inbox path. Operator pastes that path into Claude Code chat.
-4. **Sam (Claude Code) reads** the inbox file, executes the task, and writes a result JSON to `console/sam_outbox/task-<task_id>.json` via `POST /api/sam/result/<task_id>`.
-5. Console polls `/api/sam/tasks` every 5s. Pending → complete state visible in the UI.
+4. **Sam (Claude Code) reads** the inbox file, executes the task, and writes a result JSON to `aureon-leto/sam_outbox/task-<task_id>.json` via `POST /api/sam/result/<task_id>`.
+5. Aureon-Leto polls `/api/sam/tasks` every 5s. Pending → complete state visible in the UI.
 
 Inbox file format:
 
@@ -117,10 +114,10 @@ Sam shape can evolve. UI currently just renders the JSON; richer schema-aware re
 The kill switch in the bottom-right is the **only** UI action that:
 
 - Always stays enabled regardless of health monitor state
-- Calls Kraken **directly** from the local console (not via Railway)
+- Calls Kraken **directly** from Aureon-Leto (not via Railway)
 - Also notifies Railway if Railway is up, so the session ledger stays consistent
 
-That preserves the operator's last-resort control even if Railway is down with positions open. The local console must therefore have its own copy of `KRAKEN_API_KEY` / `KRAKEN_API_SECRET` in `console/.env`.
+That preserves the operator's last-resort control even if Railway is down with positions open. Aureon-Leto must therefore have its own copy of `KRAKEN_API_KEY` / `KRAKEN_API_SECRET` in `aureon-leto/.env`.
 
 ---
 
@@ -150,6 +147,6 @@ That preserves the operator's last-resort control even if Railway is down with p
 
 ## What's gitignored
 
-`console/.env`, `console/dsor_archive/`, `console/sam_inbox/`, `console/sam_outbox/`, `*.pyc`, `__pycache__/`, `console/console.log`.
+`aureon-leto/.env`, `aureon-leto/dsor_archive/`, `aureon-leto/sam_inbox/`, `aureon-leto/sam_outbox/`, `*.pyc`, `__pycache__/`, `aureon-leto/console.log`.
 
 Operational state (real Kraken keys, raw DSOR exports, task queues) stays out of the repo.

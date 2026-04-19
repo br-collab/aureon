@@ -1,5 +1,5 @@
 """
-CAOM-001 Operator Console — local Flask backend on port 5002.
+Aureon-Leto — CAOM-001 Operator Console — local Flask backend on port 5002.
 
 Single pane of glass for everything Sam executes on the operator's behalf.
 Health-monitored proxy to Railway production, direct Kraken bypass for
@@ -33,7 +33,7 @@ from typing import Optional
 from flask import Flask, Response, jsonify, request, send_from_directory
 
 # ─────────────────────────────────────────────────────────────────
-# CONFIG — load console/.env (no python-dotenv dependency)
+# CONFIG — load aureon-leto/.env (no python-dotenv dependency)
 # ─────────────────────────────────────────────────────────────────
 
 ROOT = Path(__file__).resolve().parent
@@ -70,9 +70,9 @@ for d in (DSOR_ARCHIVE, SAM_INBOX, SAM_OUTBOX):
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [CONSOLE] %(levelname)s %(message)s",
+    format="%(asctime)s [LETO] %(levelname)s %(message)s",
 )
-log = logging.getLogger("console")
+log = logging.getLogger("leto")
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -254,7 +254,7 @@ def _check_github() -> None:
     code, lat, err = _http_ping(
         f"https://api.github.com/repos/{GITHUB_REPO}/commits?per_page=1",
         timeout=6.0,
-        headers={"Accept": "application/vnd.github+json", "User-Agent": "caom-001-console"},
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "aureon-leto"},
     )
     s = HEALTH["github"]
     s.last_checked = _now_iso()
@@ -648,5 +648,5 @@ if __name__ == "__main__":
     if not (KRAKEN_API_KEY and KRAKEN_API_SECRET):
         log.warning("KRAKEN credentials not set — auth health check will report DOWN, kill-switch direct call will fail.")
     _start_health_thread()
-    log.info(f"CAOM-001 console listening on http://127.0.0.1:{PORT}")
+    log.info(f"Aureon-Leto listening on http://127.0.0.1:{PORT}")
     app.run(host="127.0.0.1", port=PORT, debug=False, use_reloader=False, threaded=True)
