@@ -373,32 +373,16 @@ class ThifurHGates:
                                 GateResult.PASS, signal.signal_id,
                                 f"CAOM-001 operator approved at {signal.approval_timestamp} (pre-gate stamp)")
 
-        # Sandbox HITL simulation
-        print(f"\n{'='*60}")
-        print(f"  THIFUR-H HITL GATE — HUMAN APPROVAL REQUIRED")
-        print(f"{'='*60}")
-        print(f"  Signal ID : {signal.signal_id}")
-        print(f"  Symbol    : {signal.symbol}")
-        print(f"  Side      : {signal.side.upper()}")
-        print(f"  Price     : ${signal.suggested_price:,.2f}")
-        print(f"  Qty       : {signal.suggested_qty} BTC")
-        print(f"  Value     : ${signal.suggested_price * signal.suggested_qty:.2f}")
-        print(f"  Rationale : {signal.rationale[:80]}...")
-        print(f"  Confidence: {signal.confidence:.0%}")
-        print(f"{'='*60}")
-        response = input("  APPROVE order? [y/N]: ").strip().lower()
-        print(f"{'='*60}\n")
-
-        if response == "y":
-            return self._record("G5", "HITL",
-                                GateResult.PASS, signal.signal_id,
-                                "CAOM-001 operator approved at HITL gate")
         return self._record("G5", "HITL",
-                            GateResult.HOLD, signal.signal_id,
-                            "CAOM-001 operator declined at HITL gate — order held")
+                            GateResult.BLOCK, signal.signal_id,
+                            "CAOM-001 approval missing — signal cannot pass HITL")
 
     def run_all_gates(self, signal: AtroxSignal) -> tuple[GateResult, list[GateRecord]]:
-        """Run all five gates in sequence. First failure terminates the chain."""
+        """
+        Evaluate all five gates regardless of intermediate failures.
+        Every gate is recorded for SR 11-7 evidence completeness.
+        Final decision: first non-PASS result if any, else PASS.
+        """
         gates = [
             self.gate1_caom_authorization,
             self.gate2_symbol_whitelist,
@@ -407,13 +391,14 @@ class ThifurHGates:
             self.gate5_hitl,
         ]
         records = []
+        final_result = GateResult.PASS
         for gate_fn in gates:
             rec = gate_fn(signal)
             records.append(rec)
-            if rec.result != GateResult.PASS:
-                logger.warning(f"Gate chain terminated at {rec.gate_name} → {rec.result.value}")
-                return rec.result, records
-        return GateResult.PASS, records
+            if rec.result != GateResult.PASS and final_result == GateResult.PASS:
+                final_result = rec.result
+                logger.warning(f"Gate {rec.gate_name} → {rec.result.value} (continuing for evidence)")
+        return final_result, records
 
 
 # ─────────────────────────────────────────────

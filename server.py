@@ -8059,6 +8059,14 @@ def thifur_h_generate_signal():
         signal.suggested_price = round(live_price * (1 + offset), 1)
         signal.symbol = "XBTUSD"
         signal.suggested_qty = ThifurHDoctrineLive.MAX_ORDER_QTY_BTC
+        actual_position_usd = round(signal.suggested_price * signal.suggested_qty, 2)
+        signal.rationale = (
+            f"Live execution against Kraken. {signal.symbol} {signal.side} "
+            f"{signal.suggested_qty} @ limit ${signal.suggested_price} "
+            f"(0.1% {'below' if side == 'buy' else 'above'} live market ${live_price}). "
+            f"Position size ${actual_position_usd} within ${ThifurHDoctrineLive.MAX_POSITION_USD} live doctrine cap. "
+            f"Post-only — no immediate fill."
+        )
     _pending_signal = signal
     return jsonify({"status": "pending_caom_approval", "signal_id": signal.signal_id, "symbol": signal.symbol, "side": signal.side, "price": signal.suggested_price, "qty": signal.suggested_qty, "position_usd": round(signal.suggested_price * signal.suggested_qty, 2), "rationale": signal.rationale, "next_step": "POST /api/thifur-h/approve"})
 
