@@ -505,7 +505,8 @@ class ThifurH:
             logger.error(f"Order placement failed: {order_response}")
             return {"result": "ORDER_ERROR", "error": order_response}
 
-        order_id = order_response.get("order_id", "UNKNOWN")
+        kraken_txids = (order_response.get("result") or {}).get("txid") or []
+        order_id = kraken_txids[0] if kraken_txids else order_response.get("order_id", "UNKNOWN")
         self.ledger.orders_placed += 1
         self.ledger.open_positions[order_id] = {
             "signal_id": signal.signal_id,
