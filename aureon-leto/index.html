@@ -97,6 +97,12 @@ main.grid {
 .tile .value.amber { color: var(--amber); }
 .tile .value.red { color: var(--red); }
 .tile .sub { color: var(--text-mute); font-size: 10px; margin-top: 2px; }
+.tile .market-row { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; border-bottom: 1px dotted var(--border); }
+.tile .market-row:last-of-type { border-bottom: 0; }
+.tile .market-row .rail { color: var(--text-dim); font-size: 11px; }
+.tile .market-row .state { font-size: 12px; letter-spacing: 0.05em; color: var(--text-mute); }
+.tile .market-row .state.green { color: var(--green); }
+.tile .market-row .state.red { color: var(--red); }
 
 /* HEALTH */
 .health-row {
@@ -341,8 +347,9 @@ button.kill:active { transform: translateY(1px); }
         <div class="sub">thifur-h</div>
       </div>
       <div class="tile">
-        <div class="label">Market</div>
-        <div class="value" id="m-market">—</div>
+        <div class="label">Markets</div>
+        <div class="market-row"><span class="rail">Digital Assets</span><span class="state green" id="m-market-crypto">OPEN</span></div>
+        <div class="market-row"><span class="rail">Equities</span><span class="state" id="m-market-equities">—</span></div>
         <div class="sub" id="m-market-day"></div>
       </div>
       <div class="tile">
@@ -556,8 +563,11 @@ async function pollSnapshot() {
     $('m-portfolio').textContent = fmt$Big(d.portfolio_value);
     $('m-pnl').textContent = fmtPct(d.pnl_pct);
     $('m-pnl').className = 'value ' + ((d.pnl_pct ?? 0) >= 0 ? 'green' : 'red');
-    $('m-market').textContent = d.market_open ? 'OPEN' : 'CLOSED';
-    $('m-market').className = 'value ' + (d.market_open ? 'green' : '');
+    const eq = $('m-market-equities');
+    if (eq) {
+      eq.textContent = d.market_open ? 'OPEN' : 'CLOSED';
+      eq.className = 'state ' + (d.market_open ? 'green' : 'red');
+    }
     $('m-alerts').textContent = d.alerts ?? 0;
     $('m-alerts').className = 'value ' + ((d.alerts ?? 0) > 0 ? 'red' : '');
   } catch (e) { console.error('snapshot', e); }

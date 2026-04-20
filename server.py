@@ -8035,7 +8035,7 @@ def thifur_h_start_session():
     if error:
         return jsonify({"status": "error", "message": error}), 500
     _thifur_h_session = engine
-    return jsonify({"status": "ok", "session_id": engine.session_id, "doctrine": {"max_position_usd": ThifurHDoctrineLive.MAX_POSITION_USD, "max_session_loss_usd": ThifurHDoctrineLive.MAX_SESSION_LOSS_USD, "hitl_required": ThifurHDoctrineLive.HITL_REQUIRED, "allowed_symbols": list(ThifurHDoctrineLive.ALLOWED_SYMBOLS)}})
+    return jsonify({"status": "ok", "session_id": engine.session_id, "doctrine": {"market_rail": ThifurHDoctrineLive.MARKET_RAIL, "max_position_usd": ThifurHDoctrineLive.MAX_POSITION_USD, "max_session_loss_usd": ThifurHDoctrineLive.MAX_SESSION_LOSS_USD, "hitl_required": ThifurHDoctrineLive.HITL_REQUIRED, "allowed_symbols": list(ThifurHDoctrineLive.ALLOWED_SYMBOLS)}})
 
 @app.route("/api/thifur-h/signal", methods=["POST"])
 def thifur_h_generate_signal():
