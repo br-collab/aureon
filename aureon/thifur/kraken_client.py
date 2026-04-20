@@ -43,13 +43,17 @@ class ThifurHDoctrineLive:
     SANDBOX_ONLY: bool = False          # Live account
     ALLOWED_SYMBOLS: tuple = ("XBTUSD",)  # Kraken BTC symbol
     ALLOWED_SIDES: tuple = ("buy", "sell")
-    ALLOWED_ORDER_TYPES: tuple = ("limit",)
+    ALLOWED_ORDER_TYPES: tuple = ("limit", "market")  # market only via STOP_ALLOW_MARKET path
     # Rail discipline: this doctrine governs digital-asset execution only.
     # Equities trading hours (NYSE calendar / market_open snapshot field)
     # MUST NOT be applied as a gate against this rail. Crypto is 24/7;
     # the only "is the market open" check that applies here is exchange
     # connectivity, enforced by the health monitor's circuit breaker.
     MARKET_RAIL: str = "digital_assets"
+    # Stop discipline: market orders permitted ONLY for stop-loss execution.
+    # Any code path placing a market order outside the stop path is a
+    # doctrine breach — limit-only is the default for entries and profit-takes.
+    STOP_ALLOW_MARKET: bool = True
 
 
 class KrakenLiveClient:
@@ -153,6 +157,34 @@ class KrakenLiveClient:
         }
         result = self._post("/0/private/AddOrder", data)
         logger.info(f"Kraken order placed: {result}")
+        return result
+
+    def place_market_order(
+        self,
+        symbol: str,
+        side: str,
+        quantity: str,
+        client_order_id: str,
+    ) -> dict:
+        """
+        Market order — restricted by doctrine to stop-loss execution only.
+        Caller must verify STOP_ALLOW_MARKET before invoking.
+        """
+        assert symbol in ThifurHDoctrineLive.ALLOWED_SYMBOLS, \
+            f"DOCTRINE BREACH: {symbol} not in whitelist"
+        assert side in ThifurHDoctrineLive.ALLOWED_SIDES, \
+            f"DOCTRINE BREACH: side {side} not allowed"
+        assert ThifurHDoctrineLive.STOP_ALLOW_MARKET, \
+            "DOCTRINE BREACH: market orders disabled by STOP_ALLOW_MARKET=False"
+        data = {
+            "ordertype": "market",
+            "type": side,
+            "volume": quantity,
+            "pair": symbol,
+            "userref": int(hashlib.sha256(client_order_id.encode()).hexdigest(), 16) % (2**31),
+        }
+        result = self._post("/0/private/AddOrder", data)
+        logger.warning(f"Kraken MARKET order placed: {result}")
         return result
 
     def cancel_order(self, txid: str) -> dict:
