@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Aureon-Leto · CAOM-001 Operator Console</title>
+<title>Aureon-Leto</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 :root {
@@ -776,12 +776,27 @@ $('btn-sam-submit').onclick = async () => {
   const r = await jsonPost('/api/sam/task', {task: text});
   if (r.json.task_id) {
     $('sam-task-input').value = '';
-    alert('Task queued.\n\nDispatch by pasting in Claude Code:\n\n' + r.json.paste_hint);
+    if (!r.json.auto_dispatched) {
+      alert('Task queued (no API key).\n\nDispatch by pasting in Claude Code:\n\n' + r.json.paste_hint);
+    }
     pollSamTasks();
   } else {
     alert('Task submit failed: ' + JSON.stringify(r.json));
   }
 };
+
+async function pollKrakenBalance() {
+  try {
+    const r = await fetch('/api/kraken/balance');
+    if (!r.ok) return;
+    const j = await r.json();
+    if (j.zusd != null) {
+      $('m-livebal').textContent = '$' + Number(j.zusd).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+  } catch (e) { /* silently keep last */ }
+}
+pollKrakenBalance();
+setInterval(pollKrakenBalance, 30000);
 
 // --- POLL LOOPS ---
 pollSnapshot();

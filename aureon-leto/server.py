@@ -61,6 +61,8 @@ VERCEL_URL = os.environ.get("VERCEL_URL", "").rstrip("/")
 TWELVE_DATA_API_KEY = os.environ.get("TWELVE_DATA_API_KEY", "")
 PORT = int(os.environ.get("CONSOLE_PORT", "5002"))
 HEALTH_INTERVAL = int(os.environ.get("HEALTH_INTERVAL", "30"))
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 
 DSOR_ARCHIVE = ROOT / "dsor_archive"
 SAM_INBOX = ROOT / "sam_inbox"
@@ -578,6 +580,115 @@ def api_dsor_archive_file(name: str):
 
 # ── Sam command surface — file queue ───────────────────────────────
 
+_kraken_balance_cache = {"ts": 0.0, "payload": None}
+
+
+@app.route("/api/kraken/balance")
+def api_kraken_balance():
+    """30s-cached Kraken balance. UI uses this for the LIVE ACCT tile."""
+    now = time.time()
+    if _kraken_balance_cache["payload"] is None or (now - _kraken_balance_cache["ts"]) > 30:
+        res = KRAKEN.get_balance()
+        if not res.get("error"):
+            _kraken_balance_cache["payload"] = res.get("result", {})
+            _kraken_balance_cache["ts"] = now
+        else:
+            return jsonify({"error": res.get("error", []), "ts": _now_iso()}), 502
+    bal = _kraken_balance_cache["payload"] or {}
+    zusd = float(bal.get("ZUSD", 0))
+    xxbt = float(bal.get("XXBT", 0))
+    return jsonify({
+        "zusd": zusd,
+        "xxbt": xxbt,
+        "all": bal,
+        "cached_at": datetime.fromtimestamp(_kraken_balance_cache["ts"], tz=timezone.utc).isoformat(),
+        "ts": _now_iso(),
+    })
+
+
+# ─────────────────────────────────────────────────────────────────
+# CLAUDE API DISPATCH — auto-respond to Sam tasks via Anthropic API
+# Optional: requires ANTHROPIC_API_KEY in environment.
+# Runs on a background thread per task; writes outbox when done.
+# This Sam is a stateless API instance — different from a Claude Code
+# session. Good for status/Q&A. Tasks needing real shell/file/git work
+# still need to be dispatched to Claude Code via the inbox path.
+# ─────────────────────────────────────────────────────────────────
+
+_SAM_SYSTEM_PROMPT = """You are Sam, the Claude-grade agent surface that the CAOM-001 operator dispatches through the Aureon-Leto operator console.
+
+Context:
+  - Aureon = doctrine-governed pre-trade governance + execution-intelligence platform
+  - Aureon-Leto = the local operator console (port 5002) the operator is using right now
+  - CAOM-001 = single-operator authority pattern (Consolidated Authority Operating Mode)
+  - Thifur-H = Phase 2 adaptive execution layer running live against Kraken (5-gate governance, $10/$5 caps, XBTUSD only)
+
+Operator preferences (load-bearing):
+  - BLUF (bottom line up front), no sycophancy, spell out acronyms first time
+  - Honest > polished: raw observations beat smooth narrative
+  - Operator runs Python only; if you reference other code, translate to Python intent
+  - Don't ask permission between sub-steps once a directional yes is given
+  - You do NOT have shell, git, file-write, or deploy access in this dispatch path. If a task requires those, say so explicitly and tell the operator to dispatch via Claude Code chat with the inbox path.
+
+Output: be concrete and tight. If the task is a question, answer it. If the task asks for action you can't take, say so in one sentence and stop."""
+
+
+def _dispatch_to_claude(task_id: str, task_text: str) -> None:
+    """Background: call Anthropic API, write structured outbox JSON when done."""
+    try:
+        body = {
+            "model": ANTHROPIC_MODEL,
+            "max_tokens": 1024,
+            "system": _SAM_SYSTEM_PROMPT,
+            "messages": [{"role": "user", "content": task_text}],
+        }
+        req = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=json.dumps(body).encode(),
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=60) as r:
+            payload = json.loads(r.read())
+        text = "".join(b.get("text", "") for b in payload.get("content", []) if b.get("type") == "text")
+        usage = payload.get("usage", {})
+        result = {
+            "status": "complete",
+            "summary": text.strip(),
+            "actions_taken": [],
+            "follow_ups": [],
+            "dispatched_via": "anthropic_api",
+            "model": payload.get("model", ANTHROPIC_MODEL),
+            "tokens": {"in": usage.get("input_tokens"), "out": usage.get("output_tokens")},
+            "ts": _now_iso(),
+        }
+    except urllib.error.HTTPError as e:
+        try:
+            err_body = json.loads(e.read())
+        except Exception:
+            err_body = {"error": str(e)}
+        result = {
+            "status": "error",
+            "summary": f"Anthropic API HTTP {e.code}: {err_body}",
+            "dispatched_via": "anthropic_api",
+            "ts": _now_iso(),
+        }
+    except Exception as e:
+        result = {
+            "status": "error",
+            "summary": f"Dispatch failed: {type(e).__name__}: {e}",
+            "dispatched_via": "anthropic_api",
+            "ts": _now_iso(),
+        }
+    out = SAM_OUTBOX / f"task-{task_id}.json"
+    out.write_text(json.dumps(result, indent=2))
+    log.info(f"SAM api dispatch complete: {task_id} -> {result.get('status')}")
+
+
 @app.route("/api/sam/task", methods=["POST"])
 def api_sam_task():
     body = request.get_json(silent=True) or {}
@@ -590,10 +701,22 @@ def api_sam_task():
         f"# Task {task_id}\n\nSubmitted: {_now_iso()}\nStatus: pending\n\n## Body\n\n{text}\n"
     )
     log.info(f"SAM task created: {fname.name}")
+
+    auto = bool(ANTHROPIC_API_KEY)
+    if auto:
+        threading.Thread(
+            target=_dispatch_to_claude,
+            args=(task_id, text),
+            daemon=True,
+            name=f"sam-dispatch-{task_id}",
+        ).start()
+
     return jsonify({
         "task_id": task_id,
         "inbox_path": str(fname),
         "paste_hint": f"Read and execute: {fname}",
+        "auto_dispatched": auto,
+        "model": ANTHROPIC_MODEL if auto else None,
         "ts": _now_iso(),
     })
 
