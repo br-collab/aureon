@@ -8118,10 +8118,36 @@ def thifur_h_session_status():
 
 @app.route("/api/thifur-h/dsor", methods=["GET"])
 def thifur_h_dsor_export():
-    if not _thifur_h_session:
-        return jsonify({"status": "no_session"}), 404
-    import json as _json
-    return jsonify(_json.loads(_thifur_h_session.export_dsor()))
+    """
+    DSOR with three-layer fallback for SR 11-7 evidence continuity:
+      1. In-memory active session (live state) — preferred
+      2. Most recent /data/dsor/ archive file (survives Railway restarts)
+      3. 404 only if both are empty
+    """
+    import json as _json, os as _os, pathlib as _pathlib
+    if _thifur_h_session:
+        return jsonify(_json.loads(_thifur_h_session.export_dsor()))
+    try:
+        base = _os.environ.get("RAILWAY_VOLUME_MOUNT_PATH", "/data")
+        vol_dir = _pathlib.Path(base) / "dsor"
+        if vol_dir.exists():
+            files = sorted(vol_dir.glob("dsor_*.json"),
+                           key=lambda p: p.stat().st_mtime, reverse=True)
+            if files:
+                latest = files[0]
+                payload = _json.loads(latest.read_text())
+                return jsonify({
+                    "_source": "volume_archive",
+                    "_archive_file": latest.name,
+                    "_archive_mtime": datetime.fromtimestamp(latest.stat().st_mtime, tz=timezone.utc).isoformat(),
+                    **payload,
+                })
+    except Exception as e:
+        return jsonify({"status": "fallback_error", "error": f"{type(e).__name__}: {e}"}), 500
+    return jsonify({
+        "status": "no_session",
+        "message": "No active Thifur-H session and no archived DSOR on volume.",
+    }), 404
 
 @app.route("/api/thifur-h/balance", methods=["GET"])
 def thifur_h_balance():

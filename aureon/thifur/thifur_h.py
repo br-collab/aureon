@@ -538,6 +538,7 @@ class ThifurH:
         """
         MiFID II RTS 6 kill switch.
         Cancels ALL open session orders. Halts session.
+        Persists DSOR to Railway Volume so the evidence survives restarts.
         """
         logger.critical(f"KILL SWITCH ENGAGED | reason={reason}")
         self.ledger.state = SessionState.HALTED
@@ -546,6 +547,10 @@ class ThifurH:
                    {"reason": reason, "response": response,
                     "open_positions_at_halt": dict(self.ledger.open_positions)})
         self.ledger.open_positions.clear()
+        try:
+            self.export_dsor(to_volume=True)
+        except Exception as e:
+            logger.error(f"DSOR persist on kill failed: {type(e).__name__}: {e}")
         return response
 
     def get_balances(self) -> list:
@@ -580,8 +585,16 @@ class ThifurH:
             },
         }
 
-    def export_dsor(self, path: str = None) -> str:
-        """Export full DSOR as JSON for audit and SR 11-7 evidence packaging."""
+    def export_dsor(self, path: str = None, to_volume: bool = False) -> str:
+        """
+        Export full DSOR as JSON for audit and SR 11-7 evidence packaging.
+
+        path: optional explicit file path to write the export to.
+        to_volume: if True, also persists to the Railway volume at
+                   $RAILWAY_VOLUME_MOUNT_PATH/dsor/dsor_{session_id}_{ts}.json
+                   (defaults to /data/dsor on Railway). Survives restarts.
+        """
+        import os, pathlib
         export = {
             "session_summary": self.session_report(),
             "gate_records": self.ledger.gate_records,
@@ -589,8 +602,20 @@ class ThifurH:
             "open_positions": self.ledger.open_positions,
             "exported_at": datetime.now(timezone.utc).isoformat(),
         }
+        body = json.dumps(export, indent=2, cls=_DSOREncoder)
         if path:
             with open(path, "w") as f:
-                json.dump(export, f, indent=2, cls=_DSOREncoder)
+                f.write(body)
             logger.info(f"DSOR exported → {path}")
-        return json.dumps(export, indent=2, cls=_DSOREncoder)
+        if to_volume:
+            try:
+                base = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH", "/data")
+                vol_dir = pathlib.Path(base) / "dsor"
+                vol_dir.mkdir(parents=True, exist_ok=True)
+                ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+                vol_path = vol_dir / f"dsor_{self.session_id}_{ts}.json"
+                vol_path.write_text(body)
+                logger.info(f"DSOR persisted to volume: {vol_path}")
+            except Exception as e:
+                logger.error(f"DSOR volume persist failed: {type(e).__name__}: {e}")
+        return body
