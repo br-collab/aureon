@@ -250,7 +250,14 @@ button.hitl:disabled { opacity: 0.3; cursor: not-allowed; }
   background: var(--panel-2); border: 1px solid var(--border);
   padding: 10px; border-radius: 3px; margin-bottom: 8px;
 }
-.sam-task .head { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-mute); margin-bottom: 4px; }
+.sam-task .head { display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--text-mute); margin-bottom: 4px; }
+.sam-task .head .right { display: flex; align-items: center; gap: 8px; }
+.task-x {
+  background: none; border: none; color: var(--text-mute);
+  cursor: pointer; padding: 0 2px; font-size: 12px; line-height: 1;
+  font-family: inherit; transition: color 0.1s;
+}
+.task-x:hover { color: var(--red); }
 .sam-task .body { font-size: 12px; color: var(--text); white-space: pre-wrap; }
 .sam-task .status { font-size: 10px; padding: 2px 6px; border-radius: 2px; }
 .sam-task .status.pending { color: var(--amber); border: 1px solid var(--amber-dim); }
@@ -761,13 +768,25 @@ function renderSamTasks(j) {
     div.innerHTML = `
       <div class="head">
         <span>${t.task_id}</span>
-        <span class="status ${status}">${status}</span>
+        <div class="right">
+          <span class="status ${status}">${status}</span>
+          <button class="task-x" data-tid="${t.task_id}" title="dismiss">✕</button>
+        </div>
       </div>
       <div class="body">${bodyOnly.replace(/</g,'&lt;')}</div>
       ${result ? `<div class="result">${result.replace(/</g,'&lt;').slice(0, 800)}</div>` : ''}
     `;
     c.appendChild(div);
   }
+  c.querySelectorAll('.task-x').forEach(btn => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      const tid = btn.dataset.tid;
+      btn.disabled = true;
+      await fetch('/api/sam/task/' + encodeURIComponent(tid), {method: 'DELETE'});
+      pollSamTasks();
+    };
+  });
 }
 
 $('btn-sam-submit').onclick = async () => {

@@ -758,6 +758,19 @@ def api_sam_result(task_id: str):
     return jsonify({"status": "ok", "outbox_path": str(out)})
 
 
+@app.route("/api/sam/task/<task_id>", methods=["DELETE"])
+def api_sam_task_delete(task_id: str):
+    """Remove a task from inbox + outbox. Operator-driven cleanup."""
+    if "/" in task_id or ".." in task_id:
+        return jsonify({"error": "invalid task_id"}), 400
+    removed = []
+    for p in (SAM_INBOX / f"task-{task_id}.md", SAM_OUTBOX / f"task-{task_id}.json"):
+        if p.exists():
+            p.unlink()
+            removed.append(p.name)
+    return jsonify({"status": "ok", "removed": removed})
+
+
 # ─────────────────────────────────────────────────────────────────
 # BOOT
 # ─────────────────────────────────────────────────────────────────
