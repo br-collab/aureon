@@ -70,6 +70,9 @@ class ThifurHDoctrine:
     ALLOWED_SIDES: tuple = ("buy", "sell")
     ALLOWED_ORDER_TYPES: tuple = ("limit",) # No market orders in sandbox
     CANCEL_ON_DISCONNECT: bool = True       # Native Gemini circuit breaker
+    # Rail discipline: sandbox is also a digital-asset rail (Gemini BTCUSD).
+    # Equities trading hours do not apply. Same posture as ThifurHDoctrineLive.
+    MARKET_RAIL: str = "digital_assets"
 
 
 # ─────────────────────────────────────────────
@@ -576,6 +579,7 @@ class ThifurH:
             "gate_records_count": len(self.ledger.gate_records),
             "dsor_entries_count": len(self.ledger.dsor_entries),
             "doctrine": {
+                "market_rail": getattr(self.doctrine, "MARKET_RAIL", "unspecified"),
                 "max_position_usd": self.doctrine.MAX_POSITION_USD,
                 "max_session_loss_usd": self.doctrine.MAX_SESSION_LOSS_USD,
                 "max_orders": self.doctrine.MAX_ORDERS_PER_SESSION,

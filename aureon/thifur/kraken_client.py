@@ -44,6 +44,12 @@ class ThifurHDoctrineLive:
     ALLOWED_SYMBOLS: tuple = ("XBTUSD",)  # Kraken BTC symbol
     ALLOWED_SIDES: tuple = ("buy", "sell")
     ALLOWED_ORDER_TYPES: tuple = ("limit",)
+    # Rail discipline: this doctrine governs digital-asset execution only.
+    # Equities trading hours (NYSE calendar / market_open snapshot field)
+    # MUST NOT be applied as a gate against this rail. Crypto is 24/7;
+    # the only "is the market open" check that applies here is exchange
+    # connectivity, enforced by the health monitor's circuit breaker.
+    MARKET_RAIL: str = "digital_assets"
 
 
 class KrakenLiveClient:
