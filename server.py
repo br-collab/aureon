@@ -8010,6 +8010,91 @@ _thifur_h_session = None
 _pending_signal = None
 _atrox_generator = AtroxSandboxSignalGenerator()
 
+# ── Atrox Live (automated 5-min signal loop) — see aureon/thifur/atrox_live.py
+from aureon.thifur.atrox_live import AtroxLive as _AtroxLive
+import pathlib as _pathlib
+from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+
+# Auto-close policy: operator-armed, time- and cycle-bounded
+_auto_close_policy = {
+    "armed": False,
+    "armed_at": None,
+    "valid_until": None,
+    "max_cycles": 0,
+    "cycles_used": 0,
+    "armed_for_session": None,
+}
+
+def _auto_close_armed_check() -> bool:
+    if not _auto_close_policy.get("armed"):
+        return False
+    if _thifur_h_session is None or _auto_close_policy.get("armed_for_session") != _thifur_h_session.session_id:
+        return False
+    valid_until = _auto_close_policy.get("valid_until")
+    if valid_until and _dt.now(_tz.utc) > _dt.fromisoformat(valid_until.replace("Z", "+00:00")):
+        return False
+    if _auto_close_policy.get("cycles_used", 0) >= _auto_close_policy.get("max_cycles", 0):
+        return False
+    return True
+
+def _auto_close_consume_cycle() -> bool:
+    if not _auto_close_armed_check():
+        return False
+    _auto_close_policy["cycles_used"] = _auto_close_policy.get("cycles_used", 0) + 1
+    return True
+
+def _atrox_set_pending(sig):
+    global _pending_signal
+    _pending_signal = sig
+
+def _atrox_get_pending():
+    return _pending_signal
+
+def _atrox_get_session():
+    return _thifur_h_session
+
+def _atrox_kraken_price(pair: str) -> float:
+    if _thifur_h_session and hasattr(_thifur_h_session, "exchange"):
+        try:
+            return _thifur_h_session.exchange.get_current_price(pair)
+        except Exception:
+            return 0.0
+    return 0.0
+
+def _atrox_execute_close(signal, kind: str, force_market: bool) -> dict:
+    if _thifur_h_session is None:
+        return {"result": "BLOCKED", "reason": "no session"}
+    return _thifur_h_session.process_close_signal(signal, kind=kind, force_market=force_market)
+
+# Persistence path on Railway volume; falls back to local for dev
+_THIFUR_STATE_PATH = _pathlib.Path(os.environ.get("RAILWAY_VOLUME_MOUNT_PATH", "/data")) / "thifur_h_state.json"
+
+def _persist_thifur_state():
+    try:
+        _THIFUR_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        snap = {
+            "saved_at": _dt.now(_tz.utc).isoformat(),
+            "auto_close_policy": dict(_auto_close_policy),
+            "atrox": _atrox_live.snapshot() if _atrox_live else None,
+        }
+        tmp = _THIFUR_STATE_PATH.with_suffix(".tmp")
+        tmp.write_text(json.dumps(snap, indent=2, default=str))
+        tmp.replace(_THIFUR_STATE_PATH)
+    except Exception as e:
+        print(f"[thifur_state] persist failed: {e}", flush=True)
+
+_atrox_live = _AtroxLive(
+    get_session=_atrox_get_session,
+    get_kraken_price=_atrox_kraken_price,
+    set_pending_signal=_atrox_set_pending,
+    get_pending_signal=_atrox_get_pending,
+    is_auto_close_armed=_auto_close_armed_check,
+    consume_auto_close_cycle=_auto_close_consume_cycle,
+    execute_close_signal=_atrox_execute_close,
+    persist_state=_persist_thifur_state,
+)
+_atrox_live.start()
+
 def _get_kraken_engine():
     from aureon.thifur.thifur_h import SessionLedger, ThifurHGates
     from datetime import datetime, timezone
@@ -8148,6 +8233,64 @@ def thifur_h_dsor_export():
         "status": "no_session",
         "message": "No active Thifur-H session and no archived DSOR on volume.",
     }), 404
+
+@app.route("/api/thifur-h/auto-close/arm", methods=["POST"])
+def thifur_h_auto_close_arm():
+    """
+    Operator arms the auto-close policy for the active session.
+    Body: { "minutes": 60, "max_cycles": 20 }
+    Within (now, now+minutes) and up to max_cycles, SELL/STOP signals
+    auto-execute without HITL. BUYS still require explicit operator approval.
+    """
+    if _thifur_h_session is None:
+        return jsonify({"status": "error", "message": "No active session"}), 400
+    body = request.get_json(silent=True) or {}
+    minutes = int(body.get("minutes", 60))
+    max_cycles = int(body.get("max_cycles", 20))
+    now = _dt.now(_tz.utc)
+    _auto_close_policy["armed"] = True
+    _auto_close_policy["armed_at"] = now.isoformat()
+    _auto_close_policy["valid_until"] = (now + _td(minutes=minutes)).isoformat()
+    _auto_close_policy["max_cycles"] = max_cycles
+    _auto_close_policy["cycles_used"] = 0
+    _auto_close_policy["armed_for_session"] = _thifur_h_session.session_id
+    try:
+        _thifur_h_session._dsor("CLOSE_POLICY_ARMED", "POLICY",
+                                {"policy": dict(_auto_close_policy)})
+    except Exception:
+        pass
+    _persist_thifur_state()
+    return jsonify({"status": "armed", "policy": dict(_auto_close_policy)})
+
+
+@app.route("/api/thifur-h/auto-close/disarm", methods=["POST"])
+def thifur_h_auto_close_disarm():
+    was_armed = _auto_close_policy.get("armed")
+    _auto_close_policy["armed"] = False
+    if _thifur_h_session is not None and was_armed:
+        try:
+            _thifur_h_session._dsor("CLOSE_POLICY_DISARMED", "POLICY",
+                                    {"policy": dict(_auto_close_policy)})
+        except Exception:
+            pass
+    _persist_thifur_state()
+    return jsonify({"status": "disarmed", "previous_armed": bool(was_armed)})
+
+
+@app.route("/api/thifur-h/state", methods=["GET"])
+def thifur_h_state():
+    """
+    Atrox Live + auto-close policy state. UI uses this to render strategy panel.
+    """
+    return jsonify({
+        "atrox": _atrox_live.snapshot() if _atrox_live else None,
+        "auto_close_policy": dict(_auto_close_policy),
+        "auto_close_currently_active": _auto_close_armed_check(),
+        "session_state": _thifur_h_session.ledger.state.value if _thifur_h_session else None,
+        "session_report": _thifur_h_session.session_report() if _thifur_h_session else None,
+        "ts": _dt.now(_tz.utc).isoformat(),
+    })
+
 
 @app.route("/api/thifur-h/balance", methods=["GET"])
 def thifur_h_balance():
