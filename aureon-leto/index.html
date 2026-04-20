@@ -262,7 +262,15 @@ button.hitl:disabled { opacity: 0.3; cursor: not-allowed; }
 .sam-task .status { font-size: 10px; padding: 2px 6px; border-radius: 2px; }
 .sam-task .status.pending { color: var(--amber); border: 1px solid var(--amber-dim); }
 .sam-task .status.complete { color: var(--green); border: 1px solid var(--green-dim); }
-.sam-task .result { font-size: 11px; color: var(--text-dim); margin-top: 6px; padding-top: 6px; border-top: 1px dotted var(--border); white-space: pre-wrap; }
+.sam-task .result { font-size: 12px; color: var(--text); margin-top: 8px; padding-top: 8px; border-top: 1px dotted var(--border); line-height: 1.55; }
+.sam-task .result p { margin: 0 0 8px; }
+.sam-task .result p:last-child { margin-bottom: 0; }
+.sam-task .result strong { color: var(--amber); font-weight: 600; }
+.sam-task .result em { color: var(--text); font-style: italic; }
+.sam-task .result ol, .sam-task .result ul { margin: 4px 0 8px; padding-left: 22px; }
+.sam-task .result li { margin-bottom: 3px; }
+.sam-task .result code { background: var(--panel-2); padding: 1px 5px; border-radius: 2px; font-size: 11px; color: var(--green); }
+.sam-task .result.err strong, .sam-task .result.err { color: var(--red); }
 .sam-help { color: var(--text-mute); font-size: 10px; margin-top: 6px; line-height: 1.5; }
 
 /* KILL SWITCH FOOTER */
@@ -751,6 +759,37 @@ async function pollSamTasks() {
   } catch (e) { console.error('sam', e); }
 }
 
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  let s = escapeHtml(text);
+  // split into blocks on blank lines
+  const blocks = s.split(/\n\s*\n/);
+  const html = blocks.map(block => {
+    const lines = block.split('\n').map(l => l.replace(/\s+$/, ''));
+    if (lines.length && lines.every(l => /^\d+\.\s/.test(l))) {
+      return '<ol>' + lines.map(l => '<li>' + l.replace(/^\d+\.\s+/, '') + '</li>').join('') + '</ol>';
+    }
+    if (lines.length && lines.every(l => /^[-*]\s/.test(l))) {
+      return '<ul>' + lines.map(l => '<li>' + l.replace(/^[-*]\s+/, '') + '</li>').join('') + '</ul>';
+    }
+    if (lines.every(l => /^#{1,6}\s/.test(l))) {
+      return lines.map(l => {
+        const m = l.match(/^(#{1,6})\s+(.*)$/);
+        return '<p><strong>' + m[2] + '</strong></p>';
+      }).join('');
+    }
+    return '<p>' + lines.join('<br>') + '</p>';
+  }).join('');
+  return html
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|\W)\*([^*\n]+)\*(\W|$)/g, '$1<em>$2</em>$3')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>');
+}
+
 function renderSamTasks(j) {
   const c = $('sam-tasks');
   c.innerHTML = '';
@@ -762,9 +801,9 @@ function renderSamTasks(j) {
     const div = document.createElement('div');
     div.className = 'sam-task';
     const status = t.result ? 'complete' : 'pending';
-    // Strip the markdown frontmatter for display brevity
     const bodyOnly = (t.body || '').split('## Body').slice(-1)[0].trim();
-    const result = t.result ? (typeof t.result === 'string' ? t.result : JSON.stringify(t.result, null, 2)) : '';
+    const summary = t.result?.summary || '';
+    const errClass = (t.result?.status === 'error') ? ' err' : '';
     div.innerHTML = `
       <div class="head">
         <span>${t.task_id}</span>
@@ -773,8 +812,8 @@ function renderSamTasks(j) {
           <button class="task-x" data-tid="${t.task_id}" title="dismiss">✕</button>
         </div>
       </div>
-      <div class="body">${bodyOnly.replace(/</g,'&lt;')}</div>
-      ${result ? `<div class="result">${result.replace(/</g,'&lt;').slice(0, 800)}</div>` : ''}
+      <div class="body">${escapeHtml(bodyOnly)}</div>
+      ${summary ? `<div class="result${errClass}">${renderMarkdown(summary)}</div>` : ''}
     `;
     c.appendChild(div);
   }
