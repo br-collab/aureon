@@ -623,6 +623,14 @@ Context:
   - CAOM-001 = single-operator authority pattern (Consolidated Authority Operating Mode)
   - Thifur-H = Phase 2 adaptive execution layer running live against Kraken (5-gate governance, $10/$5 caps, XBTUSD only)
 
+Each user message you receive is wrapped in two XML-style sections:
+  <situational_context> — fresh snapshot of system state at dispatch time:
+    health (5 deps + circuit), Railway mission snapshot (cycle, portfolio,
+    P&L, market), live Thifur-H session (or null), last 5 DSOR entries.
+    Use this to answer with situational awareness; never ask the operator
+    for state you can already read here.
+  <operator_task> — the actual task or question.
+
 Operator preferences (load-bearing):
   - BLUF (bottom line up front), no sycophancy, spell out acronyms first time
   - Honest > polished: raw observations beat smooth narrative
@@ -630,17 +638,93 @@ Operator preferences (load-bearing):
   - Don't ask permission between sub-steps once a directional yes is given
   - You do NOT have shell, git, file-write, or deploy access in this dispatch path. If a task requires those, say so explicitly and tell the operator to dispatch via Claude Code chat with the inbox path.
 
-Output: be concrete and tight. If the task is a question, answer it. If the task asks for action you can't take, say so in one sentence and stop."""
+Output: be concrete and tight. If the task is a question, answer it from the situational_context. If the task asks for action you can't take, say so in one sentence and stop."""
+
+
+def _gather_dispatch_context() -> dict:
+    """Pull fresh system state for injection into the API user message."""
+    ctx = {"timestamp": _now_iso(), "console_pid": os.getpid()}
+
+    ctx["health"] = {
+        "circuit_open": _circuit_open,
+        "circuit_reason": _circuit_reason,
+        "trading_blocked": _trading_blocked(),
+        "deps": {
+            k: {"status": v.status, "latency_ms": v.latency_ms,
+                "last_ok": v.last_ok, "detail": v.detail}
+            for k, v in HEALTH.items()
+        },
+    }
+
+    try:
+        code, snap = _railway_request("GET", "/api/snapshot", timeout=4.0)
+        if code == 200:
+            ctx["mission_snapshot"] = snap
+        elif _snapshot_cache["payload"] is not None:
+            ctx["mission_snapshot"] = {"_stale_cache": True, **_snapshot_cache["payload"]}
+        else:
+            ctx["mission_snapshot"] = {"_unavailable": True, "_railway_code": code}
+    except Exception as e:
+        ctx["mission_snapshot"] = {"_error": str(e)}
+
+    try:
+        code, session = _railway_request("GET", "/api/thifur-h/session", timeout=4.0)
+        if code == 200 and isinstance(session, dict):
+            ctx["thifur_h_session"] = session.get("session")
+            ctx["pending_signal"] = session.get("pending_signal")
+        else:
+            ctx["thifur_h_session"] = None
+    except Exception as e:
+        ctx["thifur_h_session"] = {"_error": str(e)}
+
+    try:
+        code, dsor = _railway_request("GET", "/api/thifur-h/dsor", timeout=6.0)
+        if code == 200 and isinstance(dsor, dict):
+            entries = dsor.get("dsor_entries", []) or []
+            ctx["recent_dsor"] = entries[-5:]
+            ctx["dsor_total"] = len(entries)
+            ctx["gate_records_total"] = len(dsor.get("gate_records", []) or [])
+        else:
+            ctx["recent_dsor"] = []
+            ctx["dsor_status"] = f"unavailable (HTTP {code})"
+    except Exception as e:
+        ctx["recent_dsor"] = []
+        ctx["dsor_status"] = f"error: {e}"
+
+    try:
+        bal_payload = _kraken_balance_cache["payload"]
+        if bal_payload:
+            ctx["kraken_balance"] = {
+                "zusd": float(bal_payload.get("ZUSD", 0)),
+                "xxbt": float(bal_payload.get("XXBT", 0)),
+                "cached_at": datetime.fromtimestamp(_kraken_balance_cache["ts"], tz=timezone.utc).isoformat() if _kraken_balance_cache["ts"] else None,
+            }
+    except Exception:
+        pass
+
+    return ctx
 
 
 def _dispatch_to_claude(task_id: str, task_text: str) -> None:
-    """Background: call Anthropic API, write structured outbox JSON when done."""
+    """Background: gather situational context, call Anthropic API, write outbox."""
+    ctx = _gather_dispatch_context()
+    ctx_json = json.dumps(ctx, indent=2, default=str)
+    if len(ctx_json) > 12000:
+        ctx_json = ctx_json[:12000] + "\n... [truncated]"
+    user_message = (
+        "<situational_context>\n"
+        + ctx_json
+        + "\n</situational_context>\n\n"
+        + "<operator_task>\n"
+        + task_text
+        + "\n</operator_task>"
+    )
     try:
         body = {
             "model": ANTHROPIC_MODEL,
-            "max_tokens": 1024,
+            "max_tokens": 1500,
             "system": _SAM_SYSTEM_PROMPT,
-            "messages": [{"role": "user", "content": task_text}],
+            "messages": [{"role": "user", "content": user_message}],
         }
         req = urllib.request.Request(
             "https://api.anthropic.com/v1/messages",
