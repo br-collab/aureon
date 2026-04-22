@@ -154,11 +154,38 @@ def _next_business_day_0900_et(now_utc: datetime) -> datetime:
     return tomorrow_et.astimezone(timezone.utc)
 
 
+# Test-only override hook for Prompt 6 break testing. Setting this to
+# "HOLD" / "ESCALATE" / "PROCEED" forces _fetch_cato_gate() to return
+# that decision without hitting the network. Set to None to restore
+# normal fetch. Production callers never touch this — only the
+# /api/mmf/_test/cato_override route does.
+_TEST_CATO_OVERRIDE: Optional[str] = None
+
+
+def set_test_cato_override(decision: Optional[str]) -> None:
+    """Toggle the Cato gate test override. Break testing only.
+    Passing None clears the override and restores normal fetch."""
+    global _TEST_CATO_OVERRIDE
+    _TEST_CATO_OVERRIDE = decision.upper() if decision else None
+    log.info("set_test_cato_override: now=%s", _TEST_CATO_OVERRIDE)
+
+
 def _fetch_cato_gate() -> dict:
     """Fetch the Cato gate decision from Railway. Returns a dict with
     `decision` ∈ {PROCEED, HOLD, ESCALATE, UNAVAILABLE} and
     `recommended_chain`. On any error the decision is UNAVAILABLE —
-    subscription_engine treats that as HOLD (fail-closed for Lane D)."""
+    subscription_engine treats that as HOLD (fail-closed for Lane D).
+
+    If _TEST_CATO_OVERRIDE is set (Phase 1 break testing hook), that
+    decision is returned immediately without a network call."""
+    if _TEST_CATO_OVERRIDE is not None:
+        return {
+            "decision":          _TEST_CATO_OVERRIDE,
+            "recommended_chain": "simulated-test-override",
+            "reasons":           [f"test override forcing {_TEST_CATO_OVERRIDE}"],
+            "doctrine":          "TEST-OVERRIDE",
+            "raw_ok":            True,
+        }
     try:
         req = urllib.request.Request(CATO_GATE_URL, headers={"Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=CATO_GATE_TIMEOUT_S) as resp:
