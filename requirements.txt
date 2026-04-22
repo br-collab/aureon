@@ -6,3 +6,5 @@ python-dotenv>=1.0.0
 gunicorn>=21.2.0
 requests>=2.31.0
 flask-cors>=4.0.0
+# Phase 2 P2-2 — real atomic DvP on XRPL testnet for MMF Lane D.
+xrpl-py>=4.5.0
