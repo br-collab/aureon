@@ -8272,7 +8272,44 @@ def _start_background_threads():
     threading.Thread(target=_atrox_refresh_loop, daemon=True).start()
     # MMF NAV engine scheduler — fires run_sweep() at 17:00 ET daily.
     nav_engine.start_nav_scheduler()
+    # Phase 2 P2-1: bind each MMF engine's journal sink into
+    # aureon_state["operational_journal"]. Routed through the same
+    # persistence path as the rest of aureon_state — redeploys survive.
+    def _mmf_journal_sink(entry: dict) -> None:
+        try:
+            _journal(
+                event_type=entry.get("event_type", "MMF_UNKNOWN"),
+                source="MMF",
+                subject=(entry.get("payload") or {}).get("investor_id")
+                        or (entry.get("payload") or {}).get("lane")
+                        or "MMF",
+                detail=_mmf_journal_detail(entry.get("payload") or {}),
+                authority=entry.get("operator", "CAOM-001"),
+                outcome=(entry.get("payload") or {}).get("status")
+                        or (entry.get("payload") or {}).get("cato_decision", ""),
+                ref_id=entry.get("record_id", ""),
+            )
+        except Exception as exc:
+            _log_error("WARN", "mmf_journal_sink", f"{type(exc).__name__}: {exc}")
+    nav_engine.bind_journal_sink(_mmf_journal_sink)
+    subscription_engine.bind_journal_sink(_mmf_journal_sink)
+    redemption_engine.bind_journal_sink(_mmf_journal_sink)
     print("[AUREON] Background threads started — CAOM-001 session OPEN")
+
+
+def _mmf_journal_detail(payload: dict) -> str:
+    """Flatten an MMF DSOR payload into a short detail string for the
+    operational_journal. Keeps only the fields a reader needs to
+    understand the event at a glance; the full payload is available
+    via /api/mmf/dsor."""
+    bits = []
+    for key in ("amount_usd", "shares", "gross_payout", "fee_amount",
+                "net_payout", "currency", "cnav", "fnav", "annual_rate_pct",
+                "reason", "circuit_reason", "cato_decision", "lane",
+                "force_allow_stale_used"):
+        if key in payload:
+            bits.append(f"{key}={payload[key]}")
+    return " | ".join(bits) if bits else str(payload)[:240]
 
 # THIFUR-H PHASE 2 ACTIVATION
 from aureon.thifur.thifur_h import ThifurH, AtroxSignal, SessionState

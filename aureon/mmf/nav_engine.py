@@ -58,9 +58,23 @@ from typing import Callable, Optional
 from zoneinfo import ZoneInfo
 
 from aureon.agents.base import DSORRecord
-from aureon.mmf import yield_engine
+from aureon.mmf import yield_engine, persistence
 
 log = logging.getLogger("aureon.mmf.nav_engine")
+
+# Phase 2 P2-1: module state now persists. Successful sweeps and
+# circuit resets write atomically to aureon_mmf_nav_state.json in
+# the Railway volume (or ~/.aureon/ locally). Hydration happens at
+# module import — prior sweep_count / cnav / fnav / circuit state
+# restores before the first action.
+_journal_sink: Optional[Callable[[dict], None]] = None
+
+
+def bind_journal_sink(fn: Callable[[dict], None]) -> None:
+    """Called by server.py to route NAV DSOR events into the
+    operational_journal. Non-fatal if unbound."""
+    global _journal_sink
+    _journal_sink = fn
 
 
 # ─── Fund configuration ─────────────────────────────────────────────────────
@@ -155,15 +169,13 @@ def _quantize_nav(value: Decimal) -> Decimal:
 
 
 def _stamp_dsor(event_type: str, payload: dict) -> DSORRecord:
-    """Build a DSORRecord, append to the module log, return it.
+    """Build a DSORRecord, append to the module log, emit to the
+    journal sink (if bound by server.py), return it.
 
-    The prompt's "Import the existing DSOR stamping function" hint maps
-    to the DSORRecord dataclass in aureon.agents.base — no standalone
-    stamping function exists at module level in the codebase; the
-    Agent ABC's dsor_stamp() method isn't reachable without an Agent
-    instance. We build records directly here and let Prompt 5 plumb
-    this log into aureon_state["operational_journal"].
-    """
+    The journal sink is the Phase 2 merge into aureon_state[
+    "operational_journal"] — feeds the existing persistence layer
+    so NAV events ride the same aureon-state save path as everything
+    else. Unbound sink = Phase 1 behavior (in-memory log only)."""
     record = DSORRecord(
         record_id=f"DSOR-MMF-NAV-{uuid.uuid4().hex[:12]}",
         caom_mode="CAOM-001",
@@ -173,6 +185,18 @@ def _stamp_dsor(event_type: str, payload: dict) -> DSORRecord:
         payload=payload,
     )
     _dsor_log.append(record)
+    if _journal_sink is not None:
+        try:
+            _journal_sink({
+                "record_id":  record.record_id,
+                "event_type": event_type,
+                "timestamp":  record.timestamp.isoformat(),
+                "operator":   record.operator,
+                "payload":    payload,
+            })
+        except Exception as e:
+            log.warning("nav_engine journal sink failed: %s: %s",
+                        type(e).__name__, e)
     log.info("DSOR %s %s", event_type, record.record_id)
     return record
 
@@ -181,6 +205,54 @@ def get_dsor_log() -> list[DSORRecord]:
     """Return a copy of the DSOR log. Prompt 5 will call this to merge
     into the central operational journal."""
     return list(_dsor_log)
+
+
+# ─── Persistence ────────────────────────────────────────────────────────────
+def _snapshot() -> dict:
+    """Capture NAV state as a JSON-serializable dict."""
+    with _state_lock:
+        return {
+            "cnav":            str(_state["cnav"]),
+            "fnav":            str(_state["fnav"]),
+            "last_sweep_at":   _state["last_sweep_at"].isoformat() if _state["last_sweep_at"] else None,
+            "next_sweep_at":   _state["next_sweep_at"].isoformat() if _state["next_sweep_at"] else None,
+            "sweep_count":     _state["sweep_count"],
+            "last_fred_rate":  _state["last_fred_rate"],
+            "circuit_open":    _state["circuit_open"],
+            "circuit_reason":  _state["circuit_reason"],
+        }
+
+
+def _persist_snapshot() -> None:
+    persistence.save_snapshot("nav", _snapshot())
+
+
+def _hydrate_from_disk() -> None:
+    """Hydrate NAV state from a persisted snapshot, if any. No-op on
+    missing file or malformed contents — engine keeps Phase 1 defaults."""
+    data = persistence.load_snapshot("nav")
+    if not data:
+        return
+    try:
+        with _state_lock:
+            if "cnav" in data:
+                _state["cnav"] = Decimal(data["cnav"])
+            if "fnav" in data:
+                _state["fnav"] = Decimal(data["fnav"])
+            lsa = data.get("last_sweep_at")
+            nsa = data.get("next_sweep_at")
+            _state["last_sweep_at"]  = datetime.fromisoformat(lsa) if lsa else None
+            _state["next_sweep_at"]  = datetime.fromisoformat(nsa) if nsa else None
+            _state["sweep_count"]    = int(data.get("sweep_count", 0))
+            _state["last_fred_rate"] = data.get("last_fred_rate")
+            _state["circuit_open"]   = bool(data.get("circuit_open", False))
+            _state["circuit_reason"] = str(data.get("circuit_reason", "") or "")
+        log.info("nav_engine hydrated: cnav=%s fnav=%s sweep_count=%s circuit_open=%s",
+                 _state["cnav"], _state["fnav"],
+                 _state["sweep_count"], _state["circuit_open"])
+    except Exception as e:
+        log.warning("nav_engine hydrate failed; keeping default state: %s: %s",
+                    type(e).__name__, e)
 
 
 # ─── NAV compute + sweep ────────────────────────────────────────────────────
@@ -269,6 +341,7 @@ def reset_circuit(reason: str = "operator reset") -> dict:
         "reset_reason": reason,
         "reset_at": datetime.now(timezone.utc).isoformat(),
     })
+    _persist_snapshot()
     return {
         "status": "OK",
         "was_open": was_open,
@@ -419,6 +492,9 @@ def run_sweep(force_allow_stale: bool = False) -> dict:
             log.warning("fund_state reset hook failed after sweep: %s: %s",
                         type(e).__name__, e)
 
+    # Persist NAV state after a successful sweep commit.
+    _persist_snapshot()
+
     with _state_lock:
         return {
             "status": "OK",
@@ -518,6 +594,10 @@ def stop_nav_scheduler(join_timeout: float = 5.0) -> None:
     _scheduler_stop.set()
     if _scheduler_thread is not None:
         _scheduler_thread.join(timeout=join_timeout)
+
+
+# Hydrate NAV state from disk at module import. No-op if no prior snapshot.
+_hydrate_from_disk()
 
 
 # ─── Standalone smoke test ──────────────────────────────────────────────────

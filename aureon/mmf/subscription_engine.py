@@ -59,10 +59,22 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_DOWN
 from zoneinfo import ZoneInfo
 
+from typing import Callable
 from aureon.agents.base import DSORRecord
 from aureon.mmf import fund_state, nav_engine
 
 log = logging.getLogger("aureon.mmf.subscription_engine")
+
+# Phase 2 P2-1: operational journal sink. server.py binds this at
+# boot so DSOR events flow into aureon_state["operational_journal"].
+_journal_sink: Optional[Callable[[dict], None]] = None
+
+
+def bind_journal_sink(fn: Callable[[dict], None]) -> None:
+    """Called by server.py to route subscription DSOR events into
+    the operational_journal."""
+    global _journal_sink
+    _journal_sink = fn
 
 # ─── Configuration ──────────────────────────────────────────────────────────
 # RAILWAY_BASE used only by the Cato gate fetch. Mirrors Leto's pattern of
@@ -110,6 +122,18 @@ def _stamp_dsor(event_type: str, payload: dict) -> DSORRecord:
     )
     with _lock:
         _dsor_log.append(record)
+    if _journal_sink is not None:
+        try:
+            _journal_sink({
+                "record_id":  record.record_id,
+                "event_type": event_type,
+                "timestamp":  record.timestamp.isoformat(),
+                "operator":   record.operator,
+                "payload":    payload,
+            })
+        except Exception as e:
+            log.warning("subscription_engine journal sink failed: %s: %s",
+                        type(e).__name__, e)
     log.info("DSOR %s %s", event_type, record.record_id)
     return record
 
