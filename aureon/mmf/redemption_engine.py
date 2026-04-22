@@ -52,10 +52,19 @@ from datetime import datetime, timezone
 from decimal import Decimal, ROUND_DOWN
 from typing import Optional
 
+from typing import Callable, Optional
 from aureon.agents.base import DSORRecord
 from aureon.mmf import fund_state, nav_engine
 
 log = logging.getLogger("aureon.mmf.redemption_engine")
+
+# Phase 2 P2-1: operational journal sink.
+_journal_sink: Optional[Callable[[dict], None]] = None
+
+
+def bind_journal_sink(fn: Callable[[dict], None]) -> None:
+    global _journal_sink
+    _journal_sink = fn
 
 # ─── Constants ──────────────────────────────────────────────────────────────
 LIQUIDITY_FEE_THRESHOLD_PCT  = Decimal("0.05")   # 5% daily net redemptions of lane AUM
@@ -82,6 +91,18 @@ def _stamp_dsor(event_type: str, payload: dict) -> DSORRecord:
         payload=payload,
     )
     _dsor_log.append(record)
+    if _journal_sink is not None:
+        try:
+            _journal_sink({
+                "record_id":  record.record_id,
+                "event_type": event_type,
+                "timestamp":  record.timestamp.isoformat(),
+                "operator":   record.operator,
+                "payload":    payload,
+            })
+        except Exception as e:
+            log.warning("redemption_engine journal sink failed: %s: %s",
+                        type(e).__name__, e)
     log.info("DSOR %s %s", event_type, record.record_id)
     return record
 

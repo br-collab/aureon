@@ -35,11 +35,31 @@ from __future__ import annotations
 import logging
 import threading
 from decimal import Decimal
-from typing import Optional
+from typing import Callable, Optional
 
-from aureon.mmf import nav_engine
+from aureon.mmf import nav_engine, persistence
 
 log = logging.getLogger("aureon.mmf.fund_state")
+
+# Phase 2 P2-1: module state is now persisted. Mutations write
+# atomically to aureon_mmf_fund_state.json inside the Railway volume
+# (or ~/.aureon/ locally). Hydration happens at module import — a
+# previously persisted snapshot restores shares_f/shares_d/aum_f/aum_d/
+# daily_redemptions_*/total_*/investors before the first mutation.
+
+# Operational journal sink — server.py binds this at boot so DSOR
+# events flow into aureon_state["operational_journal"] and ride the
+# existing aureon-state persistence layer. None means standalone
+# (in-memory) mode, same behavior as Phase 1.
+_journal_sink: Optional[Callable[[dict], None]] = None
+
+
+def bind_journal_sink(fn: Callable[[dict], None]) -> None:
+    """Called by server.py to route MMF DSOR events into the
+    operational_journal. Non-fatal if unbound — engine-local DSOR
+    log is still captured via get_dsor_log()."""
+    global _journal_sink
+    _journal_sink = fn
 
 # ─── State (threading-locked) ───────────────────────────────────────────────
 _state_lock = threading.RLock()
@@ -63,6 +83,67 @@ _state: dict = {
 # Real funds compute this from portfolio holdings (T-bills maturing ≤60
 # days, overnight repo, etc.). Phase 3+ will bring in the real calc.
 _SIMULATED_WLA_PCT = Decimal("0.85")
+
+
+# ─── Persistence helpers ────────────────────────────────────────────────────
+def _snapshot() -> dict:
+    """Capture current state as a Decimal-stringified dict."""
+    with _state_lock:
+        return {
+            "shares_f":             str(_state["shares_f"]),
+            "shares_d":             str(_state["shares_d"]),
+            "aum_f":                str(_state["aum_f"]),
+            "aum_d":                str(_state["aum_d"]),
+            "daily_redemptions_f":  str(_state["daily_redemptions_f"]),
+            "daily_redemptions_d":  str(_state["daily_redemptions_d"]),
+            "total_subscriptions":  _state["total_subscriptions"],
+            "total_redemptions":    _state["total_redemptions"],
+            "investors": {
+                iid: {
+                    "lane":       rec["lane"],
+                    "shares":     str(rec["shares"]),
+                    "cost_basis": str(rec["cost_basis"]),
+                }
+                for iid, rec in _state["investors"].items()
+            },
+        }
+
+
+def _persist_snapshot() -> None:
+    persistence.save_snapshot("fund", _snapshot())
+
+
+def _hydrate_from_disk() -> None:
+    """Called once at module import. If a persisted snapshot exists,
+    overwrite in-memory state with its values. Otherwise no-op —
+    state stays at its Phase 1 defaults (zeros)."""
+    data = persistence.load_snapshot("fund")
+    if not data:
+        return
+    try:
+        with _state_lock:
+            _state["shares_f"]            = Decimal(data.get("shares_f", "0"))
+            _state["shares_d"]            = Decimal(data.get("shares_d", "0"))
+            _state["aum_f"]               = Decimal(data.get("aum_f", "0"))
+            _state["aum_d"]               = Decimal(data.get("aum_d", "0"))
+            _state["daily_redemptions_f"] = Decimal(data.get("daily_redemptions_f", "0"))
+            _state["daily_redemptions_d"] = Decimal(data.get("daily_redemptions_d", "0"))
+            _state["total_subscriptions"] = int(data.get("total_subscriptions", 0))
+            _state["total_redemptions"]   = int(data.get("total_redemptions", 0))
+            _state["investors"] = {
+                iid: {
+                    "lane":       rec["lane"],
+                    "shares":     Decimal(rec.get("shares", "0")),
+                    "cost_basis": Decimal(rec.get("cost_basis", "0")),
+                }
+                for iid, rec in (data.get("investors") or {}).items()
+            }
+        log.info("fund_state hydrated: %d investors, aum_f=%s aum_d=%s",
+                 len(_state["investors"]),
+                 _state["aum_f"], _state["aum_d"])
+    except Exception as e:
+        log.warning("fund_state hydrate failed; keeping zero state: %s: %s",
+                    type(e).__name__, e)
 
 
 # ─── Read ───────────────────────────────────────────────────────────────────
@@ -153,6 +234,7 @@ def apply_subscription(investor_id: str, lane: str, amount_usd: Decimal,
             rec["shares"]     += shares
             rec["cost_basis"] += amount_usd
         _state["total_subscriptions"] += 1
+    _persist_snapshot()
 
 
 def apply_redemption(investor_id: str, shares_removed: Decimal,
@@ -189,6 +271,7 @@ def apply_redemption(investor_id: str, shares_removed: Decimal,
             _state["aum_d"]    -= gross_payout_usd
             _state["daily_redemptions_d"] += gross_payout_usd
         _state["total_redemptions"] += 1
+    _persist_snapshot()
 
 
 def reset_daily_counters() -> None:
@@ -198,6 +281,7 @@ def reset_daily_counters() -> None:
     with _state_lock:
         _state["daily_redemptions_f"] = Decimal("0")
         _state["daily_redemptions_d"] = Decimal("0")
+    _persist_snapshot()
 
 
 # ─── Bind AUM getter into nav_engine ────────────────────────────────────────
@@ -210,6 +294,10 @@ def _aum_getter() -> dict:
 
 
 nav_engine.bind_fund_state(_aum_getter, reset_daily_counters=reset_daily_counters)
+
+
+# Hydrate from disk at module import. No-op if no prior snapshot.
+_hydrate_from_disk()
 
 
 # ─── KYC allowlist (Phase 1 seed) ───────────────────────────────────────────
