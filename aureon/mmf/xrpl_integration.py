@@ -180,13 +180,27 @@ def _submit(label: str, tx: Any, signer: Wallet) -> dict:
         wall = round(_t.time() - t0, 3)
         log.warning("xrpl submit %s failed: %s: %s",
                     label, type(e).__name__, e)
+        # Parse the engine_result out of the exception message.
+        # xrpl-py raises XRPLReliableSubmissionException with a body
+        # shaped like "Transaction failed: tecPATH_PARTIAL". Extract
+        # the tec*/tef*/ter* code so callers get an accurate
+        # engine_result rather than an opaque SUBMIT_EXCEPTION.
+        msg = str(e)
+        engine_result = "SUBMIT_EXCEPTION"
+        for marker in ("Transaction failed: ", "engine_result: "):
+            idx = msg.find(marker)
+            if idx >= 0:
+                candidate = msg[idx + len(marker):].split()[0].rstrip(".,;:\"' )")
+                if candidate and candidate[:3] in ("tec", "tef", "tel", "tem", "ter"):
+                    engine_result = candidate
+                    break
         return {
             "label":                label,
             "tx_hash":              "",
             "ledger_index":         0,
             "ledger_close_time_utc": "",
-            "engine_result":        "SUBMIT_EXCEPTION",
-            "error":                f"{type(e).__name__}: {str(e)[:200]}",
+            "engine_result":        engine_result,
+            "error":                f"{type(e).__name__}: {msg[:200]}",
             "wall_seconds":         wall,
             "started_at":           started_at,
         }
