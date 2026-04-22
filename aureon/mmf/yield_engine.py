@@ -23,9 +23,15 @@ OUTPUTS:     get_current_yield_inputs() -> {
 
 ASSUMPTIONS: Both DGS1MO and SOFR are annualized percentages (e.g.,
              4.32 means 4.32%/yr). ACT/360 day-count applies to U.S.
-             money-market yields by convention. Stale threshold is
-             4 hours (data older than that is flagged for the NAV
-             engine to halt on).
+             money-market yields by convention.
+
+             STALENESS (operator decision 2026-04-21, calendar-day
+             rule, Option 1): `stale == True` when the FRED observation
+             date is neither today (ET) nor yesterday (ET). Tolerates
+             FRED's normal 1-2 business day publication lag without
+             letting weekend / multi-day gaps slip through. No
+             business-day or holiday handling in Phase 1 — deferred
+             to Phase 3. The NAV engine halts on `stale == True`.
 
 AUDIT NOTES: Module-level cache, TTL 3600s. Fallback from DGS1MO to
              SOFR is logged. No state persistence — a process restart
@@ -44,9 +50,10 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 log = logging.getLogger("aureon.mmf.yield_engine")
 
@@ -58,7 +65,14 @@ FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 DAYS_PER_YEAR_ACT360 = Decimal("360")
 
 _CACHE_TTL_S = 3600.0              # 1 hour — intra-day yield changes minimally
-_STALE_THRESHOLD_S = 4 * 3600.0    # 4 hours — NAV engine halts past this
+
+# Stale rule (calendar-day, operator decision 2026-04-21):
+# fresh == FRED observation date is today (ET) or today-minus-one (ET).
+# Anything older is stale. No business-day / holiday logic in Phase 1 —
+# that's Phase 3 territory. DGS1MO and SOFR have a 1-2 business-day
+# publication lag, so a "today or yesterday" window tolerates the normal
+# publish cadence without ever letting weekend/multi-day gaps slip by.
+_ET = ZoneInfo("America/New_York")
 
 # Module-level cache. Intentionally a single dict so callers can share the
 # most recent fetch across threads without duplicated network I/O.
@@ -141,26 +155,24 @@ def get_current_yield_inputs() -> dict:
 
     fetched_at = datetime.now(timezone.utc).isoformat()
 
-    # Stale check against the newest data we got back.
+    # Calendar-day stale check. Fresh = obs date is today (ET) or
+    # yesterday (ET); anything else is stale. Uses whichever source was
+    # chosen — checking the *unused* source's date would flag freshness
+    # issues the NAV engine doesn't care about.
     latest_date_str = None
-    if dgs1mo is not None:
-        latest_date_str = dgs1mo["date"]
-    elif sofr is not None:
-        latest_date_str = sofr["date"]
+    if source == "DGS1MO":
+        latest_date_str = dgs1mo["date"] if dgs1mo else None
+    elif source == "SOFR":
+        latest_date_str = sofr["date"] if sofr else None
+
+    today_et = datetime.now(_ET).date()
+    yesterday_et = today_et - timedelta(days=1)
 
     stale = True
     if latest_date_str is not None:
         try:
-            d = datetime.strptime(latest_date_str, "%Y-%m-%d").replace(
-                tzinfo=timezone.utc,
-            )
-            age_s = (datetime.now(timezone.utc) - d).total_seconds()
-            # FRED publishes daily data with 1-2 business-day lag; we compare
-            # against the 4h threshold *from the observation date's midnight*.
-            # Weekends and holidays make "within 4 hours" impossible for these
-            # series — the operator asked for 4h explicitly, so we honor the
-            # threshold and let the NAV engine decide how to interpret stale.
-            stale = age_s > _STALE_THRESHOLD_S
+            obs_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date()
+            stale = obs_date not in (today_et, yesterday_et)
         except ValueError:
             stale = True
 
