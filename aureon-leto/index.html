@@ -23,6 +23,8 @@
   --yellow: #facc15;
   --yellow-dim: #6e5800;
   --blue: #60a5fa;
+  --warn: #facc15;
+  --muted: #3a3b40;
   --mono: ui-monospace, SF Mono, Menlo, Consolas, monospace;
 }
 * { box-sizing: border-box; }
@@ -300,6 +302,72 @@ button.kill:active { transform: translateY(1px); }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+
+/* Cato Gate tile — layout card matching Leto's .tile aesthetic */
+.dep-card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 10px 12px;
+  margin-top: 10px;
+}
+.dep-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.dep-name {
+  color: var(--amber);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.dep-badge {
+  background: var(--panel);
+  border: 1px solid var(--border-bright);
+  color: var(--text-mute);
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+.dep-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.dep-detail {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.dep-sub {
+  color: var(--text-mute);
+  font-size: 10px;
+  margin-top: 2px;
+}
+.dep-ts {
+  color: var(--text-mute);
+  font-size: 10px;
+  margin-top: 6px;
+  border-top: 1px dotted var(--border);
+  padding-top: 4px;
+}
+
+.gate-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}
+.gate-badge.proceed  { background: var(--green);  color: #000; }
+.gate-badge.hold     { background: var(--amber);  color: #000; }
+.gate-badge.escalate { background: var(--red);    color: #fff; }
+.gate-badge.unknown  { background: var(--muted);  color: #fff; }
 </style>
 </head>
 <body>
@@ -364,6 +432,26 @@ button.kill:active { transform: translateY(1px); }
   <section class="panel">
     <h2>System Health <span class="meta" id="health-meta">checked —</span></h2>
     <div id="health-list"></div>
+    <!-- Cato Gate tile — polls /api/cato/gate every 60s -->
+    <div class="dep-card" id="dep-cato_gate">
+      <div class="dep-header">
+        <span class="dep-name">Cato Gate</span>
+        <span class="dep-badge tier3">T3</span>
+      </div>
+      <div class="dep-status">
+        <span id="cato-decision-badge" class="gate-badge unknown">—</span>
+        <span id="cato-chain" class="dep-detail">loading…</span>
+      </div>
+      <div class="dep-sub">
+        OFR stress: <span id="cato-ofr">—</span>
+        &nbsp;|&nbsp;
+        SOFR Δ: <span id="cato-sofr">—</span>
+      </div>
+      <div class="dep-sub" id="cato-stale-row" style="display:none; color: var(--warn);">
+        ⚠ stale
+      </div>
+      <div class="dep-ts">checked <span id="cato-ts">—</span></div>
+    </div>
     <div class="circuit-bar" id="circuit-bar">
       <div class="head">⚠ CIRCUIT OPEN — Trading actions blocked</div>
       <div class="reason" id="circuit-reason"></div>
@@ -866,13 +954,53 @@ async function pollKrakenBalance() {
 pollKrakenBalance();
 setInterval(pollKrakenBalance, 30000);
 
+// --- CATO GATE ---
+function fetchCatoGate() {
+  fetch('/api/cato/gate')
+    .then(r => r.json())
+    .then(d => {
+      const decision = (d.gate_decision || 'UNKNOWN').toUpperCase();
+      const badge = document.getElementById('cato-decision-badge');
+      badge.textContent = decision;
+      badge.className = 'gate-badge ' + ({
+        'PROCEED': 'proceed',
+        'HOLD': 'hold',
+        'ESCALATE': 'escalate'
+      }[decision] || 'unknown');
+
+      document.getElementById('cato-chain').textContent =
+        d.recommended_chain ? '→ ' + d.recommended_chain : '';
+
+      const inputs = d.inputs || {};
+      document.getElementById('cato-ofr').textContent =
+        inputs.ofr_stress != null ? inputs.ofr_stress : '—';
+
+      const sofr = inputs.sofr_delta_bps;
+      document.getElementById('cato-sofr').textContent =
+        sofr != null ? sofr + ' bps' : '— (null)';   // honest: shows null, not zero
+
+      const staleRow = document.getElementById('cato-stale-row');
+      staleRow.style.display = d.stale ? 'block' : 'none';
+
+      document.getElementById('cato-ts').textContent =
+        d.leto_ts ? new Date(d.leto_ts).toLocaleTimeString() : '—';
+    })
+    .catch(err => {
+      document.getElementById('cato-decision-badge').className = 'gate-badge unknown';
+      document.getElementById('cato-decision-badge').textContent = 'ERR';
+      document.getElementById('cato-chain').textContent = err.message || 'fetch failed';
+    });
+}
+
 // --- POLL LOOPS ---
 pollSnapshot();
 pollDSOR();
 pollSamTasks();
+fetchCatoGate();
 setInterval(pollSnapshot, 5000);
 setInterval(pollDSOR, 8000);
 setInterval(pollSamTasks, 5000);
+setInterval(fetchCatoGate, 60000);   // 60s — matches server cache TTL
 setInterval(() => { renderHealth(); }, 1000);  // refresh "checked Xs ago"
 
 </script>

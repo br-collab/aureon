@@ -56,6 +56,7 @@ Three tiers, polled every 30s in a background thread, broadcast to the UI via SS
 | 1 | Kraken Auth | `/0/private/Balance` (signed) | Trading halted, **circuit OPEN** |
 | 2 | GitHub | `api.github.com/repos/...` | Informational; doesn't block trading |
 | 3 | DSOR Archive | local write probe | DSOR mirroring fails silently to log |
+| 3 | Cato Gate | `/api/cato/gate` < 6s | Informational; doesn't block trading |
 
 ### Circuit breaker
 
@@ -139,6 +140,11 @@ That preserves the operator's last-resort control even if Railway is down with p
 | `/api/dsor/live` | GET | Railway `/api/thifur-h/dsor` proxy + auto-archive |
 | `/api/dsor/archive` | GET | List of locally archived DSOR snapshots |
 | `/api/dsor/archive/<name>` | GET | Fetch one archived snapshot |
+| `/api/cato/gate` | GET | Cato Verana L0 gate — 60s cached proxy (PROCEED/HOLD/ESCALATE) |
+| `/api/cato/settlement-context` | GET | Pass-through: settlement posture summary |
+| `/api/cato/compare-rails` | GET | Pass-through: rail comparison |
+| `/api/cato/multichain-gas` | GET | Pass-through: gas across chains |
+| `/api/cato/prices` | GET | Pass-through: CoinGecko price snapshot |
 | `/api/sam/task` | POST | Queue a new task to `sam_inbox/` |
 | `/api/sam/tasks` | GET | List inbox/outbox state |
 | `/api/sam/result/<task_id>` | POST | Sam writes structured result here |
