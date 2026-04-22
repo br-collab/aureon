@@ -219,6 +219,73 @@ def process_redemption(investor_id: str, shares_to_redeem) -> dict:
 
     net_payout = gross_payout - fee_amount
 
+    # ── Lane D: real XRPL reverse DvP (Phase 2 P2-3) ──────────────
+    # For Lane D, we execute the atomic burn-on-receipt before any
+    # fund_state mutation. If the DvP fails, fund_state is untouched
+    # (same as Lane D subscription — fail-closed). The fee_amount is
+    # an implicit haircut: Offer exchanges shares for net_payout USD,
+    # so ShareIssuer retains the fee differential off-ledger.
+    dvp_fields: dict = {}
+    if lane == "D":
+        from aureon.mmf import xrpl_integration
+        xrpl_addr = xrpl_integration.get_investor_xrpl_address(investor_id)
+        if not xrpl_addr:
+            rec = _stamp_dsor("REDEMPTION_REJECTED", {
+                "investor_id": investor_id,
+                "reason":      "no XRPL wallet — Lane D investor must be registered via /api/mmf/digital/register_investor",
+                "lane":        "D",
+                "shares_requested": str(shares),
+            })
+            return {"status": "REJECTED", "reason": "no XRPL wallet",
+                    "dsor_id": rec.record_id}
+        try:
+            dvp = xrpl_integration.execute_redemption_dvp(
+                investor_id=investor_id,
+                shares_to_burn=shares,
+                net_payout_usd=net_payout,
+            )
+        except Exception as e:
+            log.exception("xrpl_integration.execute_redemption_dvp raised")
+            rec = _stamp_dsor("DIGITAL_REDEMPTION_REJECTED", {
+                "investor_id":  investor_id,
+                "lane":         "D",
+                "reason":       "xrpl_integration raised",
+                "error":        f"{type(e).__name__}: {str(e)[:240]}",
+                "shares":       str(shares),
+                "net_payout":   str(net_payout),
+            })
+            return {"status": "REJECTED",
+                    "reason": f"XRPL error: {type(e).__name__}",
+                    "dsor_id": rec.record_id}
+
+        if dvp["status"] != "COMPLETE":
+            rec = _stamp_dsor("DIGITAL_REDEMPTION_REJECTED", {
+                "investor_id":    investor_id,
+                "lane":           "D",
+                "reason":         dvp.get("status", "unknown"),
+                "engine_result":  dvp.get("engine_result", ""),
+                "shares":         str(shares),
+                "net_payout":     str(net_payout),
+                "dvp_detail":     dvp,
+            })
+            return {"status":        "REJECTED",
+                    "reason":        f"atomic reverse DvP {dvp.get('status')}",
+                    "engine_result": dvp.get("engine_result", ""),
+                    "dvp_detail":    dvp,
+                    "dsor_id":       rec.record_id}
+
+        # Stash the DvP fields to include in the COMPLETE DSOR + response.
+        dvp_fields = {
+            "xrpl_address":          dvp["investor_address"],
+            "share_issuer_address":  dvp["share_issuer_address"],
+            "cash_issuer_address":   dvp["cash_issuer_address"],
+            "offer_tx_hash":         dvp["offer_tx_hash"],
+            "burn_tx_hash":          dvp["burn_tx_hash"],
+            "ledger_index":          dvp["ledger_index"],
+            "ledger_close_time_utc": dvp["ledger_close_time_utc"],
+            "engine_result":         dvp["engine_result"],
+        }
+
     # ── Apply to fund_state ─────────────────────────────────────
     # apply_redemption debits shares, reduces lane AUM by gross_payout,
     # increments daily_redemptions_lane, increments total_redemptions.
@@ -247,8 +314,9 @@ def process_redemption(investor_id: str, shares_to_redeem) -> dict:
     else:
         event_type = "DIGITAL_REDEMPTION_COMPLETE"
         payload_extras = {
-            "simulated": True,
-            "settlement_model": "atomic DvP (simulated, no USDC transfer performed)",
+            "simulated":         False,   # Phase 2 P2-3: REAL XRPL reverse DvP.
+            "settlement_model":  "atomic reverse DvP on XRPL testnet (burn-on-receipt)",
+            **dvp_fields,
         }
 
     rec = _stamp_dsor(event_type, {
