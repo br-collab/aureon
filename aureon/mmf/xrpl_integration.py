@@ -611,6 +611,119 @@ def execute_subscription_dvp(investor_id: str,
     }
 
 
+def execute_redemption_dvp(investor_id: str,
+                           shares_to_burn,
+                           net_payout_usd) -> dict:
+    """Execute real atomic REVERSE DvP for a Lane D redemption
+    (Phase 2 P2-3). Burn-on-receipt semantics: because ShareIssuer
+    is the MMF issuer, when the investor's MMF trust-line balance
+    returns to ShareIssuer, those shares cease to exist in the
+    total supply — equivalent to a burn.
+
+    Flow (mirror of execute_subscription_dvp with Offer direction
+    flipped):
+      1. Verify fund + investor are set up.
+      2. ShareIssuer posts a resting Offer:
+           TakerPays = shares_to_burn MMF   (investor gives up shares)
+           TakerGets = net_payout_usd USD   (investor receives USD)
+         Note: net_payout is already post-liquidity-fee. The fee is
+         an implicit haircut — shares worth gross_payout at NAV are
+         exchanged for less USD (net_payout). ShareIssuer retains
+         the difference as a fee accrual off-ledger.
+      3. Investor submits a cross-currency Payment:
+           Amount  = net_payout_usd USD
+           SendMax = shares_to_burn MMF
+           Flags   = tfLimitQuality
+         This consumes the Offer atomically. Shares burn (return to
+         ShareIssuer) + USD lands in investor's trust line in one
+         validated ledger.
+
+    Returns a dict with all tx hashes, ledger index, close time,
+    and final engine_result. Caller stamps DSOR based on status.
+    """
+    shares = Decimal(str(shares_to_burn))
+    net_payout = Decimal(str(net_payout_usd))
+
+    if shares <= 0 or net_payout <= 0:
+        return {
+            "status": "INVALID",
+            "reason": "shares and net_payout must both be > 0",
+        }
+
+    investor_wallet = _get_investor_wallet(investor_id)
+    if investor_wallet is None:
+        return {
+            "status": "NOT_REGISTERED",
+            "reason": f"investor {investor_id} has no XRPL wallet — call register_investor first",
+        }
+
+    share_issuer, cash_issuer = _get_fund_wallets()
+
+    # Step A: ShareIssuer posts resting Offer — MMF for USD (reverse direction).
+    offer_step = _submit(
+        f"ShareIssuer OfferCreate (redemption): {shares} {SHARE_CURRENCY} for {net_payout} {CASH_CURRENCY}",
+        OfferCreate(
+            account=share_issuer.classic_address,
+            taker_pays=IssuedCurrencyAmount(
+                currency=SHARE_CURRENCY,
+                issuer=share_issuer.classic_address,
+                value=str(shares),
+            ),
+            taker_gets=IssuedCurrencyAmount(
+                currency=CASH_CURRENCY,
+                issuer=cash_issuer.classic_address,
+                value=str(net_payout),
+            ),
+        ),
+        share_issuer,
+    )
+    if offer_step["engine_result"] != "tesSUCCESS":
+        return {
+            "status":            "OFFER_FAILED",
+            "investor_address":  investor_wallet.classic_address,
+            "offer_step":        offer_step,
+        }
+
+    # Step B: Atomic cross-currency Payment — USD to investor, MMF burned.
+    # tfLimitQuality at rate net_payout/shares guarantees the investor
+    # doesn't pay more MMF than the posted rate requires.
+    payment_step = _submit(
+        f"Investor[{investor_id}] Payment (atomic reverse DvP): {shares} {SHARE_CURRENCY} -> {net_payout} {CASH_CURRENCY}",
+        Payment(
+            account=investor_wallet.classic_address,
+            destination=investor_wallet.classic_address,
+            amount=IssuedCurrencyAmount(
+                currency=CASH_CURRENCY,
+                issuer=cash_issuer.classic_address,
+                value=str(net_payout),
+            ),
+            send_max=IssuedCurrencyAmount(
+                currency=SHARE_CURRENCY,
+                issuer=share_issuer.classic_address,
+                value=str(shares),
+            ),
+            flags=PaymentFlag.TF_LIMIT_QUALITY,
+        ),
+        investor_wallet,
+    )
+
+    status = "COMPLETE" if payment_step["engine_result"] == "tesSUCCESS" else "REJECTED"
+
+    return {
+        "status":                 status,
+        "investor_id":            investor_id,
+        "investor_address":       investor_wallet.classic_address,
+        "share_issuer_address":   share_issuer.classic_address,
+        "cash_issuer_address":    cash_issuer.classic_address,
+        "offer_tx_hash":          offer_step["tx_hash"],
+        "burn_tx_hash":           payment_step["tx_hash"],
+        "ledger_index":           payment_step["ledger_index"],
+        "ledger_close_time_utc":  payment_step["ledger_close_time_utc"],
+        "engine_result":          payment_step["engine_result"],
+        "steps": [offer_step, payment_step],
+    }
+
+
 def diagnostic_status() -> dict:
     """Read-only snapshot of module state for /api/mmf/digital/status."""
     with _state_lock:
