@@ -5038,18 +5038,28 @@ def api_mmf_digital_status():
         return jsonify({"error": "xrpl-py not installed yet"}), 503
 
 
-# Test-only route for Prompt 6 break testing — toggles the Cato gate
-# override in subscription_engine. Body: {decision: "HOLD"|"PROCEED"|
-# "ESCALATE"|null}. Null restores normal fetch.
+# Test-only route for Phase 1 Prompt 6 break testing — toggles the
+# Cato gate override in subscription_engine. Body: {decision: "HOLD"|
+# "PROCEED"|"ESCALATE"|null}. Null restores normal fetch.
+#
+# Phase 2 P2-4 hardening: gated behind AUREON_MMF_TEST_HOOKS_ENABLED
+# env var. Production Railway env must leave this unset or set to 0.
+# Without the flag, this route returns 403 and no override takes effect.
 @app.route("/api/mmf/_test/cato_override", methods=["POST"])
 def api_mmf_test_cato_override():
+    if not subscription_engine._test_hooks_enabled():
+        return jsonify({
+            "status": "FORBIDDEN",
+            "error":  "MMF test hooks disabled in this environment",
+            "remedy": "set AUREON_MMF_TEST_HOOKS_ENABLED=1 in Railway service vars to enable (sandbox only)",
+        }), 403
     body = request.get_json(silent=True) or {}
     decision = body.get("decision")
     subscription_engine.set_test_cato_override(decision)
     return jsonify({
         "status":   "OK",
         "override": decision.upper() if decision else None,
-        "note":     "Phase 1 break-testing hook; production code never sets this.",
+        "note":     "Phase 1 break-testing hook; env-gated behind AUREON_MMF_TEST_HOOKS_ENABLED.",
     })
 
 
