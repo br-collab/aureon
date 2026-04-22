@@ -93,20 +93,33 @@ _state: dict = {
 # DSOR log. Prompt 5 plumbs this into aureon_state["operational_journal"].
 _dsor_log: list[DSORRecord] = []
 
-# Fund state hook — Prompt 3 (fund_state.py) binds a callable here that
-# returns {"aum_f": Decimal, "aum_d": Decimal}. Until bound, NAV sweep
-# records 0 AUM without halting (the sweep is NAV-only, not AUM-dependent).
+# Fund state hooks — Prompt 3 (fund_state.py) binds these at import. Until
+# bound, NAV sweep records 0 AUM without halting (sweep is NAV-only, not
+# AUM-dependent). The reset hook zeros fund_state's daily-redemption
+# counters at the end of a successful sweep; without it counters would
+# accumulate across days, breaking the liquidity-fee denominator.
 _fund_state_getter: Optional[Callable[[], dict]] = None
+_fund_state_reset:  Optional[Callable[[], None]] = None
 
 
 # ─── Fund-state dependency injection ────────────────────────────────────────
-def bind_fund_state(getter: Callable[[], dict]) -> None:
+def bind_fund_state(getter: Callable[[], dict],
+                    reset_daily_counters: Optional[Callable[[], None]] = None) -> None:
     """Called once from Prompt 3's fund_state module to register an AUM
-    provider. The getter must return a dict with Decimal keys `aum_f`
-    and `aum_d`; anything else is treated as zero AUM.
+    provider and (optionally) a post-sweep reset hook.
+
+    `getter` must return a dict with Decimal keys `aum_f` and `aum_d`;
+    anything else is treated as zero AUM.
+
+    `reset_daily_counters` (optional) is invoked at the end of every
+    SUCCESSFUL sweep to zero fund_state's daily redemption counters.
+    Exceptions from the hook are logged but do not halt or rollback
+    the sweep — the breaker is reserved for doctrine breaches, not
+    integration bugs.
     """
-    global _fund_state_getter
+    global _fund_state_getter, _fund_state_reset
     _fund_state_getter = getter
+    _fund_state_reset = reset_daily_counters
 
 
 def _aum_snapshot() -> tuple[Decimal, Decimal]:
@@ -396,6 +409,17 @@ def run_sweep(force_allow_stale: bool = False) -> dict:
             "force_allow_stale_used": result.get("force_allow_stale_used", False),
         })
 
+    # End-of-sweep fund_state reset — outside the state lock so the
+    # fund_state module can acquire its own lock without contention.
+    # Non-fatal on failure.
+    if _fund_state_reset is not None:
+        try:
+            _fund_state_reset()
+        except Exception as e:
+            log.warning("fund_state reset hook failed after sweep: %s: %s",
+                        type(e).__name__, e)
+
+    with _state_lock:
         return {
             "status": "OK",
             "cnav": str(result["cnav"]),

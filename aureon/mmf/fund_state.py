@@ -209,7 +209,7 @@ def _aum_getter() -> dict:
         }
 
 
-nav_engine.bind_fund_state(_aum_getter)
+nav_engine.bind_fund_state(_aum_getter, reset_daily_counters=reset_daily_counters)
 
 
 # ─── KYC allowlist (Phase 1 seed) ───────────────────────────────────────────
