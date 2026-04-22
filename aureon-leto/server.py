@@ -665,6 +665,49 @@ def api_cato_prices():
     return jsonify(payload), code
 
 
+# ── MMF (Arcadia Liquidity Fund sandbox) proxies ──────────────────
+
+_mmf_status_cache = {"ts": 0.0, "payload": None}
+_MMF_STATUS_TTL = 30.0  # seconds — matches UI poll cadence
+
+
+@app.route("/api/mmf/status")
+def api_mmf_status():
+    """30s-cached proxy to Railway /api/mmf/status for the Leto MMF
+    panel. Stale fallback on Railway error (consistent with the
+    snapshot proxy pattern)."""
+    now = time.time()
+    if _mmf_status_cache["payload"] is None or (now - _mmf_status_cache["ts"]) >= _MMF_STATUS_TTL:
+        code, payload = _railway_request("GET", "/api/mmf/status", timeout=6.0)
+        if code == 200 and isinstance(payload, dict):
+            _mmf_status_cache["payload"] = payload
+            _mmf_status_cache["ts"] = now
+        else:
+            if _mmf_status_cache["payload"] is not None:
+                return jsonify({
+                    **_mmf_status_cache["payload"],
+                    "stale": True,
+                    "stale_reason": f"Railway {code}",
+                })
+            return jsonify({"error": f"MMF status unavailable (HTTP {code})",
+                            "stale": True}), 502
+    return jsonify({
+        **_mmf_status_cache["payload"],
+        "stale": False,
+        "cache_age_s": int(now - _mmf_status_cache["ts"]),
+    })
+
+
+@app.route("/api/mmf/sweep/trigger", methods=["POST"])
+def api_mmf_sweep_trigger():
+    """Uncached proxy — operator fires a manual sweep from the UI.
+    Passes through the optional ?force_allow_stale query param."""
+    qs = request.query_string.decode("utf-8")
+    path = "/api/mmf/sweep/trigger" + (f"?{qs}" if qs else "")
+    code, payload = _railway_request("POST", path, timeout=10.0)
+    return jsonify(payload), code
+
+
 # ── Sam command surface — file queue ───────────────────────────────
 
 _kraken_balance_cache = {"ts": 0.0, "payload": None}

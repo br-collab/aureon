@@ -58,6 +58,19 @@ Three tiers, polled every 30s in a background thread, broadcast to the UI via SS
 | 3 | DSOR Archive | local write probe | DSOR mirroring fails silently to log |
 | 3 | Cato Gate | `/api/cato/gate` < 6s | Informational; doesn't block trading |
 
+### Railway MMF routes (upstream; Leto proxies `/status` and `/sweep/trigger`)
+
+| Route | Method | Purpose |
+|---|---|---|
+| `/api/mmf/subscribe` | POST | Lane F (FIAT) or Lane D (Digital) subscription. KYC + Cato gate + idempotency. |
+| `/api/mmf/redeem` | POST | Redemption with liquidity-fee discipline; currency mirrors lane (F→USD, D→USDC). |
+| `/api/mmf/nav` | GET | NAV engine snapshot — CNAV, FNAV, sweep counters, circuit state. |
+| `/api/mmf/status` | GET | Unified fund overview. Used by Leto's MMF panel via the proxy. |
+| `/api/mmf/dsor` | GET | Merged MMF DSOR log (FIAT_, DIGITAL_, NAV_, LIQUIDITY_, YIELD_ prefixes). |
+| `/api/mmf/sweep/trigger` | POST | Operator manual NAV sweep. `?force_allow_stale=1` bypasses stale halt. |
+| `/api/mmf/circuit/reset` | POST | Operator-initiated NAV engine circuit breaker reset. |
+| `/api/mmf/hitl/resolve` | POST | KYC/Cato HITL resolution stamp (append-only companion to original exception). |
+
 ### Circuit breaker
 
 If a Tier-1 Kraken dependency transitions UP → DOWN, the circuit trips OPEN. While open:
@@ -145,6 +158,8 @@ That preserves the operator's last-resort control even if Railway is down with p
 | `/api/cato/compare-rails` | GET | Pass-through: rail comparison |
 | `/api/cato/multichain-gas` | GET | Pass-through: gas across chains |
 | `/api/cato/prices` | GET | Pass-through: CoinGecko price snapshot |
+| `/api/mmf/status` | GET | MMF fund console — 30s cached proxy (AUM, NAV, yield, circuit) |
+| `/api/mmf/sweep/trigger` | POST | Uncached proxy — operator manual NAV sweep |
 | `/api/sam/task` | POST | Queue a new task to `sam_inbox/` |
 | `/api/sam/tasks` | GET | List inbox/outbox state |
 | `/api/sam/result/<task_id>` | POST | Sam writes structured result here |

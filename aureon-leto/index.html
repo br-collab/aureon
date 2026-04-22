@@ -368,6 +368,65 @@ button.kill:active { transform: translateY(1px); }
 .gate-badge.hold     { background: var(--amber);  color: #000; }
 .gate-badge.escalate { background: var(--red);    color: #fff; }
 .gate-badge.unknown  { background: var(--muted);  color: #fff; }
+
+/* MMF Fund Console */
+.mmf-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.mmf-metric {
+  flex: 1 1 auto;
+  min-width: 110px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+}
+.mmf-label {
+  color: var(--text-mute);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.mmf-value {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 3px;
+}
+.mmf-value.green { color: var(--green); }
+.mmf-value.red   { color: var(--red); }
+.mmf-value.amber { color: var(--amber); }
+.mmf-sub {
+  color: var(--text-mute);
+  font-size: 10px;
+  margin-top: 2px;
+}
+.mmf-controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  align-items: center;
+}
+.mmf-controls button {
+  background: var(--panel-2);
+  border: 1px solid var(--border-bright);
+  color: var(--amber);
+  padding: 6px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.mmf-controls button:hover {
+  background: var(--panel);
+  border-color: var(--amber);
+}
 </style>
 </head>
 <body>
@@ -488,6 +547,72 @@ button.kill:active { transform: translateY(1px); }
   <section class="panel">
     <h2>Session Ledger <span class="meta" id="ledger-meta">—</span></h2>
     <div id="ledger-rows"></div>
+  </section>
+
+  <!-- MMF FUND CONSOLE -->
+  <section class="panel">
+    <h2>MMF · Fund Console <span class="meta" id="mmf-meta">—</span></h2>
+    <div class="tile-grid">
+      <div class="tile">
+        <div class="label">AUM · Class F</div>
+        <div class="value" id="mmf-aum-f">—</div>
+        <div class="sub">CNAV $<span id="mmf-cnav">1.0000</span></div>
+      </div>
+      <div class="tile">
+        <div class="label">AUM · Class D</div>
+        <div class="value" id="mmf-aum-d">—</div>
+        <div class="sub">FNAV $<span id="mmf-fnav">1.0000</span></div>
+      </div>
+      <div class="tile">
+        <div class="label">Total AUM</div>
+        <div class="value" id="mmf-aum-total">—</div>
+        <div class="sub" id="mmf-fund-name">Arcadia Liquidity Fund</div>
+      </div>
+    </div>
+    <div class="mmf-row">
+      <div class="mmf-metric">
+        <span class="mmf-label">Annual Rate</span>
+        <span class="mmf-value" id="mmf-rate">—</span>
+        <span class="mmf-sub">FRED <span id="mmf-rate-source">—</span></span>
+      </div>
+      <div class="mmf-metric">
+        <span class="mmf-label">Cost Spread</span>
+        <span class="mmf-value" id="mmf-spread">—</span>
+        <span class="mmf-sub">Lane D vs Lane F (1-day)</span>
+      </div>
+      <div class="mmf-metric">
+        <span class="mmf-label">Next Sweep</span>
+        <span class="mmf-value" id="mmf-next-sweep">—</span>
+        <span class="mmf-sub">17:00 ET daily</span>
+      </div>
+      <div class="mmf-metric">
+        <span class="mmf-label">Circuit</span>
+        <span class="mmf-value" id="mmf-circuit">—</span>
+        <span class="mmf-sub" id="mmf-circuit-reason"></span>
+      </div>
+    </div>
+    <div class="mmf-row">
+      <div class="mmf-metric">
+        <span class="mmf-label">Sweeps</span>
+        <span class="mmf-value" id="mmf-sweeps">0</span>
+      </div>
+      <div class="mmf-metric">
+        <span class="mmf-label">Subscriptions</span>
+        <span class="mmf-value" id="mmf-subs">0</span>
+      </div>
+      <div class="mmf-metric">
+        <span class="mmf-label">Redemptions</span>
+        <span class="mmf-value" id="mmf-reds">0</span>
+      </div>
+      <div class="mmf-metric">
+        <span class="mmf-label">Liq Fees</span>
+        <span class="mmf-value" id="mmf-fees">0</span>
+      </div>
+    </div>
+    <div class="mmf-controls">
+      <button id="btn-mmf-sweep">MANUAL SWEEP</button>
+      <span class="meta" id="mmf-sweep-result"></span>
+    </div>
   </section>
 
   <!-- SAM COMMAND SURFACE -->
@@ -992,15 +1117,100 @@ function fetchCatoGate() {
     });
 }
 
+// --- MMF FUND CONSOLE ---
+function _mmfFmtUsd(n) {
+  if (n == null || n === '') return '—';
+  const num = Number(n);
+  if (!isFinite(num)) return '—';
+  return '$' + num.toLocaleString('en-US', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  });
+}
+
+function _mmfFmtCountdown(iso) {
+  if (!iso) return '—';
+  const next = new Date(iso);
+  const now = new Date();
+  const ms = next - now;
+  if (ms <= 0) return 'imminent';
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  return `${h}h ${String(m).padStart(2, '0')}m`;
+}
+
+function fetchMmfStatus() {
+  fetch('/api/mmf/status')
+    .then(r => r.json())
+    .then(d => {
+      $('mmf-aum-f').textContent = _mmfFmtUsd(d.aum_f);
+      $('mmf-aum-d').textContent = _mmfFmtUsd(d.aum_d);
+      $('mmf-aum-total').textContent = _mmfFmtUsd(d.aum_total);
+      $('mmf-cnav').textContent = d.cnav || '1.0000';
+      $('mmf-fnav').textContent = d.fnav || '1.0000';
+      $('mmf-fund-name').textContent = d.fund_name || 'Arcadia Liquidity Fund';
+
+      $('mmf-rate').textContent = d.annual_rate_pct != null
+        ? Number(d.annual_rate_pct).toFixed(2) + '%' : '—';
+      $('mmf-rate-source').textContent = d.fred_rate_used || '—';
+
+      $('mmf-spread').textContent = d.yield_spread_bps != null
+        ? Number(d.yield_spread_bps).toFixed(2) + ' bps' : '—';
+
+      $('mmf-next-sweep').textContent = _mmfFmtCountdown(d.next_sweep_at);
+
+      const circuitEl = $('mmf-circuit');
+      if (d.circuit_open) {
+        circuitEl.textContent = 'HALTED';
+        circuitEl.className = 'mmf-value red';
+        $('mmf-circuit-reason').textContent = d.circuit_reason || '';
+      } else {
+        circuitEl.textContent = 'OK';
+        circuitEl.className = 'mmf-value green';
+        $('mmf-circuit-reason').textContent = '';
+      }
+
+      $('mmf-sweeps').textContent = d.sweep_count || 0;
+      $('mmf-subs').textContent = d.total_subscriptions || 0;
+      $('mmf-reds').textContent = d.total_redemptions || 0;
+      $('mmf-fees').textContent = d.liquidity_fees_triggered || 0;
+
+      $('mmf-meta').textContent = d.stale
+        ? `stale (${d.stale_reason || 'unknown'})`
+        : 'checked ' + new Date().toLocaleTimeString();
+    })
+    .catch(err => {
+      $('mmf-meta').textContent = 'fetch error: ' + (err.message || 'unknown');
+    });
+}
+
+function mmfTriggerSweep() {
+  $('mmf-sweep-result').textContent = 'triggering...';
+  fetch('/api/mmf/sweep/trigger', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      const status = d.status || 'UNKNOWN';
+      const id = d.dsor_id || '—';
+      $('mmf-sweep-result').textContent = `${status} · ${id}`;
+      fetchMmfStatus();
+    })
+    .catch(err => {
+      $('mmf-sweep-result').textContent = 'error: ' + err.message;
+    });
+}
+
+document.getElementById('btn-mmf-sweep').addEventListener('click', mmfTriggerSweep);
+
 // --- POLL LOOPS ---
 pollSnapshot();
 pollDSOR();
 pollSamTasks();
 fetchCatoGate();
+fetchMmfStatus();
 setInterval(pollSnapshot, 5000);
 setInterval(pollDSOR, 8000);
 setInterval(pollSamTasks, 5000);
 setInterval(fetchCatoGate, 60000);   // 60s — matches server cache TTL
+setInterval(fetchMmfStatus, 30000);  // 30s — matches Leto /api/mmf/status cache TTL
 setInterval(() => { renderHealth(); }, 1000);  // refresh "checked Xs ago"
 
 </script>
