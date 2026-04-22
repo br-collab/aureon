@@ -96,6 +96,12 @@ from aureon.session.session_protocol import SessionProtocol
 from aureon.data.market_data import get_price, get_prices_batch
 from aureon.agents import ThifurJ, SettlementOps
 from aureon.agents.c2.coordinator import ThifurC2
+from aureon.mmf import (
+    nav_engine,
+    fund_state,
+    subscription_engine,
+    redemption_engine,
+)
 
 # ── LOAD .env FILE ────────────────────────────────────────────────
 # Reads AUREON_EMAIL and AUREON_EMAIL_PW from the .env file in
@@ -4889,6 +4895,220 @@ def api_cato_prices():
     })
 
 
+# ─────────────────────────────────────────────────────────────────
+# MMF — ARCADIA LIQUIDITY FUND SANDBOX (Phase 1)
+# ─────────────────────────────────────────────────────────────────
+# Routes exposing the aureon/mmf/ engines. Scheduler is started in
+# _start_background_threads(); routes here read module state without
+# directly manipulating it.
+# Event types emitted: NAV_SWEEP_*, NAV_CIRCUIT_RESET,
+# FIAT_SUBSCRIPTION_*, DIGITAL_SUBSCRIPTION_*, KYC_EXCEPTION_*,
+# CATO_HOLD_*, FIAT_REDEMPTION_*, DIGITAL_REDEMPTION_*, LIQUIDITY_*.
+
+def _mmf_dsor_to_dict(rec) -> dict:
+    """Serialize a DSORRecord for JSON output — converts timestamp to ISO."""
+    return {
+        "record_id":  rec.record_id,
+        "caom_mode":  rec.caom_mode,
+        "operator":   rec.operator,
+        "timestamp":  rec.timestamp.isoformat(),
+        "event_type": rec.event_type,
+        "payload":    rec.payload,
+    }
+
+
+@app.route("/api/mmf/subscribe", methods=["POST"])
+def api_mmf_subscribe():
+    """Process a subscription into Lane F (FIAT) or Lane D (Digital).
+    Body: {investor_id, lane: "F"|"D", amount_usd}.
+    Returns the subscription result plus a post-action fund_state snapshot."""
+    body = request.get_json(silent=True) or {}
+    investor_id = (body.get("investor_id") or "").strip()
+    lane        = (body.get("lane") or "").strip().upper()
+    amount_usd  = body.get("amount_usd")
+    if amount_usd is None:
+        return jsonify({"error": "amount_usd required"}), 400
+    try:
+        result = subscription_engine.process_subscription(investor_id, lane, amount_usd)
+    except Exception as e:
+        _log_error("ERROR", "mmf_subscribe", f"{type(e).__name__}: {e}")
+        return jsonify({"error": f"{type(e).__name__}: {e}"}), 500
+    result["fund_state"] = fund_state.get_state()
+    return jsonify(result)
+
+
+@app.route("/api/mmf/redeem", methods=["POST"])
+def api_mmf_redeem():
+    """Process a redemption. Body: {investor_id, shares_to_redeem}.
+    Lane and payout currency are derived from the investor record —
+    no override."""
+    body = request.get_json(silent=True) or {}
+    investor_id = (body.get("investor_id") or "").strip()
+    shares      = body.get("shares_to_redeem")
+    if shares is None:
+        return jsonify({"error": "shares_to_redeem required"}), 400
+    try:
+        result = redemption_engine.process_redemption(investor_id, shares)
+    except Exception as e:
+        _log_error("ERROR", "mmf_redeem", f"{type(e).__name__}: {e}")
+        return jsonify({"error": f"{type(e).__name__}: {e}"}), 500
+    result["fund_state"] = fund_state.get_state()
+    return jsonify(result)
+
+
+@app.route("/api/mmf/nav")
+def api_mmf_nav():
+    """NAV engine snapshot: CNAV, FNAV, last/next sweep, circuit state."""
+    return jsonify(nav_engine.get_nav_state())
+
+
+@app.route("/api/mmf/status")
+def api_mmf_status():
+    """Unified fund overview. Merges nav_engine state + fund_state totals
+    + derived yield_spread_bps (1-day opportunity cost Lane D saves vs
+    Lane F, at the current annual rate). The Leto MMF panel polls this
+    endpoint on a 30s cadence."""
+    nav_st = nav_engine.get_nav_state()
+    fund_st = fund_state.get_state()
+
+    annual_rate_pct = nav_st.get("annual_rate_pct")
+    yield_spread_bps = None
+    if annual_rate_pct is not None:
+        # ACT/360: 1 day of the annual rate, in basis points.
+        #   bps = (annual_rate_pct / 100) * (1 / 360) * 10000
+        #       = annual_rate_pct / 3.6
+        yield_spread_bps = round(float(annual_rate_pct) / 3.6, 4)
+
+    # Count LIQUIDITY_FEE_APPLIED events so the Leto tile can display
+    # "liquidity fees triggered: N" alongside the other session counters.
+    liquidity_fees_triggered = sum(
+        1 for r in redemption_engine.get_dsor_log()
+        if r.event_type == "LIQUIDITY_FEE_APPLIED"
+    )
+
+    return jsonify({
+        "fund_name":                nav_st["fund_name"],
+        "aum_f":                    fund_st["aum_f"],
+        "aum_d":                    fund_st["aum_d"],
+        "aum_total":                fund_st["aum_total"],
+        "shares_f":                 fund_st["shares_f"],
+        "shares_d":                 fund_st["shares_d"],
+        "cnav":                     nav_st["cnav"],
+        "fnav":                     nav_st["fnav"],
+        "annual_rate_pct":          annual_rate_pct,
+        "fred_rate_used":           nav_st["fred_rate_used"],
+        "yield_spread_bps":         yield_spread_bps,
+        "total_subscriptions":      fund_st["total_subscriptions"],
+        "total_redemptions":        fund_st["total_redemptions"],
+        "liquidity_fees_triggered": liquidity_fees_triggered,
+        "circuit_open":             nav_st["circuit_open"],
+        "circuit_reason":           nav_st["circuit_reason"],
+        "last_sweep_at":            nav_st["last_sweep_at"],
+        "next_sweep_at":            nav_st["next_sweep_at"],
+        "sweep_count":              nav_st["sweep_count"],
+        "management_fee_bps":       nav_st["management_fee_bps"],
+    })
+
+
+@app.route("/api/mmf/dsor")
+def api_mmf_dsor():
+    """Merged DSOR log across the three MMF engines, filtered by the
+    Phase-1 event-type prefixes: FIAT_, DIGITAL_, NAV_, LIQUIDITY_,
+    YIELD_. Sorted newest first."""
+    prefixes = ("FIAT_", "DIGITAL_", "NAV_", "LIQUIDITY_", "YIELD_")
+    merged = []
+    for source_log in (
+        nav_engine.get_dsor_log(),
+        subscription_engine.get_dsor_log(),
+        redemption_engine.get_dsor_log(),
+    ):
+        for rec in source_log:
+            if rec.event_type.startswith(prefixes):
+                merged.append(_mmf_dsor_to_dict(rec))
+    merged.sort(key=lambda r: r["timestamp"], reverse=True)
+    limit = min(int(request.args.get("limit", 500)), 2000)
+    return jsonify({
+        "count":   len(merged),
+        "entries": merged[:limit],
+    })
+
+
+@app.route("/api/mmf/sweep/trigger", methods=["POST"])
+def api_mmf_sweep_trigger():
+    """Operator-only manual NAV sweep override. Optional query param
+    `?force_allow_stale=1` mirrors the CLI test hook and bypasses the
+    stale-oracle halt (DSOR record will carry force_allow_stale_used=true
+    for audit)."""
+    force = request.args.get("force_allow_stale", "").lower() in ("1", "true", "yes")
+    try:
+        result = nav_engine.run_sweep(force_allow_stale=force)
+    except Exception as e:
+        _log_error("ERROR", "mmf_sweep_trigger", f"{type(e).__name__}: {e}")
+        return jsonify({"error": f"{type(e).__name__}: {e}"}), 500
+    return jsonify(result)
+
+
+@app.route("/api/mmf/circuit/reset", methods=["POST"])
+def api_mmf_circuit_reset():
+    """Operator reset of the NAV engine circuit breaker. Emits
+    NAV_CIRCUIT_RESET in the MMF DSOR log. Body (optional):
+    {reason: str}. Reason is captured in the DSOR payload for audit."""
+    body = request.get_json(silent=True) or {}
+    reason = (body.get("reason") or "operator reset via API").strip()
+    try:
+        result = nav_engine.reset_circuit(reason=reason)
+    except Exception as e:
+        _log_error("ERROR", "mmf_circuit_reset", f"{type(e).__name__}: {e}")
+        return jsonify({"error": f"{type(e).__name__}: {e}"}), 500
+    return jsonify(result)
+
+
+@app.route("/api/mmf/hitl/resolve", methods=["POST"])
+def api_mmf_hitl_resolve():
+    """Resolve a pending KYC exception or Cato HOLD. The originating
+    event remains in the DSOR log (append-only); this endpoint stamps
+    a companion record — KYC_EXCEPTION_HITL_GATE_RESOLVED or
+    CATO_HOLD_OPERATOR_DECISION — with the operator's decision and
+    reason. Body: {event_id, decision: "approve"|"reject", reason,
+    gate_type: "KYC"|"CATO"}.
+
+    NOTE: in Phase 1 this records the decision only — it does not
+    auto-retry the original subscription. Operator resubmits the
+    subscription via /api/mmf/subscribe after resolving.
+    """
+    body = request.get_json(silent=True) or {}
+    event_id  = (body.get("event_id") or "").strip()
+    decision  = (body.get("decision") or "").strip().lower()
+    reason    = (body.get("reason") or "").strip()
+    gate_type = (body.get("gate_type") or "").strip().upper()
+    if not event_id or decision not in ("approve", "reject") or gate_type not in ("KYC", "CATO"):
+        return jsonify({
+            "error": "event_id, decision (approve|reject), and gate_type (KYC|CATO) required",
+        }), 400
+
+    event_type = (
+        "KYC_EXCEPTION_HITL_GATE_RESOLVED" if gate_type == "KYC"
+        else "CATO_HOLD_OPERATOR_DECISION_RESOLVED"
+    )
+
+    # Use subscription_engine's DSOR log — that's where the original
+    # exception records live, so resolution records alongside them.
+    rec = subscription_engine._stamp_dsor(event_type, {
+        "original_event_id": event_id,
+        "decision":          decision,
+        "reason":            reason,
+        "gate_type":         gate_type,
+        "resolved_at":       datetime.now(timezone.utc).isoformat(),
+    })
+    return jsonify({
+        "status":    "OK",
+        "event_id":  event_id,
+        "decision":  decision,
+        "gate_type": gate_type,
+        "dsor_id":   rec.record_id,
+    })
+
+
 @app.route("/api/decisions")
 def api_decisions():
     """Pending trade decisions waiting for human authority approval."""
@@ -7998,6 +8218,8 @@ def _start_background_threads():
     threading.Thread(target=market_loop, daemon=True).start()
     threading.Thread(target=email_scheduler, daemon=True).start()
     threading.Thread(target=_atrox_refresh_loop, daemon=True).start()
+    # MMF NAV engine scheduler — fires run_sweep() at 17:00 ET daily.
+    nav_engine.start_nav_scheduler()
     print("[AUREON] Background threads started — CAOM-001 session OPEN")
 
 # THIFUR-H PHASE 2 ACTIVATION
