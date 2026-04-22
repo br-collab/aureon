@@ -4939,14 +4939,43 @@ def api_mmf_subscribe():
 
 @app.route("/api/mmf/redeem", methods=["POST"])
 def api_mmf_redeem():
-    """Process a redemption. Body: {investor_id, shares_to_redeem}.
-    Lane and payout currency are derived from the investor record —
-    no override."""
+    """Process a redemption. Body: {investor_id, shares_to_redeem,
+    currency?}. Lane and payout currency are derived from the
+    investor record — if the caller supplies a `currency` field that
+    does not match the lane's expected currency (F→USD, D→USDC),
+    the redemption is rejected at the API surface with a
+    REDEMPTION_REJECTED DSOR entry (Phase 1 BREAK 6 discipline)."""
     body = request.get_json(silent=True) or {}
-    investor_id = (body.get("investor_id") or "").strip()
-    shares      = body.get("shares_to_redeem")
+    investor_id   = (body.get("investor_id") or "").strip()
+    shares        = body.get("shares_to_redeem")
+    currency_req  = (body.get("currency") or "").strip().upper()
     if shares is None:
         return jsonify({"error": "shares_to_redeem required"}), 400
+
+    # Currency validation — no override of lane-implied payout currency.
+    if currency_req:
+        investor = fund_state.get_investor(investor_id)
+        if investor is not None:
+            expected = "USD" if investor["lane"] == "F" else "USDC"
+            if currency_req != expected:
+                rec = redemption_engine._stamp_dsor("REDEMPTION_REJECTED", {
+                    "investor_id":         investor_id,
+                    "reason":              "currency mismatch",
+                    "requested_currency":  currency_req,
+                    "expected_currency":   expected,
+                    "lane":                investor["lane"],
+                    "shares_requested":    str(shares),
+                })
+                return jsonify({
+                    "status":              "REJECTED",
+                    "reason":              "currency mismatch — lane-implied currency is enforced",
+                    "investor_id":         investor_id,
+                    "requested_currency":  currency_req,
+                    "expected_currency":   expected,
+                    "lane":                investor["lane"],
+                    "dsor_id":             rec.record_id,
+                }), 400
+
     try:
         result = redemption_engine.process_redemption(investor_id, shares)
     except Exception as e:
@@ -4954,6 +4983,21 @@ def api_mmf_redeem():
         return jsonify({"error": f"{type(e).__name__}: {e}"}), 500
     result["fund_state"] = fund_state.get_state()
     return jsonify(result)
+
+
+# Test-only route for Prompt 6 break testing — toggles the Cato gate
+# override in subscription_engine. Body: {decision: "HOLD"|"PROCEED"|
+# "ESCALATE"|null}. Null restores normal fetch.
+@app.route("/api/mmf/_test/cato_override", methods=["POST"])
+def api_mmf_test_cato_override():
+    body = request.get_json(silent=True) or {}
+    decision = body.get("decision")
+    subscription_engine.set_test_cato_override(decision)
+    return jsonify({
+        "status":   "OK",
+        "override": decision.upper() if decision else None,
+        "note":     "Phase 1 break-testing hook; production code never sets this.",
+    })
 
 
 @app.route("/api/mmf/nav")
