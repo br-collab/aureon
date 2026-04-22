@@ -102,6 +102,10 @@ from aureon.mmf import (
     subscription_engine,
     redemption_engine,
 )
+# xrpl_integration imported inside handlers to keep server.py
+# importable during the requirements.txt rollout (xrpl-py is added
+# to requirements in the same commit but may take a Railway rebuild
+# cycle to land).
 
 # ── LOAD .env FILE ────────────────────────────────────────────────
 # Reads AUREON_EMAIL and AUREON_EMAIL_PW from the .env file in
@@ -4983,6 +4987,55 @@ def api_mmf_redeem():
         return jsonify({"error": f"{type(e).__name__}: {e}"}), 500
     result["fund_state"] = fund_state.get_state()
     return jsonify(result)
+
+
+@app.route("/api/mmf/digital/register_investor", methods=["POST"])
+def api_mmf_register_investor():
+    """Register a new investor for Lane D XRPL atomic DvP. Sandbox
+    custody model — the fund auto-generates the investor's XRPL
+    wallet via testnet faucet, opens their trust lines, and
+    authorizes their MMF line. Blocks for ~30-60s on first call
+    (fund setup runs if needed); ~15-20s if fund already up.
+
+    Body: {investor_id}. Investor must already be in the KYC
+    allowlist (fund_state.is_kyc_approved). Idempotent.
+
+    Returns: {status, investor_id, xrpl_address, setup_tx_hashes}."""
+    body = request.get_json(silent=True) or {}
+    investor_id = (body.get("investor_id") or "").strip()
+    if not investor_id:
+        return jsonify({"error": "investor_id required"}), 400
+    if not fund_state.is_kyc_approved(investor_id):
+        return jsonify({
+            "error":  "investor not in KYC allowlist",
+            "investor_id": investor_id,
+        }), 422
+    try:
+        from aureon.mmf import xrpl_integration
+        result = xrpl_integration.register_investor(investor_id)
+    except ImportError as e:
+        _log_error("ERROR", "mmf_register_investor",
+                   f"xrpl-py not available: {e}")
+        return jsonify({
+            "error": "xrpl-py not installed on this deploy yet — requirements.txt rollout pending",
+        }), 503
+    except Exception as e:
+        _log_error("ERROR", "mmf_register_investor",
+                   f"{type(e).__name__}: {e}")
+        return jsonify({"error": f"{type(e).__name__}: {e}"}), 500
+    return jsonify(result)
+
+
+@app.route("/api/mmf/digital/status")
+def api_mmf_digital_status():
+    """Read-only snapshot of the XRPL integration state — which
+    investors have been registered, fund wallet addresses, and whether
+    fund setup is complete. Useful for operator visibility."""
+    try:
+        from aureon.mmf import xrpl_integration
+        return jsonify(xrpl_integration.diagnostic_status())
+    except ImportError:
+        return jsonify({"error": "xrpl-py not installed yet"}), 503
 
 
 # Test-only route for Prompt 6 break testing — toggles the Cato gate

@@ -367,8 +367,31 @@ def _process_fiat(investor_id: str, amount: Decimal) -> dict:
     }
 
 
-# ─── Lane D — Digital, simulated atomic DvP ────────────────────────────────
+# ─── Lane D — Digital, REAL XRPL atomic DvP (Phase 2 P2-2) ─────────────────
 def _process_digital(investor_id: str, amount: Decimal) -> dict:
+    # Investor must have an XRPL wallet registered before Lane D.
+    # Phase 2 P2-2 sandbox custody model — the fund manages the
+    # investor's XRPL wallet via xrpl_integration.register_investor.
+    # Import inside the function so subscription_engine remains
+    # importable even if xrpl-py isn't installed yet (Phase 1
+    # compatibility during the requirements.txt rollout).
+    from aureon.mmf import xrpl_integration
+
+    xrpl_addr = xrpl_integration.get_investor_xrpl_address(investor_id)
+    if not xrpl_addr:
+        rec = _stamp_dsor("DIGITAL_SUBSCRIPTION_REJECTED", {
+            "investor_id": investor_id,
+            "reason":      "no XRPL wallet — call POST /api/mmf/digital/register_investor first",
+            "amount_usd":  str(amount),
+            "lane":        "D",
+        })
+        return {
+            "status":  "REJECTED",
+            "reason":  "investor has no registered XRPL wallet",
+            "investor_id": investor_id,
+            "dsor_id": rec.record_id,
+        }
+
     cato = _fetch_cato_gate()
     decision = cato["decision"]
 
@@ -411,39 +434,113 @@ def _process_digital(investor_id: str, amount: Decimal) -> dict:
 
     shares = (amount / fnav).quantize(_SHARE_QUANTUM_D, rounding=ROUND_DOWN)
 
+    # Stamp the pre-atomic DSOR for audit lineage — if the XRPL
+    # submission fails, we still have a record that the operator's
+    # request was received and validated through to the atomic step.
+    pre_rec = _stamp_dsor("DIGITAL_SUBSCRIPTION_DVP_SUBMITTED", {
+        "investor_id":     investor_id,
+        "lane":            "D",
+        "amount_usd":      str(amount),
+        "shares":          str(shares),
+        "nav_used":        str(fnav),
+        "nav_type":        "FNAV",
+        "xrpl_address":    xrpl_addr,
+        "cato_decision":   decision,
+        "cato_chain":      cato["recommended_chain"],
+        "submitted_at":    datetime.now(timezone.utc).isoformat(),
+    })
+
+    # Real atomic DvP on XRPL testnet. Blocks for ~15-25s typically.
+    try:
+        dvp = xrpl_integration.execute_subscription_dvp(
+            investor_id=investor_id,
+            amount_usd=amount,
+            share_count=shares,
+        )
+    except Exception as e:
+        log.exception("xrpl_integration raised: %s: %s",
+                      type(e).__name__, e)
+        rec = _stamp_dsor("DIGITAL_SUBSCRIPTION_REJECTED", {
+            "investor_id":    investor_id,
+            "lane":           "D",
+            "amount_usd":     str(amount),
+            "shares":         str(shares),
+            "xrpl_address":   xrpl_addr,
+            "reason":         "xrpl_integration raised",
+            "error":          f"{type(e).__name__}: {str(e)[:240]}",
+            "submitted_dsor": pre_rec.record_id,
+        })
+        return {
+            "status":  "REJECTED",
+            "reason":  f"XRPL submission error: {type(e).__name__}",
+            "dsor_id": rec.record_id,
+        }
+
+    if dvp["status"] != "COMPLETE":
+        rec = _stamp_dsor("DIGITAL_SUBSCRIPTION_REJECTED", {
+            "investor_id":    investor_id,
+            "lane":           "D",
+            "amount_usd":     str(amount),
+            "shares":         str(shares),
+            "xrpl_address":   xrpl_addr,
+            "reason":         dvp.get("status", "unknown"),
+            "engine_result":  dvp.get("engine_result", ""),
+            "dvp_detail":     dvp,
+            "submitted_dsor": pre_rec.record_id,
+        })
+        return {
+            "status":           "REJECTED",
+            "reason":           f"atomic DvP {dvp.get('status')}",
+            "engine_result":    dvp.get("engine_result", ""),
+            "dvp_detail":       dvp,
+            "dsor_id":          rec.record_id,
+        }
+
+    # tesSUCCESS path — commit to fund_state and stamp COMPLETE.
     fund_state.apply_subscription(investor_id, "D", amount, shares)
 
     now_utc = datetime.now(timezone.utc)
-    settlement_at = now_utc + timedelta(seconds=DIGITAL_FINALITY_SIMULATED_S)
 
     rec = _stamp_dsor("DIGITAL_SUBSCRIPTION_COMPLETE", {
-        "investor_id":             investor_id,
-        "lane":                    "D",
-        "amount_usd":              str(amount),
-        "shares":                  str(shares),
-        "nav_used":                str(fnav),
-        "nav_type":                "FNAV",
-        "simulated":               True,
-        "subscription_intent_at":  now_utc.isoformat(),
-        "settlement_simulated_at": settlement_at.isoformat(),
-        "settlement_model":        f"atomic DvP (simulated, ~{DIGITAL_FINALITY_SIMULATED_S}s finality)",
-        "cato_decision":           decision,
-        "cato_chain":              cato["recommended_chain"],
+        "investor_id":           investor_id,
+        "lane":                  "D",
+        "amount_usd":            str(amount),
+        "shares":                str(shares),
+        "nav_used":              str(fnav),
+        "nav_type":              "FNAV",
+        "xrpl_address":          dvp["investor_address"],
+        "share_issuer_address":  dvp["share_issuer_address"],
+        "cash_issuer_address":   dvp["cash_issuer_address"],
+        "pre_fund_tx_hash":      dvp["pre_fund_tx_hash"],
+        "offer_tx_hash":         dvp["offer_tx_hash"],
+        "payment_tx_hash":       dvp["payment_tx_hash"],
+        "ledger_index":          dvp["ledger_index"],
+        "ledger_close_time_utc": dvp["ledger_close_time_utc"],
+        "engine_result":         dvp["engine_result"],
+        "simulated":             False,   # Phase 2: REAL.
+        "cato_decision":         decision,
+        "cato_chain":            cato["recommended_chain"],
+        "submitted_dsor":        pre_rec.record_id,
+        "settled_at":            now_utc.isoformat(),
     })
 
     return {
-        "status":                  "COMPLETE",
-        "lane":                    "D",
-        "investor_id":             investor_id,
-        "amount_usd":              str(amount),
-        "shares":                  str(shares),
-        "nav_used":                str(fnav),
-        "simulated":               True,
-        "subscription_intent_at":  now_utc.isoformat(),
-        "settlement_simulated_at": settlement_at.isoformat(),
-        "cato_decision":           decision,
-        "cato_chain":              cato["recommended_chain"],
-        "dsor_id":                 rec.record_id,
+        "status":                "COMPLETE",
+        "lane":                  "D",
+        "investor_id":           investor_id,
+        "amount_usd":            str(amount),
+        "shares":                str(shares),
+        "nav_used":              str(fnav),
+        "simulated":             False,
+        "xrpl_address":          dvp["investor_address"],
+        "pre_fund_tx_hash":      dvp["pre_fund_tx_hash"],
+        "offer_tx_hash":         dvp["offer_tx_hash"],
+        "payment_tx_hash":       dvp["payment_tx_hash"],
+        "ledger_index":          dvp["ledger_index"],
+        "ledger_close_time_utc": dvp["ledger_close_time_utc"],
+        "cato_decision":         decision,
+        "cato_chain":            cato["recommended_chain"],
+        "dsor_id":               rec.record_id,
     }
 
 
