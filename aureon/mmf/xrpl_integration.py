@@ -479,6 +479,96 @@ def _get_investor_wallet(investor_id: str) -> Optional[Wallet]:
     return Wallet.from_seed(rec["seed"])
 
 
+def _test_hooks_enabled() -> bool:
+    """Mirror of subscription_engine._test_hooks_enabled. xrpl_integration
+    test hooks ONLY fire when AUREON_MMF_TEST_HOOKS_ENABLED is truthy.
+    Production Railway leaves the var unset → test hooks inert."""
+    return os.environ.get("AUREON_MMF_TEST_HOOKS_ENABLED", "").strip().lower() in ("1", "true", "yes")
+
+
+def register_investor_unauthorized(investor_id: str) -> dict:
+    """TEST HOOK — register an investor with MMF trust line opened but
+    NOT authorized by ShareIssuer. Used by Phase 2 BREAK 8 to produce
+    a tecNO_AUTH at DvP submission time. Env-gated.
+
+    Same as register_investor but SKIPS the TF_SET_AUTH step. The
+    investor's MMF trust line exists but cannot receive the issuer's
+    IOU until authorized.
+    """
+    if not _test_hooks_enabled():
+        return {"status": "FORBIDDEN",
+                "reason": "AUREON_MMF_TEST_HOOKS_ENABLED not set"}
+    if not investor_id:
+        return {"status": "INVALID", "reason": "investor_id required"}
+
+    fund_init = _ensure_fund_initialized()
+    if fund_init["status"] == "SETUP_FAILED":
+        return {"status": "FUND_SETUP_FAILED", "detail": fund_init}
+
+    share_issuer, cash_issuer = _get_fund_wallets()
+    client = _get_client()
+
+    log.info("xrpl [TEST HOOK]: creating UNAUTHORIZED investor wallet for %s via faucet...",
+             investor_id)
+    investor = generate_faucet_wallet(client, debug=False)
+    setup_hashes: list[str] = []
+
+    # Investor opens MMF trust line (UNAUTHORIZED).
+    step = _submit(
+        f"Investor[{investor_id}] TrustSet (hold {SHARE_CURRENCY} — UNAUTHORIZED, test hook)",
+        TrustSet(
+            account=investor.classic_address,
+            limit_amount=IssuedCurrencyAmount(
+                currency=SHARE_CURRENCY,
+                issuer=share_issuer.classic_address,
+                value=TRUST_LIMIT,
+            ),
+        ),
+        investor,
+    )
+    if step["engine_result"] != "tesSUCCESS":
+        return {"status": "INVESTOR_SETUP_FAILED", "step": step}
+    setup_hashes.append(step["tx_hash"])
+
+    # DELIBERATELY SKIP the TF_SET_AUTH step (this is the test hook's purpose).
+
+    # Investor opens USD trust line (normal).
+    step = _submit(
+        f"Investor[{investor_id}] TrustSet (hold {CASH_CURRENCY} from CashIssuer)",
+        TrustSet(
+            account=investor.classic_address,
+            limit_amount=IssuedCurrencyAmount(
+                currency=CASH_CURRENCY,
+                issuer=cash_issuer.classic_address,
+                value=TRUST_LIMIT,
+            ),
+        ),
+        investor,
+    )
+    if step["engine_result"] != "tesSUCCESS":
+        return {"status": "INVESTOR_SETUP_FAILED", "step": step}
+    setup_hashes.append(step["tx_hash"])
+
+    with _state_lock:
+        _state["investors"][investor_id] = {
+            "xrpl_address":     investor.classic_address,
+            "seed":             investor.seed,
+            "setup_complete":   True,   # at the integration-layer view
+            "unauthorized":     True,   # BUT MMF line never got TF_SET_AUTH
+            "setup_tx_hashes":  setup_hashes,
+            "registered_at":    datetime.now(timezone.utc).isoformat(),
+        }
+    _save_state()
+
+    return {
+        "status":           "REGISTERED_UNAUTHORIZED",
+        "investor_id":      investor_id,
+        "xrpl_address":     investor.classic_address,
+        "setup_tx_hashes":  setup_hashes,
+        "note":             "TEST HOOK — MMF line opened but NOT TF_SET_AUTH. DvP will fail with tecNO_AUTH.",
+    }
+
+
 def get_investor_xrpl_address(investor_id: str) -> Optional[str]:
     """Return the investor's registered XRPL address, or None if not
     registered. Used by subscription_engine to decide whether Lane D
@@ -491,7 +581,8 @@ def get_investor_xrpl_address(investor_id: str) -> Optional[str]:
 # ─── Atomic DvP ─────────────────────────────────────────────────────────────
 def execute_subscription_dvp(investor_id: str,
                              amount_usd,
-                             share_count) -> dict:
+                             share_count,
+                             force_skip_offer: bool = False) -> dict:
     """Execute the real atomic DvP for a Lane D subscription.
 
     Flow:
@@ -509,10 +600,19 @@ def execute_subscription_dvp(investor_id: str,
          This consumes the Offer atomically. Shares + cash swap in
          one validated ledger.
 
+    TEST HOOK — `force_skip_offer=True` skips step 3 (OfferCreate).
+    The Payment in step 4 then has no offer to consume and the ledger
+    should reject it with tecPATH_PARTIAL. Used by Phase 2 BREAK 9.
+    Env-gated: requires AUREON_MMF_TEST_HOOKS_ENABLED=1 to activate.
+
     Returns a dict with all tx hashes, ledger indices, close times,
     and the final engine_result. Caller (subscription_engine) stamps
     DSOR based on status.
     """
+    if force_skip_offer and not _test_hooks_enabled():
+        log.warning("force_skip_offer=True but test hooks not enabled; proceeding normally")
+        force_skip_offer = False
+
     amount = Decimal(str(amount_usd))
     shares = Decimal(str(share_count))
 
@@ -547,30 +647,45 @@ def execute_subscription_dvp(investor_id: str,
         }
 
     # Step B: ShareIssuer posts resting Offer.
-    offer_step = _submit(
-        f"ShareIssuer OfferCreate (resting): {shares} {SHARE_CURRENCY} for {amount} {CASH_CURRENCY}",
-        OfferCreate(
-            account=share_issuer.classic_address,
-            taker_pays=IssuedCurrencyAmount(
-                currency=CASH_CURRENCY,
-                issuer=cash_issuer.classic_address,
-                value=str(amount),
-            ),
-            taker_gets=IssuedCurrencyAmount(
-                currency=SHARE_CURRENCY,
-                issuer=share_issuer.classic_address,
-                value=str(shares),
-            ),
-        ),
-        share_issuer,
-    )
-    if offer_step["engine_result"] != "tesSUCCESS":
-        return {
-            "status":            "OFFER_FAILED",
-            "investor_address":  investor_wallet.classic_address,
-            "pre_fund_tx_hash":  pre_fund_step["tx_hash"],
-            "offer_step":        offer_step,
+    # Test hook: force_skip_offer=True skips this step to trigger
+    # a tecPATH_PARTIAL at the Payment (BREAK 9 scenario).
+    if force_skip_offer:
+        log.warning("[TEST HOOK] force_skip_offer=True — skipping OfferCreate")
+        offer_step = {
+            "label":                 "SKIPPED: ShareIssuer OfferCreate (test hook)",
+            "tx_hash":               "",
+            "ledger_index":          0,
+            "ledger_close_time_utc": "",
+            "engine_result":         "SKIPPED_BY_TEST_HOOK",
+            "error":                 "",
+            "wall_seconds":          0.0,
+            "started_at":            datetime.now(timezone.utc).isoformat(),
         }
+    else:
+        offer_step = _submit(
+            f"ShareIssuer OfferCreate (resting): {shares} {SHARE_CURRENCY} for {amount} {CASH_CURRENCY}",
+            OfferCreate(
+                account=share_issuer.classic_address,
+                taker_pays=IssuedCurrencyAmount(
+                    currency=CASH_CURRENCY,
+                    issuer=cash_issuer.classic_address,
+                    value=str(amount),
+                ),
+                taker_gets=IssuedCurrencyAmount(
+                    currency=SHARE_CURRENCY,
+                    issuer=share_issuer.classic_address,
+                    value=str(shares),
+                ),
+            ),
+            share_issuer,
+        )
+        if offer_step["engine_result"] != "tesSUCCESS":
+            return {
+                "status":            "OFFER_FAILED",
+                "investor_address":  investor_wallet.classic_address,
+                "pre_fund_tx_hash":  pre_fund_step["tx_hash"],
+                "offer_step":        offer_step,
+            }
 
     # Step C: Atomic cross-currency Payment. The DvP moment.
     payment_step = _submit(
