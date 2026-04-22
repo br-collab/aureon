@@ -183,12 +183,37 @@ def _next_business_day_0900_et(now_utc: datetime) -> datetime:
 # that decision without hitting the network. Set to None to restore
 # normal fetch. Production callers never touch this — only the
 # /api/mmf/_test/cato_override route does.
+#
+# Phase 2 P2-4 hardening: the override is ONLY honored when the env
+# var AUREON_MMF_TEST_HOOKS_ENABLED is set to 1/true/yes. Otherwise
+# set_test_cato_override is a no-op (with a warning log), and even
+# if _TEST_CATO_OVERRIDE gets set by some other means, _fetch_cato_gate
+# will ignore it. Defense in depth — the env flag is the single source
+# of authorization for test-hook activation.
 _TEST_CATO_OVERRIDE: Optional[str] = None
+
+
+def _test_hooks_enabled() -> bool:
+    """True iff AUREON_MMF_TEST_HOOKS_ENABLED is set to a truthy value.
+    Read on every call so toggling in a running process is possible
+    (used by tests; ops would just set the env var and redeploy)."""
+    return os.environ.get("AUREON_MMF_TEST_HOOKS_ENABLED", "").strip().lower() in ("1", "true", "yes")
 
 
 def set_test_cato_override(decision: Optional[str]) -> None:
     """Toggle the Cato gate test override. Break testing only.
-    Passing None clears the override and restores normal fetch."""
+    Passing None clears the override and restores normal fetch.
+
+    No-op with a warning log when AUREON_MMF_TEST_HOOKS_ENABLED is
+    not set (Phase 2 P2-4 production hardening)."""
+    if not _test_hooks_enabled():
+        log.warning(
+            "set_test_cato_override called with decision=%r but "
+            "AUREON_MMF_TEST_HOOKS_ENABLED is not set — no-op. Set "
+            "AUREON_MMF_TEST_HOOKS_ENABLED=1 to enable test hooks.",
+            decision,
+        )
+        return
     global _TEST_CATO_OVERRIDE
     _TEST_CATO_OVERRIDE = decision.upper() if decision else None
     log.info("set_test_cato_override: now=%s", _TEST_CATO_OVERRIDE)
@@ -200,9 +225,12 @@ def _fetch_cato_gate() -> dict:
     `recommended_chain`. On any error the decision is UNAVAILABLE —
     subscription_engine treats that as HOLD (fail-closed for Lane D).
 
-    If _TEST_CATO_OVERRIDE is set (Phase 1 break testing hook), that
-    decision is returned immediately without a network call."""
-    if _TEST_CATO_OVERRIDE is not None:
+    Test override: if AUREON_MMF_TEST_HOOKS_ENABLED is set AND
+    _TEST_CATO_OVERRIDE is populated, the override decision is
+    returned without a network call. Both conditions must hold —
+    the env flag gates honoring the override even if it was set by
+    some other means."""
+    if _test_hooks_enabled() and _TEST_CATO_OVERRIDE is not None:
         return {
             "decision":          _TEST_CATO_OVERRIDE,
             "recommended_chain": "simulated-test-override",
