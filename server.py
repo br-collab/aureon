@@ -5057,9 +5057,17 @@ def api_mmf_status():
 @app.route("/api/mmf/dsor")
 def api_mmf_dsor():
     """Merged DSOR log across the three MMF engines, filtered by the
-    Phase-1 event-type prefixes: FIAT_, DIGITAL_, NAV_, LIQUIDITY_,
-    YIELD_. Sorted newest first."""
-    prefixes = ("FIAT_", "DIGITAL_", "NAV_", "LIQUIDITY_", "YIELD_")
+    full Phase 1 event-type prefix set. Prompt 5 named only a subset
+    (FIAT_, DIGITAL_, NAV_, LIQUIDITY_, YIELD_); Prompt 6 break-test
+    validation surfaced additional prefixes the API was silently
+    excluding: KYC_ (BREAK 3), CATO_ (BREAK 4), SUBSCRIPTION_
+    (BREAK 5 idempotency rejects), REDEMPTION_ (BREAK 6 currency
+    mismatch + other redemption-layer rejects). All now included.
+    Sorted newest first."""
+    prefixes = (
+        "FIAT_", "DIGITAL_", "NAV_", "LIQUIDITY_", "YIELD_",
+        "KYC_", "CATO_", "SUBSCRIPTION_", "REDEMPTION_",
+    )
     merged = []
     for source_log in (
         nav_engine.get_dsor_log(),
