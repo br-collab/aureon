@@ -1,10 +1,15 @@
 # Project Aureon - The Grid 3
 
-Aureon is an Equities-first agentic pre-trade governance and execution-intelligence platform.
+**Doctrine Stack:** Aureon Consolidated Canonical Doctrine v1.5.1 · CAOM-001 · Cato (mixed: core v0.2.2 / cache v0.2.3)
+**Live Deployment:** [aureon-production.up.railway.app](https://aureon-production.up.railway.app) · Endowment Series I — Argus · $100M paper AUM
+**Status:** Paper trading · approaching institutional testing · no real capital at risk
+**Classification:** Public prototype · full doctrine available under NDA
 
-It is designed to sit between portfolio intent and the incumbent OMS/EMS stack as a governed decision layer, not to replace OMS, EMS, SOR, or post-trade infrastructure. In Phase 1, Aureon acts as a Decision System of Record (DSOR) before execution: it captures governed portfolio intent, applies policy and risk framing, records approval lineage, and packages evidence for downstream control, supervision, and replay.
+Aureon is a doctrine-governed control layer between portfolio intent and execution — built for the convergence of tokenization, AI execution, and programmable payment rails. It sits above OMS, EMS, and post-trade infrastructure. It governs what enters those systems, and it produces the unified lineage record a trustee, rating agency, or regulator can rely on.
 
-The current repository is a prototype implementation of that model. It demonstrates the governance layer, approval workflow, risk and policy checks, evidence surfaces, and OMS/EMS handoff concepts needed for an Electronic Execution pilot.
+This repository is the **Phase 1 Equities prototype** — a working implementation of the governance pattern with Electronic Execution as the first pilot motion. The full institutional doctrine spans eFICC (electronic Fixed Income, Currencies, and Commodities) post-trade with an eleven-role agent workforce specification. That broader specification is the v1.5.1 Consolidated Canonical Doctrine, available under NDA to qualified institutional counterparties.
+
+In Phase 1, Aureon acts as a Decision System of Record (DSOR) before execution: it captures governed portfolio intent, applies policy and risk framing, records approval lineage, and packages evidence for downstream control, supervision, and replay.
 
 ---
 
@@ -37,6 +42,19 @@ In that deployment model, Aureon:
 
 Aureon augments OMS/EMS. It does not replace order staging, venue routing, parent-order lifecycle management, execution algorithms, broker connectivity, or legal books and records.
 
+### Why Equities Now, eFICC as the Doctrine Target
+
+Equities is the first pilot surface because it offered the cleanest validation harness for the governance pattern. **The institutional doctrine target is eFICC post-trade** — where simultaneous regulatory deadline pressure is forcing every broker-dealer and asset manager to rebuild post-trade infrastructure at the same time:
+
+- **Treasury cash clearing compliance** — December 2026
+- **Repo clearing mandate** — June 2027
+- **EU T+1 transition** — October 2027
+- **DORA full enforcement** — already live, hitting fixed-income operations hardest because of OTC dependencies
+
+Equities post-trade is largely solved at the institutional level — Aladdin, Bloomberg AIM, the major custodians cover it. eFICC is the opposite: every desk has its own conventions, every counterparty has its own rails, every regulator has different requirements. That fragmentation is precisely why a doctrine-first governance layer wins there. The control layer doesn't care about the underlying mess as long as the gates and the lineage hold.
+
+Aureon went where the regulatory storm is hitting hardest, not where the sandbox was cleanest. Equities is the proof. eFICC is the deployment.
+
 ---
 
 ## Target Institutional Architecture
@@ -54,12 +72,14 @@ Atrox — Alpha Origination (50,000 ft)
                     v
       Aureon Agent + Governance Layer
       Layer 0 - Verana  — Network Governance
+        └── Cato — Live settlement-doctrine gate (open-source MCP, MIT)
       Layer 1 - Mentat  — Strategic Intelligence
       Layer 2 - Kaladan — Lifecycle Orchestration
       Layer 3 - Thifur-C2 — Command and Control
         └── Thifur-R — Deterministic Execution
         └── Thifur-J — Bounded Autonomy
         └── Thifur-H — Adaptive Intelligence
+      Tier 0 — Emergency Halt (above all doctrine, any authority can trigger)
                     |
                     v
            OMS / Order Staging
@@ -142,16 +162,77 @@ All Thifur agents operate under strict governance constraints:
 
 ---
 
+## Cato — The Live Verana Settlement-Doctrine Gate
+
+Cato is the Verana L0 pre-settlement doctrine gate for tokenized institutional repo. It answers one question before every settlement: is atomic on-chain Delivery-versus-Payment viable right now, or should this trade route to FICC (Fixed Income Clearing Corporation)? The gate runs four deterministic checks and emits PROCEED, HOLD, or ESCALATE plus a recommended settlement rail.
+
+Cato exists in two implementations that must produce bit-for-bit identical decisions for identical inputs: the external open-source MCP server (Node.js, MIT license, 23 tools at [github.com/br-collab/Cato---FICC-MCP](https://github.com/br-collab/Cato---FICC-MCP)) and the in-process Python twin inside Aureon. The deterministic parity is currently in a known mixed state and tracked in the open conflicts log.
+
+**SR 11-7 Tier 1 backtest verified:** March 2020 COVID repo freeze (100%), September 2019 repo spike (80% post-fix), March 2023 SVB collapse (45.5% — documented calibration limit; Cato is a market-regime gate, not a counterparty-credit gate).
+
+**Supported settlement rails:** FICC traditional, Ethereum L1, Base, Arbitrum, Solana — with the `fed_l1` placeholder reserved for sovereign tokenized reserve rails (Fed L1 / PORTS, pending GENIUS Act).
+
+**The governance gate — not the rail — is the product.** When market structure shifts, Cato routes to the new rail. The doctrine does not change.
+
+---
+
+## Inherent-Safety, Axioms, and Failure-Mode Taxonomy (v1.5+)
+
+The doctrine uses **inherent-safety** as a defined technical term, separate from its colloquial use. An inherent-safety surface is one where the failure mode requires multiple independent simultaneous failures to produce loss, each independently bounded under stated assumptions. This is the language regulators recognize from aviation safety, nuclear operations, and ISO 26262 functional-safety frameworks.
+
+### The Ten Governance Axioms
+
+The system enforces ten axioms on itself. They are not configurable. They may only be modified through the Doctrine Modification Governance workflow.
+
+1. **Doctrine Before Execution** — no decision executes without doctrine version stamp, authority hash, and approval-lineage record
+2. **Agents Advise, Operators Decide** — no agent at any layer holds approval authority
+3. **Handoff Before Action** — no Thifur agent acts without recorded C2 handoff authorization
+4. **One Lineage Record** — DSOR receives the C2-assembled unified lineage, never raw agent telemetry
+5. **Doctrine Over Code** — smart-contract execution never overrides Mentat doctrine
+6. **Escalation Completeness** — C2 never presents a partial picture to human authority
+7. **Explainability Before Execution** — every Thifur-H action must be explainable in human-readable terms
+8. **Verana Autonomous Block** — Verana is the only layer authorized to autonomously block
+9. **Tier 0 Emergency Halt Above All Doctrine** — any authority can trigger; freezes all execution immediately
+10. **Inherent-Safety Surfaces Require Architectural Impossibility of Single-Point Failure** — no single authority, component, signature, key, jurisdiction, or counterparty may sit on the loss path
+
+### Three-Class Failure-Mode Taxonomy
+
+Every failure surface classifies as one of three recoverability classes:
+
+- **RA — Recoverable Automatic:** detected and recovered by the system without human action; lineage continuous across the event
+- **RM — Recoverable Manual:** detected and recovered with explicit human action; lineage may carry a flagged gap requiring manual reconciliation
+- **UR — Unrecoverable:** failure produces loss that cannot be undone; **must not be reachable on inherent-safety surfaces** (Axiom 10)
+
+### Quorum Authority — Future Mode
+
+Quorum authority is defined as the architectural prerequisite for institutional custody operations of material magnitude (large transfers, key ceremonies, encumbrance changes, lien releases, cold-storage rotations). Single-authority approval on these operations is an inherent-safety violation under Axiom 10. **Explicitly out of scope under CAOM-001** because single-operator three-tier signing does not meet separation-of-duties architecturally. v1.6 (custody) will operationalize the primitive within the custody domain.
+
+---
+
+## Tier 0 — Emergency Halt
+
+The Emergency Halt is a Tier 0 authority that sits **above** the three-tier CAOM-001 structure. Any authority can trigger it. When Halt is active, all Thifur execution is frozen immediately — R, J, and any future H domain — regardless of what other authorities or doctrine versions are active.
+
+Halt state carries its own immutable lineage: activation timestamp, invoking authority, stated reason. Resumption requires explicit operator action and generates a doctrine-change-style audit record.
+
+**Endpoints:** `POST /api/halt`, `GET /api/halt`, `POST /api/halt/resume`.
+
+The architectural invariant: a human can always stop the system; the system can never stop a human from stopping the system.
+
+---
+
 ## Doctrine Model With Institutional Translation
 
 | Doctrine Name | Altitude | Institutional Translation | Phase 1 Responsibility |
 |---------------|----------|---------------------------|------------------------|
+| **Tier 0 Halt** | Above all | Constitutional circuit breaker | Any authority freezes all execution; outside the three-tier hierarchy |
 | **Atrox** | 50,000 ft | Alpha origination and market intelligence layer | Signal generation, predictive analytics, product recommendations — advisory only |
-| **Verana** | Ground | Control and governance boundary layer | Session controls, policy boundary enforcement, supervisory control posture |
 | **Mentat** | 30,000 ft | Decision-intelligence and portfolio reasoning layer | Intent synthesis, scenario support, strategy-context framing, doctrine boundaries |
 | **Kaladan** | 10,000 ft | Lifecycle and evidence orchestration layer | Approval lineage, evidence packaging, replay context, downstream status attachment |
 | **Thifur-C2** | 1,000 ft | Command and Control coordination layer | Sequencing, handoff coordination, unified lineage assembly |
 | **Thifur-R/J/H** | 500 ft | Trader and execution-support bounded agentics layer | Deterministic execution, bounded autonomy, adaptive intelligence — all advisory |
+| **Verana** | Ground | Control and governance boundary layer | Session controls, policy boundary enforcement, supervisory control posture |
+| **Cato** | Verana L0 | Live settlement-doctrine gate | Pre-settlement DvP viability check; PROCEED/HOLD/ESCALATE; rail recommendation |
 
 Doctrine names should always be read alongside these institutional translations, not as free-floating abstractions.
 
@@ -161,11 +242,16 @@ Doctrine names should always be read alongside these institutional translations,
 
 Aureon operates under CAOM-001 for sole-operator deployment. The operator holds all three human authority tiers simultaneously:
 
+- **Tier 0** — Emergency Halt (constitutional, above all doctrine)
 - **Tier 1** — Trader / Risk Manager / Portfolio Manager approval gates
 - **Tier 2** — Compliance / Doctrine authority
 - **Tier 3** — Executive / Systemic risk decisions
 
 No agent substitutes for human authority at any tier. Every approval action is stamped with the CAOM-001 operating mode identifier and recorded in the DSOR.
+
+**CAOM-001 is not a workaround.** It is a defined, doctrine-consistent operating mode purpose-built for solo fund operators running a one-person shop with AI agents filling operational roles. All Human Authority Doctrine requirements remain in force under CAOM. The difference is in how roles are assigned — not in whether governance applies.
+
+**Transition triggers** out of CAOM include: AUM exceeds $10M (formal Risk Manager review), external investor capital onboarding (Compliance Officer separation required — CAOM is incompatible with third-party investor governance), regulatory examination scheduled, first institutional staff hire, strategy licensing to a third party, **or any operation the doctrine flags as quorum-required** (custody operations of material magnitude).
 
 ---
 
@@ -537,7 +623,9 @@ TWELVE_DATA_API_KEY=your_key
 
 ## Long-Term Direction
 
-The long-term ambition is to expand Aureon into a broader institutional decision and governance layer across additional workflows, desks, and asset classes — including the Arcadia Fund as a live systematic arbitrage proof of concept and potential licensing of named strategy modules to institutional counterparties.
+The long-term ambition is to expand Aureon into a broader institutional decision and governance layer across additional workflows, desks, and asset classes. The commercial path is **licensing the governance layer, not operating a fund** — through three deployment modes: governance overlay above existing OMS infrastructure, full-stack doctrine OS for greenfield builds, or pure compliance artifact engine where every decision returns a replayable regulatory submission package.
+
+The structural advantage: when market structure shifts (PORTS ships, GENIUS Act passes, Fed L1 tokenized reserves go live), the doctrine does not change. The rail does.
 
 The near-term objective is much narrower and more credible:
 
@@ -547,8 +635,10 @@ The near-term objective is much narrower and more credible:
 - build trust through governed approvals, replayability, and evidence quality
 - activate Atrox as the alpha origination layer on live data pipes
 - complete Thifur-H 20-cycle validation against Kraken live account and advance to full $500 live capital deployment
+- ship v1.6 (custody) — the next major doctrine addition, anchored on Axiom 10 and the quorum authority primitive
 
 ---
 
-*Project Aureon · Guillermo "Bill" Ravelo · Columbia University MS Technology Management*
-*The Grid 3 · CAOM-001 · Crawl Phase — Paper Trade Data Collection · Thifur-H Phase 2 Activated*
+*Project Aureon · Guillermo "Bill" Ravelo · Columbia University M.S. Technology Management · Capstone Doctrine Publication*
+*The Grid 3 · v1.5.1 · CAOM-001 · Crawl Phase — Paper Trade Data Collection · Thifur-H Phase 2 Activated*
+*Full Consolidated Canonical Doctrine v1.5.1 available under NDA to qualified institutional counterparties.*
