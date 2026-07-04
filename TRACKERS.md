@@ -343,6 +343,36 @@ regression green (C2 persistence, 15/15 parity). Pre-trade is now
 asset-class-aware across equity / fixed income / tokenized / digital.
 Uncommitted.
 
+### Two divergent pre-trade gate engines (finding, 2026-07-04)
+The estate has TWO parallel pre-trade gate implementations:
+(1) ThifurJ.structure_pretrade_record (aureon/agents/jtac/
+pretrade_structuring.py) — the C2-lifecycle gates, now asset-class-aware
+(P-1/P-2/P-3: dispatch + MiFIR + tokenized eligibility, emits HOLD);
+(2) policy_engine.evaluate_pretrade_decision (aureon/policy_engine/
+service.py) — a separate equities-only gate set (MARKET_STATUS,
+CASH_SUFFICIENCY, POSITION_CONCENTRATION, DRAWDOWN_LIMIT, ...) that the
+LIVE dashboard "Pre-Trade Routing" modal (/api/pretrade-check) calls.
+
+Consequence: P-2/P-3 (MiFIR transparency, tokenized eligibility) do NOT
+appear in the operator's live pre-trade modal — that screen runs engine
+(2), which is not asset-class-aware and never emits HOLD. The new gates
+DO surface in the DSOR replay / trade-report gate views, which render
+ThifurJ gate_results.
+
+UI fixes shipped this pass (index.html): HOLD now renders orange (dot +
+badge + both gate-list color maps) instead of red — it was reading as a
+hard block. And the pre-trade modal's overall-status handler gained a
+HOLD branch that DISABLES execute (fail-safe: a held gate must not be
+executable) instead of falling through to "all gates PASSED + execute
+enabled". The modal fix is defensive today (engine 2 doesn't emit HOLD
+yet) and becomes load-bearing on convergence.
+
+Follow-on (not yet done): converge the two engines — route the live
+modal through the ThifurJ asset-class dispatch (or align engine 2 to it)
+so P-2/P-3 actually appear on the operator's pre-trade screen. Also
+stale: dashboard title still says "Equities Pre-Trade Governance
+Dashboard" — pre-trade is now multi-asset-class.
+
 ## Active — Architectural Findings
 [Observations about the system that shape future decisions but aren't prescriptive.]
 

@@ -861,6 +861,7 @@ main {
 .check-dot.PASS { background: var(--green); box-shadow: 0 0 6px var(--green); }
 .check-dot.WARN { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
 .check-dot.FAIL { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.check-dot.HOLD { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
 .check-dot.PENDING { background: var(--muted); animation: pulse-dot 0.8s infinite; }
 @keyframes pulse-dot {
   0%,100% { opacity:1; } 50% { opacity:0.3; }
@@ -872,6 +873,7 @@ main {
 .check-badge.PASS { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
 .check-badge.WARN { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
 .check-badge.FAIL { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+.check-badge.HOLD { background: rgba(251,146,60,0.15); color: var(--orange); border: 1px solid rgba(251,146,60,0.35); }
 .check-badge.PENDING { background: rgba(74,85,120,0.3); color: var(--muted); border: 1px solid rgba(74,85,120,0.3); }
 .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
 .btn-execute { background: rgba(16,185,129,0.2); color: var(--green); border: 1px solid rgba(16,185,129,0.4);
@@ -3374,7 +3376,7 @@ function renderTradeReports() {
     const ddColor    = parseFloat(dd) > 5 ? 'var(--red)' : parseFloat(dd) > 2 ? 'var(--yellow)' : 'var(--green)';
     const gates      = r.gate_results || [];
     const gatePills  = gates.map(g => {
-      const sc = g.status==='PASS' ? 'var(--green)' : g.status==='WARN' ? 'var(--yellow)' : 'var(--red)';
+      const sc = g.status==='PASS' ? 'var(--green)' : g.status==='WARN' ? 'var(--yellow)' : g.status==='HOLD' ? 'var(--orange)' : 'var(--red)';
       return `<span style="font-size:9px;color:${sc};background:rgba(0,0,0,.3);
         padding:2px 5px;border-radius:3px;border:1px solid ${sc}">${(g.gate||'').split(' ')[0]} ${g.status}</span>`;
     }).join('');
@@ -3474,7 +3476,7 @@ function renderReplayReports() {
       <div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border2);font-size:10px">
         <span style="color:var(--white)">${g.gate}</span>
         <span style="color:var(--muted)">${g.layer}</span>
-        <span style="color:${g.status==='PASS'?'var(--green)':g.status==='WARN'?'var(--yellow)':'var(--red)'}">${g.status}</span>
+        <span style="color:${g.status==='PASS'?'var(--green)':g.status==='WARN'?'var(--yellow)':g.status==='HOLD'?'var(--orange)':'var(--red)'}">${g.status}</span>
       </div>
     `).join('');
 
@@ -3806,7 +3808,8 @@ async function openPretradeModal(id) {
   for (let i = 0; i < checks.length; i++) {
     await new Promise(res => setTimeout(res, 80));
     const c = checks[i];
-    const dotClass = c.status === 'PASS' ? 'PASS' : c.status === 'WARN' ? 'WARN' : 'FAIL';
+    const dotClass = c.status === 'PASS' ? 'PASS' : c.status === 'WARN' ? 'WARN'
+                   : c.status === 'HOLD' ? 'HOLD' : 'FAIL';
     const rows = checksEl.querySelectorAll('.pretrade-check-row');
     if (rows[i]) {
       rows[i].innerHTML = `
@@ -3826,10 +3829,18 @@ async function openPretradeModal(id) {
   const symbol = dec ? dec.symbol : '—';
   const notional = dec ? '$' + (dec.notional||0).toLocaleString() : '';
 
-  if (overall === 'FAIL') {
+  if (overall === 'FAIL' || overall === 'BLOCKED') {
     subtitleEl.textContent = `⛔ Pre-trade check FAILED — execution blocked`;
     execBtn.disabled = true;
     execBtn.textContent = 'BLOCKED';
+  } else if (overall === 'HOLD') {
+    // A HOLD is fail-safe: a gate is held pending capability, transparency,
+    // or authorization (e.g. MiFIR transparency not evidenced, tokenized
+    // issuer authorization pending). Execution must NOT be enabled — the
+    // operator resolves the held gate first. Distinct from a hard block.
+    subtitleEl.textContent = `⏸ Pre-trade HELD — a gate is pending (transparency / eligibility / capability). Resolve before executing ${symbol} ${notional}.`;
+    execBtn.disabled = true;
+    execBtn.textContent = 'HELD';
   } else if (overall === 'WARN') {
     subtitleEl.textContent = `⚠ Warnings present — review before executing ${symbol} ${notional}`;
     execBtn.disabled = false;
