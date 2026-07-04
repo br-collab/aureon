@@ -4439,6 +4439,8 @@ def run_doctrine_stack():
             aureon_state["c2_lineage_log"] = saved.get("c2_lineage_log", [])
             # ── WS-2.2 AML/KYC eligibility log ───────────────────
             aureon_state["c2_j_amlkyc_log"] = saved.get("c2_j_amlkyc_log", [])
+            # ── WS-2.3 Risk Reporting log ────────────────────────
+            aureon_state["c2_j_risk_log"] = saved.get("c2_j_risk_log", [])
         else:
             # ── First-ever launch — seed from INITIAL_POSITIONS ───
             aureon_state["positions"] = [dict(p) for p in INITIAL_POSITIONS]

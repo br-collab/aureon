@@ -63,6 +63,8 @@ def save_state(*, state, lock, state_file, resolve_mmf_provider, log_error):
                 "c2_registers":      dict(state.get("c2_registers", {})),
                 # ── WS-2.2 AML/KYC (AUR-J-AML-001) ─────────────────
                 "c2_j_amlkyc_log":   list(state.get("c2_j_amlkyc_log", [])),
+                # ── WS-2.3 Risk Reporting (AUR-J-RISK-001) ─────────
+                "c2_j_risk_log":     list(state.get("c2_j_risk_log", [])),
                 "saved_at":          datetime.now(timezone.utc).isoformat(),
             }
         # Atomic save: write to tmp in the same directory, then rename.
