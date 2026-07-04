@@ -373,6 +373,31 @@ so P-2/P-3 actually appear on the operator's pre-trade screen. Also
 stale: dashboard title still says "Equities Pre-Trade Governance
 Dashboard" — pre-trade is now multi-asset-class.
 
+### Pre-trade engine convergence (WS-P4, added 2026-07-04)
+Resolves the two-divergent-pre-trade-engines finding. The live modal's
+engine (policy_engine.evaluate_pretrade_decision) now appends the ThifurJ
+asset-class gates so the operator's pre-trade screen is asset-class-aware.
+
+- ThifurJ.asset_class_gates(decision): returns ONLY the asset-class-specific
+  additional gates (MiFIR transparency, tokenized eligibility) — base gates
+  stay the live engine's responsibility, no duplication. Active gates run;
+  declared gates HOLD; equities/unmapped -> [] (zero change). Never fails
+  open (error -> HOLD, not pass).
+- evaluate_pretrade_decision: new asset_class_gate_fn param; appends the
+  extra gates; aggregate precedence now FAIL/BLOCKED > HOLD > WARN > PASS.
+- server: api_pretrade_check passes _agent_j.asset_class_gates; timeout
+  fallback aggregate made HOLD-aware too.
+
+The modal HOLD-handling shipped last pass is now load-bearing: a bond
+without evidenced transparency, or a pending/revoked token issuer, now
+HOLDs/BLOCKs the live EXECUTE button instead of appearing executable.
+
+Verified: equity unchanged (6 gates, PASS); FI-unpublished -> MiFIR HOLD
+-> overall HOLD; FI-published -> PASS; tokenized authorized -> PASS;
+revoked -> FAIL; pending -> HOLD. Full regression green (C2 persistence,
+15/15 parity). The two pre-trade engines are now aligned; ThifurJ gates
+remain the single source of truth for asset-class rules.
+
 ## Active — Architectural Findings
 [Observations about the system that shape future decisions but aren't prescriptive.]
 

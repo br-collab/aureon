@@ -432,6 +432,44 @@ class ThifurJ(JTACConcreteBase):
             return "governed"
         return "pending"
 
+    def asset_class_gates(self, decision: dict) -> list:
+        """Convergence surface: return ONLY the asset-class-specific additional
+        gates for *decision* (e.g. MiFIR transparency, tokenized eligibility),
+        so the live pre-trade engine (policy_engine.evaluate_pretrade_decision)
+        can append them to its own base gates without duplicating them.
+
+        Active gates run their callable; declared-not-implemented gates return
+        HOLD (fail-safe). Equities and any unmapped class return [] — zero
+        change to the live engine's equity behavior. Never raises: on any
+        error returns a single HOLD gate rather than a silent pass.
+        """
+        try:
+            plan = self._resolve_gate_plan(decision)
+            try:
+                base_ids = set(self._load_dispatch().get("base_gates", []))
+            except Exception:
+                base_ids = {g for (g, _l, _d) in GATES}
+            with self._lock:
+                pv        = self._state.get("portfolio_value", 0.0)
+                cash      = self._state.get("cash", 0.0)
+                positions = list(self._state.get("positions", []))
+                prices    = dict(self._state.get("prices", {}))
+            out = []
+            for gate_id, layer, desc, status in plan:
+                if gate_id in base_ids:
+                    continue  # base gates are the live engine's responsibility
+                if status == "declared":
+                    out.append({"gate": gate_id, "layer": layer, "status": "HOLD",
+                                "detail": f"{desc} — declared, not yet implemented. Held."})
+                else:
+                    out.append(self._run_gate(gate_id, layer, desc, decision,
+                                              pv, cash, positions, prices))
+            return out
+        except Exception as exc:
+            return [{"gate": "ASSET_CLASS_DISPATCH", "layer": "Thifur-J",
+                     "status": "HOLD",
+                     "detail": f"Asset-class dispatch error ({exc}) — held, not passed."}]
+
     def _gate_mandate(self, gate_id, layer, description, decision) -> dict:
         asset_class = decision.get("asset_class", "")
         if asset_class not in APPROVED_ASSET_CLASSES:
