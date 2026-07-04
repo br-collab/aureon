@@ -30,6 +30,7 @@ def evaluate_pretrade_decision(
     risk_policy,
     symbol_to_isin,
     ofac_blocked_isins,
+    asset_class_gate_fn=None,
 ):
     """
     Evaluate all pre-trade gates for *decision_id*.
@@ -215,10 +216,32 @@ def evaluate_pretrade_decision(
         "detail": macro_detail,
     })
 
+    # ── Asset-class-specific gates (convergence) ──────────────────
+    # Append the ThifurJ asset-class gates (MiFIR transparency, tokenized
+    # eligibility) so the live modal runs the same asset-class-aware checks
+    # as the C2 lifecycle. Equities/unmapped -> [] (no change). Never fails
+    # open: an error yields a HOLD gate, not a silent pass.
+    if asset_class_gate_fn is not None:
+        try:
+            extra = asset_class_gate_fn(decision) or []
+            if extra:
+                gates.extend(extra)
+        except Exception as exc:
+            gates.append({
+                "gate":   "ASSET_CLASS_DISPATCH",
+                "layer":  "Thifur-J",
+                "status": "HOLD",
+                "detail": f"Asset-class gate evaluation error ({exc}) — held, not passed.",
+            })
+
     # ── Aggregate result ──────────────────────────────────────────
+    # Precedence: FAIL/BLOCKED > HOLD > WARN > PASS. HOLD is more restrictive
+    # than WARN (a held gate must not be executable) but is not a hard block.
     statuses = [g["status"] for g in gates]
-    if "FAIL" in statuses:
+    if "FAIL" in statuses or "BLOCKED" in statuses:
         overall = "FAIL"
+    elif "HOLD" in statuses:
+        overall = "HOLD"
     elif "WARN" in statuses:
         overall = "WARN"
     else:

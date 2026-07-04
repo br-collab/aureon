@@ -5656,6 +5656,10 @@ def api_pretrade_check(decision_id):
             risk_policy=RISK_MANAGER_POLICY,
             symbol_to_isin=SYMBOL_TO_ISIN,
             ofac_blocked_isins=OFAC_BLOCKED_ISINS,
+            # WS-P4: append the ThifurJ asset-class gates (MiFIR / tokenized
+            # eligibility) so the live modal is asset-class-aware. Equities
+            # get no extra gates — identical behavior to before.
+            asset_class_gate_fn=_agent_j.asset_class_gates,
         )
         return payload
 
@@ -5672,7 +5676,9 @@ def api_pretrade_check(decision_id):
             if not checks:
                 return jsonify({"error": "decision not found"}), 404
             statuses = [g["status"] for g in checks]
-            overall = "FAIL" if "FAIL" in statuses else "WARN" if "WARN" in statuses else "PASS"
+            overall = ("FAIL" if ("FAIL" in statuses or "BLOCKED" in statuses)
+                       else "HOLD" if "HOLD" in statuses
+                       else "WARN" if "WARN" in statuses else "PASS")
             with _lock:
                 decision = next(
                     (d for d in aureon_state.get("pending_decisions", []) if d["id"] == decision_id),
