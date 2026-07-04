@@ -1,0 +1,43 @@
+{
+  "_note": "Pre-trade asset-class dispatch (Workstream P-1, AUR-PRETRADE-REG-001). Ahead of the Thifur-J gate set, this fixture selects the applicable gate plan by instrument asset class. The base 8 gates apply to every class; a class may DECLARE additional gates. A gate with status 'active' runs its callable; a gate with status 'declared' is NOT yet implemented and routes to HOLD (fail-safe, never a silent pass) — the pre-trade rendering of the gap-completeness invariant. Equities and any unmapped class get exactly the base 8 gates (zero behavior change from pre-P-1). Editing this fixture is a doctrine event. Asset-class-specific gate implementations (e.g. TOKENIZED_ELIGIBILITY) are Workstream P-3. Fixed-income clearing/settlement gating is Atreides' domain, not Aureon pre-trade — see AUR-PRETRADE-REG-001 §VI.",
+  "dispatch_version": "ARCADIA-DISPATCH-v1.0",
+  "effective": "2026-07-04",
+  "base_gates": [
+    "OFAC_SDN_CHECK", "MANDATE_ELIGIBILITY", "POSITION_CONCENTRATION",
+    "CASH_FLOOR", "ASSET_CLASS_LIMIT", "NOTIONAL_AUTHORITY",
+    "APPROVAL_LINEAGE", "RELEASE_TARGET"
+  ],
+  "class_aliases": {
+    "equities": "equity", "equity": "equity", "stock": "equity",
+    "fixed_income": "fixed_income", "bond": "fixed_income", "ficc": "fixed_income",
+    "tokenized": "tokenized", "tokenized_security": "tokenized", "tokenised": "tokenized",
+    "digital": "digital", "native_digital": "digital", "crypto": "digital", "crypto_spot": "digital"
+  },
+  "classes": {
+    "equity": {
+      "additional_gates": [],
+      "note": "Argus baseline. Base 8 gates only — the pre-P-1 behavior, unchanged."
+    },
+    "fixed_income": {
+      "additional_gates": [
+        {"gate_id": "MIFIR_PRETRADE_TRANSPARENCY", "layer": "Thifur-J", "status": "declared",
+         "description": "MiFIR pre-trade transparency check for bonds (live since 2026-03-02)"}
+      ],
+      "note": "Clearing/settlement eligibility is Atreides, not this layer. Only the pre-trade transparency gate belongs here. Declared pending P-2 implementation."
+    },
+    "tokenized": {
+      "additional_gates": [
+        {"gate_id": "TOKENIZED_ELIGIBILITY", "layer": "Thifur-J", "status": "declared",
+         "description": "Issuer authorization (MiCA/GENIUS register) + Cato rail viability + custody-object class"}
+      ],
+      "note": "Declared pending P-3. Until implemented, a tokenized instrument HOLDS at pre-trade — fail-safe."
+    },
+    "digital": {
+      "additional_gates": [
+        {"gate_id": "TOKENIZED_ELIGIBILITY", "layer": "Thifur-J", "status": "declared",
+         "description": "Native-digital eligibility — issuer/asset authorization + Cato rail + custody class"}
+      ],
+      "note": "Native digital assets share the tokenized eligibility gate. Declared pending P-3."
+    }
+  }
+}
