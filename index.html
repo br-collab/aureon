@@ -1105,6 +1105,54 @@ main {
   </div>
 </div>
 
+<!-- ── NEW ORDER (OPERATOR ORIGINATION) MODAL ─────────────── -->
+<div class="modal-overlay" id="neworder-modal">
+  <div class="modal-box">
+    <div class="modal-title">＋ New Order — Operator Origination</div>
+    <div class="modal-subtitle">Creates a pending decision · flows through pre-trade governance · never auto-executed</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;font-size:12px">
+      <label style="display:flex;flex-direction:column;gap:4px">Symbol
+        <input id="no-symbol" placeholder="e.g. OUSG" style="padding:7px;background:var(--deep);border:1px solid var(--border);border-radius:4px;color:var(--white)"></label>
+      <label style="display:flex;flex-direction:column;gap:4px">Action
+        <select id="no-action" style="padding:7px;background:var(--deep);border:1px solid var(--border);border-radius:4px;color:var(--white)"><option>BUY</option><option>SELL</option></select></label>
+      <label style="display:flex;flex-direction:column;gap:4px">Asset class
+        <select id="no-assetclass" onchange="noToggleFields()" style="padding:7px;background:var(--deep);border:1px solid var(--border);border-radius:4px;color:var(--white)">
+          <option value="equities">equities</option><option value="fixed_income">fixed_income</option>
+          <option value="tokenized">tokenized</option><option value="digital">digital</option></select></label>
+      <label style="display:flex;flex-direction:column;gap:4px">Notional (USD)
+        <input id="no-notional" type="number" placeholder="500000" style="padding:7px;background:var(--deep);border:1px solid var(--border);border-radius:4px;color:var(--white)"></label>
+      <label style="display:flex;flex-direction:column;gap:4px">Price (opt)
+        <input id="no-price" type="number" placeholder="100.00" style="padding:7px;background:var(--deep);border:1px solid var(--border);border-radius:4px;color:var(--white)"></label>
+    </div>
+    <!-- fixed income fields -->
+    <div id="no-fi-fields" style="display:none;margin-top:12px;padding:10px;border:1px solid rgba(0,212,255,0.2);border-radius:6px">
+      <div style="font-size:10px;letter-spacing:.08em;color:var(--muted);margin-bottom:8px">FIXED-INCOME (MiFIR)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px">
+        <label style="display:flex;flex-direction:column;gap:4px">Subtype
+          <select id="no-fi-subtype" style="padding:6px;background:var(--deep);border:1px solid var(--border);border-radius:4px;color:var(--white)"><option>corporate_bond</option><option>sovereign_bond</option><option>convertible_bond</option><option>other</option></select></label>
+        <label style="display:flex;flex-direction:column;gap:4px">Liquidity
+          <select id="no-fi-liquidity" style="padding:6px;background:var(--deep);border:1px solid var(--border);border-radius:4px;color:var(--white)"><option>liquid</option><option>illiquid</option></select></label>
+        <label style="display:flex;align-items:center;gap:6px;grid-column:span 2"><input type="checkbox" id="no-fi-published"> Pre-trade published (transparency satisfied)</label>
+      </div>
+    </div>
+    <!-- tokenized/digital fields -->
+    <div id="no-tok-fields" style="display:none;margin-top:12px;padding:10px;border:1px solid rgba(0,212,255,0.2);border-radius:6px">
+      <div style="font-size:10px;letter-spacing:.08em;color:var(--muted);margin-bottom:8px">TOKENIZED / DIGITAL (eligibility)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px">
+        <label style="display:flex;flex-direction:column;gap:4px">Issuer ID
+          <input id="no-tok-issuer" placeholder="ONDO_OUSG" style="padding:6px;background:var(--deep);border:1px solid var(--border);border-radius:4px;color:var(--white)"></label>
+        <label style="display:flex;flex-direction:column;gap:4px">Settlement rail
+          <select id="no-tok-rail" style="padding:6px;background:var(--deep);border:1px solid var(--border);border-radius:4px;color:var(--white)"><option>ethereum</option><option>base</option><option>arbitrum</option><option>solana</option><option>ficc</option></select></label>
+      </div>
+    </div>
+    <div id="no-msg" style="font-size:11px;color:var(--muted);margin-top:10px"></div>
+    <div class="modal-actions">
+      <button class="btn-execute" id="no-submit-btn" onclick="submitNewOrder()">CREATE ORDER</button>
+      <button class="btn-cancel-modal" onclick="closeNewOrderModal()">CANCEL</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── POST-TRADE CONFIRMATION MODAL ─────────────────────── -->
 <div class="modal-overlay" id="posttrade-modal">
   <div class="modal-box">
@@ -1176,6 +1224,11 @@ main {
     <div class="mode-dot"></div>
     <span id="integration-mode-label">Standalone</span>
   </div>
+
+  <button class="halt-btn-header" id="new-order-btn" onclick="openNewOrderModal()"
+          style="background:rgba(0,212,255,0.12);color:var(--cyan);border-color:rgba(0,212,255,0.35)">
+    ＋ NEW ORDER
+  </button>
 
   <button class="halt-btn-header" id="halt-header-btn" onclick="openHaltModal()">
     ⛔ EMERGENCY HALT
@@ -2972,6 +3025,7 @@ const API = {
   treasury:         '/api/treasury',
   resolve:          (id) => `/api/decisions/${id}`,
   pretrade:         (id) => `/api/decisions/${id}/pretrade`,
+  createDecision:   '/api/decisions/create',
   halt:             '/api/halt',
   haltResume:       '/api/halt/resume',
   doctrinePropose:  '/api/doctrine/propose',
@@ -3758,6 +3812,62 @@ async function resolveDecision(id, resolution, approvalRole = 'TRADER') {
   _pendingResolution = resolution;
   _pendingApprovalRole = approvalRole;
   openPretradeModal(id);
+}
+
+// ── New Order (operator origination, WS-P5) ────────────────────
+function openNewOrderModal() {
+  document.getElementById('no-msg').textContent = '';
+  noToggleFields();
+  document.getElementById('neworder-modal').classList.add('active');
+}
+function closeNewOrderModal() {
+  document.getElementById('neworder-modal').classList.remove('active');
+}
+function noToggleFields() {
+  const ac = document.getElementById('no-assetclass').value;
+  document.getElementById('no-fi-fields').style.display  = (ac === 'fixed_income') ? 'block' : 'none';
+  document.getElementById('no-tok-fields').style.display = (ac === 'tokenized' || ac === 'digital') ? 'block' : 'none';
+}
+async function submitNewOrder() {
+  const ac = document.getElementById('no-assetclass').value;
+  const body = {
+    symbol:      document.getElementById('no-symbol').value.trim(),
+    action:      document.getElementById('no-action').value,
+    asset_class: ac,
+    notional:    Number(document.getElementById('no-notional').value),
+    price:       document.getElementById('no-price').value || null,
+  };
+  if (ac === 'fixed_income') {
+    body.instrument_subtype = document.getElementById('no-fi-subtype').value;
+    body.bond_liquidity     = document.getElementById('no-fi-liquidity').value;
+    body.pretrade_published = document.getElementById('no-fi-published').checked;
+  }
+  if (ac === 'tokenized' || ac === 'digital') {
+    body.token_issuer_id = document.getElementById('no-tok-issuer').value.trim();
+    body.settlement_rail = document.getElementById('no-tok-rail').value;
+  }
+  const msg = document.getElementById('no-msg');
+  msg.textContent = 'Creating…';
+  try {
+    const r = await fetch(API.createDecision, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (r.ok && d.status === 'created') {
+      msg.style.color = 'var(--green)';
+      msg.textContent = `✓ ${d.decision_id} created — run its pre-trade check in the queue.`;
+      if (typeof fetchDecisions === 'function') await fetchDecisions();
+      if (typeof renderTrading === 'function') renderTrading();
+      setTimeout(closeNewOrderModal, 1400);
+    } else {
+      msg.style.color = 'var(--red)';
+      msg.textContent = '⚠ ' + (d.error || 'Create failed');
+    }
+  } catch(e) {
+    msg.style.color = 'var(--red)';
+    msg.textContent = '⚠ Backend unreachable';
+  }
 }
 
 async function openPretradeModal(id) {
