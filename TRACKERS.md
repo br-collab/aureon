@@ -177,6 +177,32 @@ Operator approved 2026-07-04; AGENTS.md flipped in Project-Atreides. Remaining T
 Risk Reporting (Kaladan threshold surfaces partially exist), Trade
 Surveillance (scenario library = genuine new work). Uncommitted.
 
+### SECURITY: public Tier 0 halt endpoints were unauthenticated (WS-0.7, 2026-07-04)
+The `br-collab/aureon` repo and its Railway deployment are **public**.
+`/api/halt` (POST) and `/api/halt/resume` (POST) had NO auth — unlike
+`/api/admin/reset-state`, which checks `X-Admin-Key`. Anyone reading the
+public source could freeze the entire execution surface, or resume a
+deliberately-set halt, and the audit record would attribute it to the
+operator's default email. Resume is the higher-risk direction.
+
+Fix: added `server._require_admin_key()` (mirrors reset-state; fails
+closed if `AUREON_ADMIN_KEY` unset) guarding both POST endpoints; GET
+halt-status stays open (read-only). Dashboard (index.html) halt/resume
+now prompt for the operator key (in-memory, session-only) and send it
+as `X-Admin-Key`, with a 403 handler that clears the cached key.
+
+Doctrinal check: does NOT weaken the Tier 0 invariant. The operator's
+GUARANTEED stop path is the Leto kill switch (direct-to-Kraken, bypasses
+this HTTP endpoint); Leto only POSTs /api/halt afterward to sync Railway
+state and carries the key via its own env. Verified: auth guard unit
+test (correct=allow; wrong/missing/unset=deny).
+
+**OPERATIONAL DEPENDENCY — action required:** set `AUREON_ADMIN_KEY` in
+the Railway environment. Until it is set, HTTP halt/resume fail closed
+for everyone (dashboard included) — the operator can still halt via
+Leto/Kraken, but the dashboard button will 403. Also configure the same
+key in the Leto env so its post-kill Railway sync succeeds. Uncommitted.
+
 ## Active — Architectural Findings
 [Observations about the system that shape future decisions but aren't prescriptive.]
 

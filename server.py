@@ -5849,9 +5849,32 @@ def api_session_open():
 # 7c. L0 GOVERNANCE — EMERGENCY HALT + DOCTRINE MODIFICATION
 # ─────────────────────────────────────────────────────────────────
 
+def _require_admin_key() -> bool:
+    """WS-0 security fix (2026-07-04): gate mutating Tier 0 HTTP endpoints
+    on the public Railway surface with the same X-Admin-Key check that
+    /api/admin/reset-state uses.
+
+    Doctrinal note — this does NOT weaken the Tier 0 invariant ("a human
+    can always stop the system"). The operator's GUARANTEED stop path is
+    the Leto console kill switch, which calls Kraken directly and bypasses
+    this HTTP endpoint entirely; Leto only POSTs /api/halt afterward to
+    sync Railway state, and it carries the key via its own env. This guard
+    closes the public-internet DoS/griefing vector on a PUBLIC repo+URL
+    where an unauthenticated caller could otherwise freeze execution (or,
+    worse, resume a deliberately-set halt) and have the audit trail
+    attribute it to the operator's default email.
+
+    Fails closed: if AUREON_ADMIN_KEY is unset, HTTP halt/resume are
+    rejected — the operator still halts via Leto/Kraken regardless.
+    """
+    import os as _os
+    admin_key = _os.environ.get("AUREON_ADMIN_KEY", "")
+    return bool(admin_key) and request.headers.get("X-Admin-Key") == admin_key
+
+
 @app.route("/api/halt", methods=["GET"])
 def api_halt_status():
-    """Current halt state."""
+    """Current halt state. Read-only — unauthenticated by design."""
     with _lock:
         return jsonify({
             "halt_active":    aureon_state["halt_active"],
@@ -5866,7 +5889,13 @@ def api_halt_activate():
     """
     Tier 0 Emergency Halt — freezes all Thifur execution immediately.
     No autonomous action can override this. Resume requires explicit human re-auth.
+
+    Public HTTP surface requires X-Admin-Key (see _require_admin_key).
+    The operator's guaranteed stop path (Leto -> Kraken direct) is
+    unaffected — it bypasses this endpoint.
     """
+    if not _require_admin_key():
+        return jsonify({"error": "Unauthorized — X-Admin-Key required for Tier 0 HTTP halt"}), 403
     data      = request.get_json() or {}
     reason    = data.get("reason", "Emergency halt activated")
     authority = data.get("authority", "br@ravelobizdev.com")
@@ -5908,7 +5937,14 @@ def api_halt_resume():
     """
     Resume from emergency halt. Requires explicit human re-authorization.
     Logged as a Tier 0 authority event.
+
+    Public HTTP surface requires X-Admin-Key. Resume is the higher-risk
+    direction — an unauthenticated resume would let a griefer un-freeze a
+    halt the operator deliberately set, so this guard matters more here
+    than on activation.
     """
+    if not _require_admin_key():
+        return jsonify({"error": "Unauthorized — X-Admin-Key required for Tier 0 HTTP resume"}), 403
     data      = request.get_json() or {}
     authority = data.get("authority", "br@ravelobizdev.com")
 
