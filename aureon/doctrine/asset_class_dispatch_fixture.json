@@ -20,10 +20,10 @@
     },
     "fixed_income": {
       "additional_gates": [
-        {"gate_id": "MIFIR_PRETRADE_TRANSPARENCY", "layer": "Thifur-J", "status": "declared",
+        {"gate_id": "MIFIR_PRETRADE_TRANSPARENCY", "layer": "Thifur-J", "status": "active",
          "description": "MiFIR pre-trade transparency check for bonds (live since 2026-03-02)"}
       ],
-      "note": "Clearing/settlement eligibility is Atreides, not this layer. Only the pre-trade transparency gate belongs here. Declared pending P-2 implementation."
+      "note": "Clearing/settlement eligibility is Atreides, not this layer. Only the pre-trade transparency gate belongs here. ACTIVE as of P-2 (2026-07-04)."
     },
     "tokenized": {
       "additional_gates": [
