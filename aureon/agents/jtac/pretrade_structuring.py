@@ -44,6 +44,11 @@ _DISPATCH_FIXTURE = os.path.join(
     os.path.dirname(__file__), "..", "..", "doctrine",
     "asset_class_dispatch_fixture.json",
 )
+# MiFIR fixed-income pre-trade transparency fixture (Workstream P-2).
+_MIFIR_FIXTURE = os.path.join(
+    os.path.dirname(__file__), "..", "..", "doctrine",
+    "mifir_transparency_fixture.json",
+)
 
 # ── J Operating Constants ─────────────────────────────────────────────────────
 AGENT_J_VERSION   = "1.0"
@@ -368,6 +373,12 @@ class ThifurJ(JTACConcreteBase):
             elif gate_id == "RELEASE_TARGET":
                 return self._gate_release_target(gate_id, layer, description, decision)
 
+            elif gate_id == "MIFIR_PRETRADE_TRANSPARENCY":
+                return self._gate_mifir_transparency(gate_id, layer, description, decision)
+
+            elif gate_id == "TOKENIZED_ELIGIBILITY":
+                return self._gate_tokenized_eligibility(gate_id, layer, description, decision)
+
             else:
                 return self._gate_pass(gate_id, layer, description)
 
@@ -588,6 +599,78 @@ class ThifurJ(JTACConcreteBase):
             "detail": (f"Release target '{target}' not in approved set "
                        f"{APPROVED_RELEASE_TARGETS}"),
         }
+
+    # ── P-2: MiFIR fixed-income pre-trade transparency ───────────────────────
+    def _load_mifir(self, source_path: str | None = None) -> dict:
+        if not hasattr(self, "_mifir") or self._mifir is None:
+            path = source_path or _MIFIR_FIXTURE
+            with open(path, "r") as fh:
+                self._mifir = json.load(fh)
+        return self._mifir
+
+    def _gate_mifir_transparency(self, gate_id, layer, description, decision) -> dict:
+        """MiFIR pre-trade transparency for bonds (live since 2026-03-02).
+
+        A liquid bond order must be pre-trade transparent (published) unless a
+        valid waiver applies (LIS / SSTI / ILLIQUID / OMF). The gate verifies
+        one of those conditions holds:
+          - illiquid instrument           -> ILLIQUID waiver, PASS
+          - order size >= LIS threshold   -> LIS waiver, PASS
+          - order size >= SSTI threshold  -> SSTI waiver, PASS
+          - pretrade_published == true    -> transparent, PASS
+          - a valid waiver_claimed        -> PASS (attributed)
+          - none of the above             -> HOLD (transparency not evidenced —
+                                             not blocked; held for the operator
+                                             to attach transparency/waiver)
+          - an invalid waiver_claimed     -> WARN (claimed waiver not recognized)
+        On fixture error, HOLD (never silently pass a transparency check).
+        """
+        try:
+            cfg = self._load_mifir()
+        except Exception as exc:
+            return {"gate": gate_id, "layer": layer, "status": "HOLD",
+                    "detail": f"MiFIR fixture unavailable ({exc}) — held, not passed."}
+
+        subtype   = (decision.get("instrument_subtype") or "other").strip().lower()
+        notional  = float(decision.get("notional", 0) or 0)
+        liquidity = (decision.get("bond_liquidity")
+                     or cfg.get("default_liquidity", "liquid")).strip().lower()
+        published = bool(decision.get("pretrade_published", False))
+        claimed   = decision.get("waiver_claimed")
+        thresholds = cfg.get("thresholds_eur", {}).get(
+            subtype, cfg.get("thresholds_eur", {}).get("other", {}))
+        lis  = thresholds.get("lis")
+        ssti = thresholds.get("ssti")
+        approved = set(cfg.get("approved_waivers", []))
+
+        def ok(detail):
+            return {"gate": gate_id, "layer": layer, "status": "PASS", "detail": detail}
+
+        if liquidity == "illiquid":
+            return ok(f"Illiquid {subtype} — ILLIQUID pre-trade transparency waiver applies.")
+        if lis is not None and notional >= lis:
+            return ok(f"Order EUR {notional:,.0f} >= LIS {lis:,.0f} for {subtype} — LIS waiver.")
+        if ssti is not None and notional >= ssti:
+            return ok(f"Order EUR {notional:,.0f} >= SSTI {ssti:,.0f} for {subtype} — SSTI waiver.")
+        if published:
+            return ok(f"Liquid {subtype} order published pre-trade — transparency satisfied.")
+        if claimed:
+            if claimed.upper() in approved:
+                return ok(f"Waiver '{claimed}' claimed and in approved set — attributed.")
+            return {"gate": gate_id, "layer": layer, "status": "WARN",
+                    "detail": (f"Claimed waiver '{claimed}' not in approved set "
+                               f"{sorted(approved)} — flagged for review.")}
+        return {"gate": gate_id, "layer": layer, "status": "HOLD",
+                "detail": (f"Liquid {subtype} order below LIS/SSTI, not published, "
+                           f"no waiver claimed — MiFIR pre-trade transparency not "
+                           f"evidenced. Held pending transparency or a valid waiver.")}
+
+    def _gate_tokenized_eligibility(self, gate_id, layer, description, decision) -> dict:
+        """P-3 placeholder — implemented in Workstream P-3. Until then the
+        dispatch keeps this gate 'declared' (routed to HOLD before reaching
+        here), so this is not called; the HOLD default is the fail-safe."""
+        return {"gate": gate_id, "layer": layer, "status": "HOLD",
+                "detail": "Tokenized eligibility gate pending P-3 implementation."}
 
     def _gate_pass(self, gate_id: str, layer: str, description: str) -> dict:
         return {

@@ -1,0 +1,14 @@
+{
+  "_note": "MiFIR pre-trade transparency thresholds for fixed income (Workstream P-2, AUR-PRETRADE-REG-001). Revised MiFIR transparency for bonds is live since 2026-03-02. Under MiFIR, orders/quotes in liquid bonds must be made public pre-trade UNLESS a waiver applies: Large-In-Scale (LIS), Size-Specific-To-the-Instrument (SSTI), illiquid instrument, or order-management-facility (OMF). This gate verifies that a fixed-income trade is either (a) pre-trade transparent, or (b) covered by a valid waiver from the approved set. Representative EUR thresholds; a production deployment sources ESMA's per-ISIN liquidity + LIS/SSTI calibrations. Editing this fixture is a doctrine event. Scope boundary: this is the PRE-TRADE TRANSPARENCY gate only. Clearing/settlement (Treasury central clearing) is Atreides, not this layer.",
+  "transparency_version": "ARCADIA-MIFIR-v1.0",
+  "effective": "2026-07-04",
+  "approved_waivers": ["LIS", "SSTI", "ILLIQUID", "OMF"],
+  "default_liquidity": "liquid",
+  "thresholds_eur": {
+    "sovereign_bond":  {"lis": 5000000, "ssti": 2000000},
+    "corporate_bond":  {"lis": 1500000, "ssti": 500000},
+    "convertible_bond":{"lis": 1000000, "ssti": 400000},
+    "other":           {"lis": 1000000, "ssti": 300000}
+  },
+  "_field_note": "Decision fields consumed: instrument_subtype (sovereign_bond/corporate_bond/...), notional (EUR-equiv order size), bond_liquidity ('liquid'|'illiquid', defaults to 'liquid'), pretrade_published (bool — venue made the quote/order public), waiver_claimed (one of approved_waivers or null)."
+}
