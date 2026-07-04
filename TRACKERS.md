@@ -223,6 +223,24 @@ every path. Live-verified 6/6. Skill-file approval pending. Only
 Trade Surveillance FI remains locked (scenario library = new work).
 Uncommitted.
 
+### Tier 2 band COMPLETE — Trade Surveillance built (WS-2.4, added 2026-07-04)
+Fourth and last canonical Tier 2 role, the genuinely-new-work one: NO
+detection signals existed in code, so the scenario library is authored,
+not extracted. Shipped: surveillance_scenarios_fixture.json (wash trade,
+marking the close, front running, price deviation, counterparty
+concentration; layering/spoofing declared-not-active pending order-book
+data), jtac_paths/AUR-J-SURV-001.json (4-path disposition set),
+aureon/agents/jtac/trade_surveillance.py (TradeSurveillance, registered),
+c2_j_surveillance_log persistence, AUR-J-PATHSET-SURV-001 v1.0 +
+trade-surveillance-analyst.md v0.1 DRAFT. Two invariants carried from
+Risk Reporting: no pattern auto-disposed (Axiom 2), and monotonic
+escalation (ESCALATE dominates data-gap; gap outranks review-flag).
+Live-verified 9/9. Skill-file approval pending.
+
+Tier 2 band now COMPLETE: COMP + AML + RISK operator-approved,
+SURV built. AGENTS.md v0.5. AUR-INV-001 refreshed to v1.1 (Gap 1
+closed). Uncommitted.
+
 ## Active — Architectural Findings
 [Observations about the system that shape future decisions but aren't prescriptive.]
 
