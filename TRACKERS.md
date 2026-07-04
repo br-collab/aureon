@@ -315,6 +315,34 @@ layer — the fixed_income class carries only the MiFIR pre-trade
 transparency gate. Foundation for P-2 (FI transparency) and P-3 (tokenized
 eligibility). Uncommitted.
 
+### Tokenized-instrument pre-trade eligibility gate (WS-P3, added 2026-07-04)
+Turns the P-1 tokenized/digital HOLD into a real PASS/HOLD/BLOCK. Third
+pre-trade gate; completes the P-1/P-2/P-3 arc.
+
+- tokenized_eligibility_fixture.json: MiCA/GENIUS issuer register (status
+  AUTHORIZED/PENDING/REVOKED), supported rails, known custody classes.
+  source_path seam for a live register feed. Fictional issuers keyed to
+  the estate's real tokenization threads (Franklin, Circle, Ondo, Galaxy CLO).
+- _gate_tokenized_eligibility: three checks, most-restrictive — issuer
+  authorization (AUTHORIZED->continue; PENDING->HOLD; REVOKED/unknown->
+  BLOCK, MiCA delisting), supported settlement rail exists (unknown->HOLD;
+  atomic-vs-FICC viability stays Cato's at settlement), custody-object
+  class known (unknown->HOLD). Never a silent PASS.
+- dispatch fixture: tokenized + digital TOKENIZED_ELIGIBILITY flipped
+  declared -> active.
+
+Interaction fix: replaced the P-1 mandate blanket-HOLD for recognized
+classes with _class_dispatch_state() — a class GOVERNED by an active
+eligibility gate PASSes mandate (defers to that gate); a class with only
+DECLARED gates HOLDs; genuinely unknown FAILs. So an authorized tokenized
+instrument now fully PASSes pre-trade.
+
+Verified: authorized PASS; pending-issuer HOLD; revoked/unknown BLOCKED;
+unsupported rail HOLD; digital alias works; equity unchanged. Full
+regression green (C2 persistence, 15/15 parity). Pre-trade is now
+asset-class-aware across equity / fixed income / tokenized / digital.
+Uncommitted.
+
 ## Active — Architectural Findings
 [Observations about the system that shape future decisions but aren't prescriptive.]
 

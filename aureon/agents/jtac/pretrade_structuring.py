@@ -49,6 +49,11 @@ _MIFIR_FIXTURE = os.path.join(
     os.path.dirname(__file__), "..", "..", "doctrine",
     "mifir_transparency_fixture.json",
 )
+# Tokenized-instrument eligibility fixture (Workstream P-3).
+_TOKEN_ELIG_FIXTURE = os.path.join(
+    os.path.dirname(__file__), "..", "..", "doctrine",
+    "tokenized_eligibility_fixture.json",
+)
 
 # ── J Operating Constants ─────────────────────────────────────────────────────
 AGENT_J_VERSION   = "1.0"
@@ -408,35 +413,48 @@ class ThifurJ(JTACConcreteBase):
             }
         return self._gate_pass(gate_id, layer, description)
 
-    def _is_dispatch_recognized(self, asset_class: str) -> bool:
-        """P-1: True if the (canonicalized) asset class is declared in the
-        dispatch fixture's class map — i.e. recognized-but-pending, its real
-        eligibility deferred to a declared gate. Distinct from a genuinely
-        unknown class."""
+    def _class_dispatch_state(self, asset_class: str) -> str:
+        """P-1/P-3: classify an asset class against the dispatch fixture.
+        Returns 'unknown' (not in the fixture), 'governed' (recognized and has
+        at least one ACTIVE additional gate that governs it), or 'pending'
+        (recognized but its additional gates are only 'declared')."""
         try:
             disp = self._load_dispatch()
         except Exception:
-            return False
+            return "unknown"
         raw = (asset_class or "").strip().lower()
         canon = disp.get("class_aliases", {}).get(raw, raw)
-        return canon in disp.get("classes", {})
+        cls = disp.get("classes", {}).get(canon)
+        if cls is None:
+            return "unknown"
+        extras = cls.get("additional_gates", [])
+        if any(g.get("status") == "active" for g in extras):
+            return "governed"
+        return "pending"
 
     def _gate_mandate(self, gate_id, layer, description, decision) -> dict:
         asset_class = decision.get("asset_class", "")
         if asset_class not in APPROVED_ASSET_CLASSES:
-            # P-1: a dispatch-recognized class (has a declared eligibility
-            # gate) is not "unknown" — it is pending an asset-class capability.
-            # HOLD rather than FAIL, deferring the real judgment to the
-            # declared eligibility gate. A genuinely unknown class still FAILs.
-            if self._is_dispatch_recognized(asset_class):
+            state = self._class_dispatch_state(asset_class)
+            # P-3: a recognized class whose eligibility gate is ACTIVE is
+            # governed — mandate PASSes and defers the real judgment to that
+            # gate. A recognized class with only DECLARED gates is pending —
+            # HOLD. A genuinely unknown class still FAILs.
+            if state == "governed":
+                return {
+                    "gate":   gate_id,
+                    "layer":  layer,
+                    "status": "PASS",
+                    "detail": (f"Asset class '{asset_class}' governed by an active "
+                               f"asset-class eligibility gate — mandate defers to it."),
+                }
+            if state == "pending":
                 return {
                     "gate":   gate_id,
                     "layer":  layer,
                     "status": "HOLD",
                     "detail": (f"Asset class '{asset_class}' recognized but its "
-                               f"mandate rule bundle is pending (pre-trade "
-                               f"Workstream P-2/P-3). Held, not blocked; real "
-                               f"eligibility deferred to the declared gate."),
+                               f"rule bundle is pending — held, not blocked."),
                 }
             return {
                 "gate":   gate_id,
@@ -665,12 +683,79 @@ class ThifurJ(JTACConcreteBase):
                            f"no waiver claimed — MiFIR pre-trade transparency not "
                            f"evidenced. Held pending transparency or a valid waiver.")}
 
+    # ── P-3: Tokenized-instrument pre-trade eligibility ──────────────────────
+    def _load_token_elig(self, source_path: str | None = None) -> dict:
+        if not hasattr(self, "_token_elig") or self._token_elig is None:
+            path = source_path or _TOKEN_ELIG_FIXTURE
+            with open(path, "r") as fh:
+                self._token_elig = json.load(fh)
+        return self._token_elig
+
     def _gate_tokenized_eligibility(self, gate_id, layer, description, decision) -> dict:
-        """P-3 placeholder — implemented in Workstream P-3. Until then the
-        dispatch keeps this gate 'declared' (routed to HOLD before reaching
-        here), so this is not called; the HOLD default is the fail-safe."""
-        return {"gate": gate_id, "layer": layer, "status": "HOLD",
-                "detail": "Tokenized eligibility gate pending P-3 implementation."}
+        """Pre-trade eligibility for tokenized / native-digital instruments
+        (AUR-PRETRADE-REG-001 §V). Three checks, evaluated most-restrictive:
+
+          1. Issuer authorization (MiCA CASP / GENIUS register):
+               AUTHORIZED -> continue; PENDING -> HOLD; REVOKED/unknown -> BLOCK
+               (non-compliant/unknown issuer cannot trade — MiCA delisting).
+          2. Supported settlement rail exists (Cato-supported). The live
+               atomic-vs-FICC viability call is Cato's at settlement; pre-trade
+               only checks a viable rail is declared. Unknown rail -> HOLD.
+          3. Custody-object class known (AUR-CUSTODY-OBJ-001). Unknown -> HOLD.
+
+        Fail-safe: BLOCK for a definitively ineligible issuer; HOLD for
+        anything pending/unclassifiable; never a silent PASS. On fixture
+        error, HOLD.
+        """
+        try:
+            cfg = self._load_token_elig()
+        except Exception as exc:
+            return {"gate": gate_id, "layer": layer, "status": "HOLD",
+                    "detail": f"Tokenized-eligibility fixture unavailable ({exc}) — held."}
+
+        issuer_id = decision.get("token_issuer_id")
+        register  = cfg.get("issuer_register", {})
+        entry     = register.get(issuer_id) if issuer_id else None
+
+        # 1. Issuer authorization.
+        if entry is None:
+            return {"gate": gate_id, "layer": layer, "status": "FAIL",
+                    "detail": (f"Token issuer '{issuer_id}' not in the MiCA/GENIUS "
+                               f"authorization register — unknown/unauthorized "
+                               f"issuer. Blocked (non-compliant issuers cannot trade).")}
+        status = str(entry.get("status", "")).upper()
+        if status in ("REVOKED", "DELISTED", "PROHIBITED"):
+            return {"gate": gate_id, "layer": layer, "status": "FAIL",
+                    "detail": (f"Issuer '{issuer_id}' status {status} — "
+                               f"non-compliant (MiCA delisting). Blocked.")}
+        if status != "AUTHORIZED":
+            return {"gate": gate_id, "layer": layer, "status": "HOLD",
+                    "detail": (f"Issuer '{issuer_id}' status {status} — authorization "
+                               f"in progress. Held pending authorization.")}
+
+        # 2. Supported settlement rail.
+        rail = (decision.get("settlement_rail") or "").strip().lower()
+        supported = {r.lower() for r in cfg.get("supported_rails", [])}
+        if not rail or rail not in supported:
+            return {"gate": gate_id, "layer": layer, "status": "HOLD",
+                    "detail": (f"Settlement rail '{rail or 'unspecified'}' not among "
+                               f"Cato-supported rails {sorted(supported)} — held. "
+                               f"(Atomic-vs-FICC viability is Cato's at settlement.)")}
+
+        # 3. Custody-object class known.
+        custody = (decision.get("custody_class")
+                   or entry.get("custody_class") or "").strip().lower()
+        known = {c.lower() for c in cfg.get("known_custody_classes", [])}
+        if not custody or custody not in known:
+            return {"gate": gate_id, "layer": layer, "status": "HOLD",
+                    "detail": (f"Custody-object class '{custody or 'unknown'}' not in "
+                               f"the known set — held pending classification "
+                               f"(AUR-CUSTODY-OBJ-001).")}
+
+        return {"gate": gate_id, "layer": layer, "status": "PASS",
+                "detail": (f"Issuer '{issuer_id}' AUTHORIZED ({entry.get('regime')}), "
+                           f"rail '{rail}' supported, custody class '{custody}' known "
+                           f"— tokenized instrument eligible.")}
 
     def _gate_pass(self, gate_id: str, layer: str, description: str) -> dict:
         return {
