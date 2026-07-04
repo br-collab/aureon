@@ -27,6 +27,8 @@
 """
 
 import hashlib
+import json
+import os
 import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -36,6 +38,12 @@ from aureon.agents.jtac._base import JTACConcreteBase
 
 if TYPE_CHECKING:
     from aureon.agents.c2.coordinator import ThifurC2
+
+# Asset-class dispatch fixture (Workstream P-1, AUR-PRETRADE-REG-001).
+_DISPATCH_FIXTURE = os.path.join(
+    os.path.dirname(__file__), "..", "..", "doctrine",
+    "asset_class_dispatch_fixture.json",
+)
 
 # ── J Operating Constants ─────────────────────────────────────────────────────
 AGENT_J_VERSION   = "1.0"
@@ -97,8 +105,54 @@ class ThifurJ(JTACConcreteBase):
 
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
         super().__init__(aureon_state, state_lock)
+        self._dispatch = None  # lazy-loaded asset-class dispatch fixture (P-1)
         print(f"[THIFUR-J] Initialized — v{AGENT_J_VERSION} | "
               f"Algorithm ID: {ALGORITHM_ID} | SR 11-7 Tier 1 declared")
+
+    # ── Asset-class dispatch (Workstream P-1, AUR-PRETRADE-REG-001) ───────────
+    def _load_dispatch(self, source_path: str | None = None) -> dict:
+        """Lazy-load the asset-class dispatch fixture. Fixtures are doctrine."""
+        if self._dispatch is None:
+            path = source_path or _DISPATCH_FIXTURE
+            with open(path, "r") as fh:
+                self._dispatch = json.load(fh)
+        return self._dispatch
+
+    def _resolve_gate_plan(self, decision: dict) -> list[tuple]:
+        """Return the ordered gate plan for a decision's asset class.
+
+        Each entry is (gate_id, layer, description, status) where status is
+        'active' (run the gate callable) or 'declared' (gate is defined for
+        this asset class but not yet implemented — routes to HOLD, never a
+        silent pass). Equities and any unmapped class get exactly the base 8
+        active gates: zero behavior change from pre-P-1.
+
+        On any fixture problem, falls back to the base 8 active gates so the
+        live equity path can never be broken by a dispatch error.
+        """
+        try:
+            disp = self._load_dispatch()
+        except Exception:
+            return [(g, l, d, "active") for (g, l, d) in GATES]
+
+        raw_class = (decision.get("asset_class") or "equity").strip().lower()
+        canon = disp.get("class_aliases", {}).get(raw_class, raw_class)
+        # Base gates: reuse the canonical GATES list (layer/description source).
+        gate_meta = {g: (l, d) for (g, l, d) in GATES}
+        plan: list[tuple] = []
+        for gid in disp.get("base_gates", [g for (g, _l, _d) in GATES]):
+            layer, desc = gate_meta.get(gid, ("Thifur-J", gid))
+            plan.append((gid, layer, desc, "active"))
+        # Class-specific additional gates.
+        cls_cfg = disp.get("classes", {}).get(canon, {})
+        for extra in cls_cfg.get("additional_gates", []):
+            plan.append((
+                extra["gate_id"],
+                extra.get("layer", "Thifur-J"),
+                extra.get("description", extra["gate_id"]),
+                extra.get("status", "declared"),
+            ))
+        return plan
 
     def structure_pretrade_record(self,
                                   decision: dict,
@@ -129,12 +183,34 @@ class ThifurJ(JTACConcreteBase):
             prices          = dict(self._state.get("prices", {}))
             doctrine_version = self._state.get("doctrine_version", "unknown")
 
-        # ── Run all pre-trade gates ────────────────────────────────────
+        # ── Run the asset-class gate plan (P-1 dispatch) ───────────────
+        # For equities and any unmapped class this is exactly the base 8
+        # gates (unchanged). A class may add gates; a gate 'declared' but not
+        # yet implemented routes to HOLD — fail-safe, never a silent pass.
+        gate_plan = self._resolve_gate_plan(decision)
         gate_results = []
         overall_status = "PASS"
         block_reason   = None
 
-        for gate_id, layer, description in GATES:
+        for gate_id, layer, description, gate_status in gate_plan:
+            if gate_status == "declared":
+                # Declared-not-implemented gate for this asset class. The
+                # instrument is NOT certified clean on a check that cannot
+                # run (gap-completeness invariant — cf. C2 Immutable Stop 4).
+                gate_result = {
+                    "gate":   gate_id,
+                    "layer":  layer,
+                    "status": "HOLD",
+                    "detail": (f"{description} — declared for this asset class "
+                               f"but not yet implemented (pre-trade Workstream "
+                               f"P-2/P-3). Held pending implementation; not "
+                               f"silently passed."),
+                }
+                gate_results.append(gate_result)
+                if overall_status in ("PASS", "WARN"):
+                    overall_status = "HOLD"
+                continue
+
             gate_result = self._run_gate(
                 gate_id         = gate_id,
                 layer           = layer,
@@ -151,6 +227,11 @@ class ThifurJ(JTACConcreteBase):
                 overall_status = "BLOCKED"
                 block_reason   = f"{gate_id}: {gate_result['detail']}"
                 break   # Guardrail: first FAIL stops the sequence
+            elif gate_result["status"] == "HOLD" and overall_status in ("PASS", "WARN"):
+                # P-1: a HOLD floors the disposition above WARN/PASS. A later
+                # genuine FAIL still blocks (FAIL > HOLD); a later WARN does not
+                # downgrade a HOLD.
+                overall_status = "HOLD"
             elif gate_result["status"] == "WARN" and overall_status == "PASS":
                 overall_status = "WARN"
 
@@ -316,9 +397,36 @@ class ThifurJ(JTACConcreteBase):
             }
         return self._gate_pass(gate_id, layer, description)
 
+    def _is_dispatch_recognized(self, asset_class: str) -> bool:
+        """P-1: True if the (canonicalized) asset class is declared in the
+        dispatch fixture's class map — i.e. recognized-but-pending, its real
+        eligibility deferred to a declared gate. Distinct from a genuinely
+        unknown class."""
+        try:
+            disp = self._load_dispatch()
+        except Exception:
+            return False
+        raw = (asset_class or "").strip().lower()
+        canon = disp.get("class_aliases", {}).get(raw, raw)
+        return canon in disp.get("classes", {})
+
     def _gate_mandate(self, gate_id, layer, description, decision) -> dict:
         asset_class = decision.get("asset_class", "")
         if asset_class not in APPROVED_ASSET_CLASSES:
+            # P-1: a dispatch-recognized class (has a declared eligibility
+            # gate) is not "unknown" — it is pending an asset-class capability.
+            # HOLD rather than FAIL, deferring the real judgment to the
+            # declared eligibility gate. A genuinely unknown class still FAILs.
+            if self._is_dispatch_recognized(asset_class):
+                return {
+                    "gate":   gate_id,
+                    "layer":  layer,
+                    "status": "HOLD",
+                    "detail": (f"Asset class '{asset_class}' recognized but its "
+                               f"mandate rule bundle is pending (pre-trade "
+                               f"Workstream P-2/P-3). Held, not blocked; real "
+                               f"eligibility deferred to the declared gate."),
+                }
             return {
                 "gate":   gate_id,
                 "layer":  layer,

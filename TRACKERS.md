@@ -287,6 +287,34 @@ All four Tier 2 agents now live-wired: Compliance (Phase 4 pretrade),
 Risk Reporting (periodic, WS-2.5), AML/KYC + Surveillance (guarded
 post-release + on-demand, WS-2.6). Uncommitted.
 
+### Pre-trade asset-class dispatch layer (WS-P1, added 2026-07-04)
+First build of the pre-trade modernization workstream (AUR-PRETRADE-REG-001
+§VI). Ahead of the Thifur-J gate set, asset_class_dispatch_fixture.json
+selects the gate plan by instrument asset class; _resolve_gate_plan()
+returns (gate_id, layer, desc, status) per class. Equities and any unmapped
+class get exactly the base 8 active gates — ZERO behavior change from
+pre-P-1 (verified). A class may declare additional gates; a gate 'declared'
+but not yet implemented routes to HOLD, never a silent pass
+(gap-completeness invariant at the pre-trade layer).
+
+Interaction finding + fix: _gate_mandate hard-FAILed any class outside the
+equity-era APPROVED_ASSET_CLASSES, pre-empting the declared gate. Made it
+dispatch-aware — a dispatch-recognized class (has a declared eligibility
+gate) HOLDs ('recognized, pending capability') rather than FAILs; a
+genuinely unknown class still FAILs. Loop precedence: FAIL > HOLD > WARN >
+PASS, so a real OFAC FAIL still blocks a tokenized instrument whose
+eligibility gate would only HOLD.
+
+Verified: equity PASS (unchanged, 8 gates); fixed_income HOLD on declared
+MIFIR gate; tokenized/digital HOLD on declared eligibility gate;
+unknown-class BLOCKED; tokenized+OFAC BLOCKED (FAIL beats HOLD). Full
+regression green (C2 persistence, 15/15 parity).
+
+Boundary respected: FICC clearing/settlement gating is Atreides, not this
+layer — the fixed_income class carries only the MiFIR pre-trade
+transparency gate. Foundation for P-2 (FI transparency) and P-3 (tokenized
+eligibility). Uncommitted.
+
 ## Active — Architectural Findings
 [Observations about the system that shape future decisions but aren't prescriptive.]
 
