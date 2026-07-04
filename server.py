@@ -95,7 +95,8 @@ from aureon.integration_adapters.ems_adapter import build_execution_release
 from aureon.session.session_protocol import SessionProtocol
 from aureon.data.market_data import get_price, get_prices_batch
 from aureon.agents import ThifurJ, SettlementOps
-from aureon.agents.jtac import RiskReporting
+from aureon.agents.jtac import RiskReporting, AmlKyc, TradeSurveillance
+from aureon.agents.payloads import CounterpartyScreeningRequest
 from aureon.agents.c2.coordinator import ThifurC2
 from aureon.mmf import (
     nav_engine,
@@ -438,6 +439,18 @@ _thifur_c2 = ThifurC2(aureon_state, _lock)
 # read-only advisory: it emits a risk disposition to c2_j_risk_log for the
 # operator; it takes no market action and halts nothing (Axiom 2).
 _risk_agent = RiskReporting(aureon_state, _lock)
+
+# AML/KYC (AUR-J-AML-001) and Trade Surveillance (AUR-J-SURV-001) — one
+# instance each (WS-2.6). Invoked two ways: on-demand via /api/aml/screen
+# and /api/surveillance/screen, and via a GUARDED auto-hook in
+# api_resolve_decision that fires ONLY when a released decision carries the
+# fields each agent requires. The guard exists because the current Argus
+# equity flow produces no counterparty or beneficial-owner data — an
+# unguarded hook would route every trade to a false MISSING/DATA_INCOMPLETE
+# halt. Declare-then-activate: the hook is dormant until richer trade data
+# (OTC/bilateral counterparties, beneficial-owner detail) flows through.
+_aml_agent = AmlKyc(aureon_state, _lock)
+_surv_agent = TradeSurveillance(aureon_state, _lock)
 
 # Expose agents to session protocol for Step 4 readiness check
 app._aureon_agents = {
@@ -5436,6 +5449,16 @@ def api_resolve_decision(decision_id):
                 daemon=True,
             ).start()
         print(f"[AUREON] RELEASED TO {release_mode}: {decision['symbol']} — governed release complete")
+
+        # WS-2.6: guarded Tier 2 post-release screening. Each agent runs
+        # ONLY when the decision carries the fields it requires — otherwise
+        # it is skipped (not forced to a false halt). Read-only advisory;
+        # dispositions land in the agents' logs for the operator. Never
+        # allowed to break the release path.
+        try:
+            _run_guarded_tier2_screening(decision)
+        except Exception as t2ex:
+            _log_error("WARN", "tier2_post_release_screen", str(t2ex))
     elif resolution == "APPROVED":
         print(
             f"[AUREON] APPROVAL RECORDED: {decision['action']} {decision['symbol']} "
@@ -6317,6 +6340,106 @@ def api_c2_paused():
     return jsonify({
         "paused_lifecycles": _thifur_c2.list_paused_lifecycles(),
     })
+
+
+def _run_guarded_tier2_screening(decision: dict) -> dict:
+    """WS-2.6: run AML/KYC and Trade Surveillance on a released decision,
+    but ONLY when the decision carries the fields each requires. Returns a
+    dict of which agents ran and their dispositions. A skipped agent is
+    recorded as 'skipped_no_data' — deliberately NOT a halt (the current
+    Argus equity flow lacks counterparty/beneficial-owner data; forcing a
+    disposition would be a false alarm)."""
+    result = {"aml": "skipped_no_data", "surveillance": "skipped_no_data"}
+    task_id = f"POSTREL-{decision.get('id', 'unknown')}"
+
+    # AML/KYC — needs a named counterparty.
+    cp_name = decision.get("counterparty_name") or decision.get("counterparty")
+    if cp_name:
+        sel = _aml_agent.verify_counterparty_eligibility(
+            CounterpartyScreeningRequest(
+                task_id=task_id,
+                counterparty_name=cp_name,
+                counterparty_jurisdiction=decision.get("counterparty_jurisdiction", ""),
+            )
+        )
+        result["aml"] = sel.selected_path_id
+
+    # Trade Surveillance — needs at least one enabled scenario's fields.
+    # We pass whatever the decision carries; the agent itself routes missing
+    # fields to UNCHECKABLE, but we only INVOKE it when the decision has any
+    # surveillance-relevant field, to avoid a pure-DATA_INCOMPLETE record on
+    # every equity trade.
+    surv_fields = ("buy_beneficial_owner", "sell_beneficial_owner",
+                   "seconds_to_close", "prop_trade_ahead_of_client",
+                   "counterparty_session_volume_pct")
+    if any(decision.get(f) is not None for f in surv_fields):
+        record = {f: decision.get(f) for f in surv_fields if decision.get(f) is not None}
+        # exec/reference price are usually present on a released decision
+        if decision.get("price") is not None:
+            record.setdefault("exec_price", decision.get("price"))
+        sel, _ = _surv_agent.screen_record(task_id, record)
+        result["surveillance"] = sel.selected_path_id
+
+    return result
+
+
+@app.route("/api/aml/screen", methods=["POST"])
+def api_aml_screen():
+    """WS-2.6 — on-demand AML/KYC counterparty eligibility screening.
+    Body: {counterparty_name, counterparty_jurisdiction?}. Returns the
+    disposition path and any pending approval predicates. Read-only."""
+    data = request.get_json() or {}
+    name = (data.get("counterparty_name") or "").strip()
+    if not name:
+        return jsonify({"error": "counterparty_name required"}), 400
+    sel = _aml_agent.verify_counterparty_eligibility(
+        CounterpartyScreeningRequest(
+            task_id=data.get("task_id", f"AML-ONDEMAND-{random.randint(1000,9999)}"),
+            counterparty_name=name,
+            counterparty_jurisdiction=data.get("counterparty_jurisdiction", ""),
+        )
+    )
+    return jsonify({
+        "disposition": sel.selected_path_id,
+        "requires_approval": sel.requires_approval,
+        "pending_approval_for": sel.pending_approval_for,
+        "rationale": sel.selection_rationale,
+    })
+
+
+@app.route("/api/surveillance/screen", methods=["POST"])
+def api_surveillance_screen():
+    """WS-2.6 — on-demand Trade Surveillance screening of a record.
+    Body: a surveillance record (beneficial owners, close-window timing,
+    prices, concentration). Returns disposition + the per-scenario report.
+    Read-only."""
+    record = request.get_json() or {}
+    sel, report = _surv_agent.screen_record(
+        record.get("task_id", f"SURV-ONDEMAND-{random.randint(1000,9999)}"), record,
+    )
+    return jsonify({
+        "disposition": sel.selected_path_id,
+        "requires_approval": sel.requires_approval,
+        "pending_approval_for": sel.pending_approval_for,
+        "matched": report["matched"],
+        "uncheckable": report["uncheckable"],
+    })
+
+
+@app.route("/api/aml/latest", methods=["GET"])
+def api_aml_latest():
+    """WS-2.6 — recent AML/KYC dispositions (read-only)."""
+    with _lock:
+        log = list(aureon_state.get("c2_j_amlkyc_log", []))
+    return jsonify({"count": len(log), "latest": log[:10]})
+
+
+@app.route("/api/surveillance/latest", methods=["GET"])
+def api_surveillance_latest():
+    """WS-2.6 — recent Trade Surveillance dispositions (read-only)."""
+    with _lock:
+        log = list(aureon_state.get("c2_j_surveillance_log", []))
+    return jsonify({"count": len(log), "latest": log[:10]})
 
 
 @app.route("/api/risk/latest", methods=["GET"])

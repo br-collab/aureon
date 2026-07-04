@@ -260,6 +260,33 @@ Live-tasking status of the other Tier 2 agents: Compliance already live
 still need their C2-tasking hooks (AML on the pretrade counterparty flow,
 Surveillance post-execution) — next WS-2.5 follow-ons.
 
+### AML/KYC + Surveillance wired (WS-2.6, added 2026-07-04)
+Completes the Tier 2 live-tasking. Unlike Risk Reporting (clean live
+wire — portfolio state has all inputs), AML/KYC and Surveillance need
+counterparty / beneficial-owner data the current Argus equity flow does
+NOT produce. Forcing a per-trade hook would route every trade to a false
+KYC_MISSING_HALT / SURVEIL_DATA_INCOMPLETE — noise worse than silence in
+a governance system.
+
+Honest wiring, two-part: (1) on-demand endpoints POST /api/aml/screen
+and POST /api/surveillance/screen (invocable against real inputs now);
+(2) a GUARDED auto-hook (_run_guarded_tier2_screening) in
+api_resolve_decision post-release that runs each agent ONLY when the
+released decision carries the fields it requires — otherwise
+'skipped_no_data', deliberately NOT a halt. Declare-then-activate: the
+hook is dormant until OTC/bilateral counterparty data or beneficial-owner
+detail flows through, then lights up automatically. Latest-view GETs
+/api/aml/latest, /api/surveillance/latest. Read-only throughout (Axiom 2).
+
+Verified: bare equity decision -> both skipped (no false halt); clean
+counterparty -> KYC_ELIGIBLE_CLEAR; prohibited -> AML_PROHIBITED_BLOCK;
+front-running surveillance fields -> SURVEIL_PATTERN_ESCALATE. Full
+regression green (C2 persistence, 15/15 parity).
+
+All four Tier 2 agents now live-wired: Compliance (Phase 4 pretrade),
+Risk Reporting (periodic, WS-2.5), AML/KYC + Surveillance (guarded
+post-release + on-demand, WS-2.6). Uncommitted.
+
 ## Active — Architectural Findings
 [Observations about the system that shape future decisions but aren't prescriptive.]
 
