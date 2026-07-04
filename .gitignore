@@ -13,3 +13,15 @@ htmlcov/
 .vscode/
 *.log
 aureon_state_persist.json
+
+# SECURITY (2026-07-04): this is the PUBLIC br-collab/aureon repo. The
+# "Project Atreides - Custody/" subtree contains Restricted-Distribution
+# doctrine (its own private repo, br-collab/Aureon---Private) and the
+# public Project-Atreides code repo. Neither belongs in aureon's history.
+# This exclusion prevents a stray `git add -A` from publishing the
+# constitution. Do NOT remove.
+Project Atreides - Custody/
+# Local operator console + Sam workspace — not for the public repo.
+aureon-leto/
+sam/
+Git Repository/
