@@ -398,6 +398,28 @@ revoked -> FAIL; pending -> HOLD. Full regression green (C2 persistence,
 15/15 parity). The two pre-trade engines are now aligned; ThifurJ gates
 remain the single source of truth for asset-class rules.
 
+### Correction: multi-asset decisions already originate; only tokenized/digital lack a front door (2026-07-04)
+Earlier session notes stated decisions "only originate as equities." Code
+inspection (server._generate_signal + INITIAL_POSITIONS) corrects that:
+the live Argus book is multi-asset (equities, fixed_income AGG/TLT/HYG,
+real_assets VNQ/GLD, absolute_return BTAL/CTA) and the Thifur-H signal
+engine does drift-aware rebalancing keyed by asset class. So fixed_income
+rebalance decisions ALREADY originate with asset_class=fixed_income and
+now flow through the P-2 MiFIR gate at pre-trade.
+
+What genuinely has no origination path is TOKENIZED / DIGITAL: there are
+no tokenized/native-digital positions to rebalance and no tokenized
+candidates in the signal pools, so those decisions can only enter via the
+API (/api/pretrade-check on an injected decision, or the on-demand screen
+endpoints). The "missing front door" is therefore narrow: an operator
+affordance to ORIGINATE a tokenized/digital order, not all non-equities.
+
+Entry into the gates (both asset-class-aware after P-4): (1) live modal
+via /api/pretrade-check -> evaluate_pretrade_decision (appends
+ThifurJ.asset_class_gates); (2) C2 lifecycle via
+ThifurJ.structure_pretrade_record. The decision's asset_class field is
+the single key the dispatch reads.
+
 ## Active — Architectural Findings
 [Observations about the system that shape future decisions but aren't prescriptive.]
 
