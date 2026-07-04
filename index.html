@@ -4072,16 +4072,32 @@ function closeHaltModal() {
   if (modal) modal.classList.remove('active');
 }
 
+// WS-0.7 (2026-07-04): /api/halt + /api/halt/resume now require X-Admin-Key.
+// The dashboard is served from the public Railway URL, so the operator
+// supplies the key here; held in memory for the tab session only, never
+// persisted. The guaranteed operator stop path remains the Leto console
+// (direct-to-Kraken), independent of this key.
+let _adminKey = null;
+function getAdminKey() {
+  if (!_adminKey) {
+    _adminKey = (window.prompt('Tier 0 operator key (X-Admin-Key):') || '').trim();
+  }
+  return _adminKey;
+}
+
 async function confirmHalt() {
   const reason = (document.getElementById('halt-reason-input')?.value || '').trim();
   if (!reason) { toast('⚠ Please enter a halt reason before confirming.'); return; }
+  const key = getAdminKey();
+  if (!key) { toast('⚠ Operator key required — or use the Leto console kill switch.'); return; }
 
   try {
     const r = await fetch(API.halt, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
       body: JSON.stringify({ reason, authority: 'bill@billravelo.com' }),
     });
+    if (r.status === 403) { _adminKey = null; toast('⚠ Halt rejected — wrong operator key. Use Leto if locked out.'); return; }
     const d = await r.json();
     if (d.status === 'halted' || d.status === 'ok') {
       state.haltActive    = true;
@@ -4111,12 +4127,15 @@ async function confirmHalt() {
 }
 
 async function resumeFromHalt() {
+  const key = getAdminKey();
+  if (!key) { toast('⚠ Operator key required to resume — or resume via Leto.'); return; }
   try {
     const r = await fetch(API.haltResume, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
       body: JSON.stringify({ authority: 'bill@billravelo.com' }),
     });
+    if (r.status === 403) { _adminKey = null; toast('⚠ Resume rejected — wrong operator key.'); return; }
     const d = await r.json();
     if (d.status === 'resumed' || d.status === 'ok') {
       state.haltActive = false;
