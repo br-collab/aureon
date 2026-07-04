@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aureon — Equities Pre-Trade Governance Dashboard</title>
+<title>Aureon — Multi-Asset Pre-Trade Governance Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -1155,7 +1155,7 @@ main {
     </svg>
     <div class="logo-text">
       <div class="logo-name">Aureon</div>
-      <div class="logo-sub">Equities Pre-Trade Governance Dashboard</div>
+      <div class="logo-sub">Multi-Asset Pre-Trade Governance Dashboard</div>
     </div>
   </div>
 
@@ -3805,6 +3805,24 @@ async function openPretradeModal(id) {
 
   // Animate checks appearing one-by-one (80ms each)
   const checks = data.gates || data.checks || [];
+
+  // Asset-class-aware pre-trade (P-4) can return more gates than the
+  // fixed equities skeleton (e.g. a MiFIR transparency or tokenized
+  // eligibility gate as a 7th row). Rebuild the skeleton to match the
+  // actual gate count so every gate is displayed — otherwise the extra
+  // gate would fold into the disposition but never render.
+  if (checks.length !== gateNames.length) {
+    checksEl.innerHTML = checks.map(() => `
+      <div class="pretrade-check-row">
+        <div class="check-dot PENDING"></div>
+        <div style="flex:1">
+          <div class="check-gate">…</div>
+          <div class="check-layer"></div>
+          <div class="check-detail">Running check…</div>
+        </div>
+        <div class="check-badge PENDING">…</div>
+      </div>`).join('');
+  }
   for (let i = 0; i < checks.length; i++) {
     await new Promise(res => setTimeout(res, 80));
     const c = checks[i];
