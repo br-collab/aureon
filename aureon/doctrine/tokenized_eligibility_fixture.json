@@ -1,0 +1,16 @@
+{
+  "_note": "Tokenized-instrument pre-trade eligibility (Workstream P-3, AUR-PRETRADE-REG-001 §V). Before releasing a tokenized/native-digital instrument, pre-trade verifies three things: (a) ISSUER AUTHORIZATION — the issuer is authorized under the applicable regime (MiCA CASP register / GENIUS stablecoin issuer register); MiCA hard authorization deadline was 2026-07-01, non-compliant issuers face delisting. (b) SUPPORTED SETTLEMENT RAIL — the instrument settles on a rail Cato supports (the live atomic-vs-FICC viability decision is Cato's at settlement time; pre-trade only checks a viable rail EXISTS). (c) CUSTODY-OBJECT CLASS — the instrument maps to a known custody-object category (AUR-CUSTODY-OBJ-001). Fictional register. The source_path loader seam is the integration point for a live MiCA/GENIUS register feed. Editing is a doctrine event. Clearing/settlement execution remains Atreides; this gate governs pre-trade ENTRY eligibility only.",
+  "eligibility_version": "ARCADIA-TOKEN-ELIG-v1.0",
+  "effective": "2026-07-04",
+  "supported_rails": ["ethereum", "base", "arbitrum", "solana", "ficc"],
+  "known_custody_classes": ["tokenized_security", "native_digital", "tokenized_mmf", "stablecoin", "tokenized_treasury"],
+  "issuer_register": {
+    "FRANKLIN_OB_XRPL":   {"name": "Franklin OnChain US Gov MMF", "regime": "SEC/GENIUS", "status": "AUTHORIZED", "custody_class": "tokenized_mmf"},
+    "CIRCLE_USDC":        {"name": "Circle USDC", "regime": "GENIUS/MiCA-EMT", "status": "AUTHORIZED", "custody_class": "stablecoin"},
+    "ONDO_OUSG":          {"name": "Ondo Short-Term US Gov", "regime": "SEC", "status": "AUTHORIZED", "custody_class": "tokenized_treasury"},
+    "GALAXY_TOKENIZED_CLO":{"name": "Galaxy Tokenized CLO", "regime": "SEC", "status": "AUTHORIZED", "custody_class": "tokenized_security"},
+    "PENDING_ISSUER_X":   {"name": "Applicant Issuer X", "regime": "MiCA", "status": "PENDING", "custody_class": "tokenized_security"},
+    "DELISTED_ISSUER_Y":  {"name": "Non-Compliant Issuer Y", "regime": "MiCA", "status": "REVOKED", "custody_class": "stablecoin"}
+  },
+  "_field_note": "Decision fields consumed: token_issuer_id (key into issuer_register), settlement_rail (one of supported_rails), custody_class (one of known_custody_classes, or taken from the register entry if absent). Status semantics: AUTHORIZED -> eligible; PENDING -> HOLD (authorization in progress); REVOKED/absent -> BLOCK (non-compliant/unknown issuer, MiCA delisting)."
+}
