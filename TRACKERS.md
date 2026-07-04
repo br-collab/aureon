@@ -420,6 +420,30 @@ ThifurJ.asset_class_gates); (2) C2 lifecycle via
 ThifurJ.structure_pretrade_record. The decision's asset_class field is
 the single key the dispatch reads.
 
+### Operator order-entry front door (WS-P5, added 2026-07-04)
+Closes the last pre-trade gap: an operator affordance to ORIGINATE an
+order of any asset class — including tokenized/digital, which had no
+signal-engine origination path. Governed origination (operator PM role,
+Axiom 2): the created order is PENDING and still requires the pre-trade
+check + human approval; never auto-executed.
+
+- server POST /api/decisions/create: validates (symbol, action BUY/SELL,
+  asset_class, notional>0), fails closed on halt (423) and queue-full
+  (12, 409), constructs a decision matching the Thifur-H signal schema
+  plus the asset-class fields the gates read (token_issuer_id /
+  settlement_rail / custody_class; instrument_subtype / bond_liquidity /
+  pretrade_published / waiver_claimed), journals it.
+- index.html: "＋ NEW ORDER" header button + modal with asset-class
+  dropdown that reveals FI (MiFIR) or tokenized (eligibility) fields;
+  posts, then refreshes the queue.
+
+Verified (endpoint logic): operator-originated tokenized order ->
+pre-trade PASS on authorized issuer, FAIL on revoked, FI unpublished ->
+MiFIR HOLD. Full regression green. UI form built by inspection — needs
+one browser click-through to confirm visually. Pre-trade pipeline is now
+end-to-end for all four asset classes: originate -> dispatch -> gates ->
+disposition -> approve.
+
 ## Active — Architectural Findings
 [Observations about the system that shape future decisions but aren't prescriptive.]
 

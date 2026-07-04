@@ -5336,6 +5336,99 @@ def api_decisions():
         })
 
 
+@app.route("/api/decisions/create", methods=["POST"])
+def api_create_decision():
+    """WS-P5 — operator order-entry front door (governed origination).
+
+    Lets an operator originate a trade decision of ANY asset class —
+    including tokenized/digital, which have no signal-engine origination
+    path. The created decision is PENDING and carries the asset-class
+    fields the pre-trade dispatch reads (MiFIR / tokenized eligibility),
+    so it flows through the same pre-trade pipeline and human-approval
+    gates as a Thifur-H signal. It is NEVER auto-executed — origination is
+    intent (the operator's PM role, Axiom 2); release still requires the
+    pre-trade check and explicit approval.
+
+    Body: {symbol, action(BUY|SELL), asset_class, notional, price?,
+           + asset-class fields: token_issuer_id/settlement_rail/
+           custody_class (tokenized/digital); instrument_subtype/
+           bond_liquidity/pretrade_published/waiver_claimed (fixed_income)}.
+    """
+    data = request.get_json() or {}
+    symbol      = (data.get("symbol") or "").strip().upper()
+    action      = (data.get("action") or "").strip().upper()
+    asset_class = (data.get("asset_class") or "").strip().lower()
+    try:
+        notional = float(data.get("notional", 0) or 0)
+    except (TypeError, ValueError):
+        notional = 0.0
+    try:
+        price = float(data["price"]) if data.get("price") not in (None, "") else None
+    except (TypeError, ValueError):
+        price = None
+
+    # ── Validation (fail closed on malformed intent) ──────────────
+    errs = []
+    if not symbol:                       errs.append("symbol required")
+    if action not in ("BUY", "SELL"):    errs.append("action must be BUY or SELL")
+    if not asset_class:                  errs.append("asset_class required")
+    if notional <= 0:                    errs.append("notional must be > 0")
+    if errs:
+        return jsonify({"error": "; ".join(errs)}), 400
+
+    with _lock:
+        if aureon_state.get("halt_active"):
+            return jsonify({"error": "System halted — origination blocked (Tier 0)."}), 423
+        if len(aureon_state.get("pending_decisions", [])) >= 12:
+            return jsonify({"error": "Pending queue full (12) — resolve decisions first."}), 409
+
+    decision = {
+        "id":          f"DEC-{random.randint(0x10000000, 0xFFFFFFFF):X}",
+        "action":      action,
+        "symbol":      symbol,
+        "asset_class": asset_class,
+        "price":       price,
+        "notional":    notional,
+        "product_type": "SINGLE_NAME_EQUITY" if asset_class == "equities" else asset_class.upper(),
+        "rationale":   (data.get("rationale") or "Operator-originated order").strip(),
+        "signal_type": "OPERATOR_ORDER",
+        "created":     datetime.now(timezone.utc).isoformat(),
+        "status":      "PENDING",
+        "required_approvals": ["TRADER"],
+        "current_approvals": [],
+        "release_target": (data.get("release_target") or "OMS").strip().upper(),
+        "mandate_sensitive": False,
+        "policy_exception": False,
+        "risk_exception": notional >= 400000,
+        "pm_signoff_required": False,
+        "control_exception": False,
+        "financing_relevant": False,
+        "origin": "OPERATOR",
+    }
+    # Carry asset-class-specific fields the pre-trade gates read.
+    for f in ("token_issuer_id", "settlement_rail", "custody_class",
+              "instrument_subtype", "bond_liquidity", "pretrade_published",
+              "waiver_claimed", "counterparty_name", "counterparty_jurisdiction"):
+        if data.get(f) is not None:
+            decision[f] = data[f]
+
+    with _lock:
+        aureon_state.setdefault("pending_decisions", []).append(decision)
+    threading.Thread(target=_save_state, daemon=True).start()
+    _journal("OPERATOR_ORDER_CREATED", "OPERATOR", symbol,
+             f"Operator originated {action} {symbol} ${notional:,.0f} "
+             f"({asset_class}). Pending pre-trade + approval.",
+             authority="OPERATOR", outcome="PENDING_DECISION", ref_id=decision["id"])
+    print(f"[AUREON] OPERATOR ORDER: {action} {symbol} ${notional:,.0f} "
+          f"[{asset_class}] — {decision['id']} pending pre-trade")
+    return jsonify({
+        "status":      "created",
+        "decision_id": decision["id"],
+        "asset_class": asset_class,
+        "message":     "Order created — pending pre-trade check and approval.",
+    })
+
+
 @app.route("/api/decisions/<decision_id>", methods=["POST"])
 def api_resolve_decision(decision_id):
     """
