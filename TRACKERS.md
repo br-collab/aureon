@@ -153,9 +153,7 @@ template for the remaining three Tier 2 roles; (2)
 file, written against live code); (3) stale header + get_status
 narration in compliance.py corrected. Live-verified 2026-07-04: OFAC
 clear, EU match (dual-authority + OFAC_VS_GDPR conflict fired), US
-match (single-authority). **Operator approval of the spec + skill file
-is the doctrine event that flips AGENTS.md; the "locked" label
-divergence goes to canonical §X.** Next Tier 2 by readiness: AML/KYC
+match (single-authority). **Operator approved 2026-07-04; AGENTS.md flipped; divergence logged in canonical §X.** Next Tier 2 by readiness: AML/KYC
 (eligibility logic exists in pre-trade structuring), then Risk
 Reporting; Trade Surveillance last (scenario library is genuine new
 work). Uncommitted.
@@ -175,7 +173,7 @@ only by finishing onboarding, never by override); (3)
 (5) `AUR-J-PATHSET-AML-001 v1.0` + `aml-kyc-analyst.md` v0.1 DRAFT.
 Live-verified: 8/8 cases incl. alias resolution and
 prohibited-jurisdiction-without-record → BLOCK (not onboarding).
-Operator approval of spec + skill file pending. Remaining Tier 2:
+Operator approved 2026-07-04; AGENTS.md flipped in Project-Atreides. Remaining Tier 2:
 Risk Reporting (Kaladan threshold surfaces partially exist), Trade
 Surveillance (scenario library = genuine new work). Uncommitted.
 
