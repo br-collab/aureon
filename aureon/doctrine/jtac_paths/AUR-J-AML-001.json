@@ -1,0 +1,53 @@
+{
+  "_note": "Approved paths for AML/KYC (AUR-J-AML-001), WS-2.2 — first Tier 2 role built new (no prior code) against the operationalization standard of AUR-J-PATHSET-COMP-001 §VII. Six paths. Adding a path is a doctrine event. Ladder order is doctrinal: PROHIBITED evaluates first and is terminal; eligibility (missing/expired) before ownership (UBO) before risk (EDD); CLEAR only when every prior rung passes.",
+  "paths": [
+    {
+      "path_id": "AML_PROHIBITED_BLOCK",
+      "description": "Counterparty risk_rating PROHIBITED or jurisdiction on the prohibited list. Terminal halt — no override predicate exists. The only recourse is a fixture change through propose/approve (mirror of PRETRADE_POLICY_BLOCK semantics).",
+      "callable_ref": "aureon.agents.jtac.aml_kyc:_path_prohibited_block",
+      "requires_approval": false,
+      "approval_predicates": [],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "KYC_MISSING_HALT",
+      "description": "No KYC registry record for counterparty. Halt-and-pend until onboarding completes — this is a completion gate, not an override: no authority may approve trading with an unonboarded counterparty.",
+      "callable_ref": "aureon.agents.jtac.aml_kyc:_path_missing_halt",
+      "requires_approval": true,
+      "approval_predicates": ["kyc_onboarding_complete"],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "KYC_EXPIRED_HALT",
+      "description": "KYC record exists but expires_at has passed. Halt-and-pend single-authority (Compliance) resumption on documented re-verification.",
+      "callable_ref": "aureon.agents.jtac.aml_kyc:_path_expired_halt",
+      "requires_approval": true,
+      "approval_predicates": ["kyc_refresh_verified"],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "KYB_UBO_UNRESOLVED_HALT",
+      "description": "Beneficial ownership unresolved or KYB pending. Halt-and-pend dual-authority resumption: documented UBO resolution plus Compliance sign-off.",
+      "callable_ref": "aureon.agents.jtac.aml_kyc:_path_ubo_unresolved_halt",
+      "requires_approval": true,
+      "approval_predicates": ["ubo_resolution_documented", "compliance_override"],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "AML_HIGH_RISK_ESCALATE",
+      "description": "PEP flag or HIGH risk rating or high-risk jurisdiction. Halt-and-pend dual-authority: completed Enhanced Due Diligence plus Compliance sign-off before the relationship proceeds.",
+      "callable_ref": "aureon.agents.jtac.aml_kyc:_path_high_risk_escalate",
+      "requires_approval": true,
+      "approval_predicates": ["edd_completed", "compliance_override"],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "KYC_ELIGIBLE_CLEAR",
+      "description": "Registry record current, KYB verified, UBO resolved, risk acceptable, jurisdiction clear. Lifecycle continues.",
+      "callable_ref": "aureon.agents.jtac.aml_kyc:_path_eligible_clear",
+      "requires_approval": false,
+      "approval_predicates": [],
+      "conflict_keys": []
+    }
+  ]
+}
