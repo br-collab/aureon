@@ -75,6 +75,21 @@ prompt). Also not fixed in this prompt: the ThifurC2 instance's in-memory
 or any regulator-facing demo that will survey lineage across a deploy
 window. Until then, the gap is documented but not blocking.
 
+**STATUS — RESOLVED 2026-07-04 (WS-0.1, AUR-ROADMAP-001), pending
+operator review + deploy.** Full C2 state persistence implemented:
+(1) `store.py::save_state()` now persists `c2_task_log`,
+`c2_handoff_log`, `c2_lineage_log`, and a new `c2_registers` key;
+(2) `ThifurC2.mirror_registers_into_state()` (called from
+`server._save_state()`) mirrors the full `_tasks`/`_handoff_log`/
+`_lineage` registers into state before every snapshot;
+(3) `ThifurC2.restore_registers()` rebuilds them at boot in
+`run_doctrine_stack()` (outside `_lock` — no lock-order inversion; see
+lock-discipline note in coordinator.py). `_reconstitute_task_on_resume`
+retained as fallback for pre-WS-0.1 snapshots. Verified by
+`test_c2_persistence.py` (cross-restart replay: task, handoff, dashboard
+logs, doctrine stamp all survive; empty/legacy payloads correctly
+no-op). Uncommitted — review then commit as one primitive.
+
 ---
 
 ### Typed-attribute migration for payload classes
@@ -102,6 +117,67 @@ walkthrough where "what version are you running?" needs a crisp answer.
 **Scope:** add `RAILWAY_GIT_COMMIT_SHA` (Railway auto-injects this env
 var) to `/api/snapshot` response, optionally also `/api/version`.
 
+**STATUS — RESOLVED 2026-07-04 (WS-0.6, AUR-ROADMAP-001), pending
+operator review + deploy.** `/api/snapshot` now returns `deploy_sha`
+via `server._deploy_sha()` (`RAILWAY_GIT_COMMIT_SHA` → `SOURCE_COMMIT`
+→ `"unset"` for local dev). Uncommitted.
+
+### Cato Parity Principle — golden-vector harness (WS-0.2, added 2026-07-04)
+The Node decision core was extracted verbatim from the
+`get_atomic_settlement_gate` handler into `cato-mcp/gate_core.js`
+(pure, no I/O; index.js now requires it — single source of truth for
+thresholds AND decision logic). New harness `parity/run_parity.py`
+drives gate_core.js and the Python twin
+(`aureon/mcp/cato_client.py::atomic_settlement_gate`) with 15 golden
+vectors (`parity/cato_golden_vectors.json`): boundary-equal,
+boundary-trip, missing-input, multi-trigger, Sept 2019, Mar 2020.
+**Result 2026-07-04: 15/15 — identical decisions on both sides, all
+matching doctrine expectations.** Finding worth keeping: the SOFR
+delta boundary is float-sensitive (a nominal 10.0 bps delta like
+5.40−5.30 evaluates to 10.000000000000009 and trips the strict `>`
+check identically in both runtimes) — documented in V08. Remaining
+for full closure of the canonical §X parity conflict: wire
+`run_parity.py` into CI, and note that the harness covers the decision
+core, not the live-fetch plumbing around it. Uncommitted.
+
+
+### Tier 2 Compliance Monitoring operationalized (WS-2.1, added 2026-07-04)
+AGENTS.md v0.2 locked all Tier 2 roles on "path inventories not at
+skill-file resolution." For AUR-J-COMP-001 that rationale was stale as
+of Phase 4.5: `jtac_paths/AUR-J-COMP-001.json` is a formal seven-path
+inventory with approval predicates and conflict keys, all callables
+implemented, fixtures live. Shipped in this pass: (1)
+`AUR-J-PATHSET-COMP-001 v1.0` (Doctrine/) — path-set spec, doubles as
+template for the remaining three Tier 2 roles; (2)
+`compliance-monitoring-analyst.md` v0.1 DRAFT (first Tier 2 skill
+file, written against live code); (3) stale header + get_status
+narration in compliance.py corrected. Live-verified 2026-07-04: OFAC
+clear, EU match (dual-authority + OFAC_VS_GDPR conflict fired), US
+match (single-authority). **Operator approval of the spec + skill file
+is the doctrine event that flips AGENTS.md; the "locked" label
+divergence goes to canonical §X.** Next Tier 2 by readiness: AML/KYC
+(eligibility logic exists in pre-trade structuring), then Risk
+Reporting; Trade Surveillance last (scenario library is genuine new
+work). Uncommitted.
+
+### Tier 2 AML/KYC built new (WS-2.2, added 2026-07-04)
+Canonical §IV assigns "Govern KYC/KYB eligibility verification" to
+Thifur-J, but code inspection showed NO prior implementation — the
+eight pre-trade gates cover mandate/concentration/notional, not
+KYC/KYB. Doctrine assigned it; nobody built it. Shipped: (1)
+`kyc_registry_fixture.json` (fictional registry + prohibited/high-risk
+jurisdiction lists; source_path seam for commercial KYC utility); (2)
+`jtac_paths/AUR-J-AML-001.json` (six-path ladder incl. a new predicate
+class — the COMPLETION GATE: kyc_onboarding_complete is satisfiable
+only by finishing onboarding, never by override); (3)
+`aureon/agents/jtac/aml_kyc.py` (AmlKyc, registered in JTAC_AGENTS);
+(4) `c2_j_amlkyc_log` added to persistence snapshot + rehydration;
+(5) `AUR-J-PATHSET-AML-001 v1.0` + `aml-kyc-analyst.md` v0.1 DRAFT.
+Live-verified: 8/8 cases incl. alias resolution and
+prohibited-jurisdiction-without-record → BLOCK (not onboarding).
+Operator approval of spec + skill file pending. Remaining Tier 2:
+Risk Reporting (Kaladan threshold surfaces partially exist), Trade
+Surveillance (scenario library = genuine new work). Uncommitted.
 
 ## Active — Architectural Findings
 [Observations about the system that shape future decisions but aren't prescriptive.]

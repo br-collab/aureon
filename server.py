@@ -3911,6 +3911,14 @@ def _load_state():
 
 
 def _save_state():
+    # WS-0.1 (AUR-ROADMAP-001): mirror the full C2 registers into
+    # aureon_state["c2_registers"] before every snapshot so coordination
+    # state — not just the truncated dashboard logs — crosses restarts.
+    # Failure to mirror must never block the snapshot itself.
+    try:
+        _thifur_c2.mirror_registers_into_state()
+    except Exception as exc:
+        _log_error("WARN", "_save_state.c2_mirror", str(exc))
     persistence_save_state(
         state=aureon_state,
         lock=_lock,
@@ -3925,6 +3933,17 @@ def _load_state():
         state_file=STATE_FILE,
         log_error=_log_error,
     )
+
+
+def _deploy_sha() -> str:
+    """WS-0.6: the git SHA serving traffic, from the deploy environment.
+    Railway sets RAILWAY_GIT_COMMIT_SHA; SOURCE_COMMIT is the generic
+    buildpack fallback. Returns 'unset' in local dev. Read per-call —
+    negligible cost, and env is authoritative."""
+    import os as _os
+    return (_os.environ.get("RAILWAY_GIT_COMMIT_SHA")
+            or _os.environ.get("SOURCE_COMMIT")
+            or "unset")
 
 
 def _build_trade_report(decision, exec_price, authority_hash, gate_results, portfolio_before):
@@ -4410,6 +4429,16 @@ def run_doctrine_stack():
             # canonical key. Data from older neptune_recommendations
             # snapshots is preserved through the migration.
             aureon_state["atrox_recommendations"] = saved.get("atrox_recommendations", [])
+            # ── WS-0.1 C2 persistence (AUR-ROADMAP-001) ──────────
+            # Rehydrate the dashboard logs; the full registers are
+            # restored via restore_registers() below, OUTSIDE _lock
+            # (restore takes only C2's internal lock — see the lock
+            # discipline note in coordinator.py).
+            aureon_state["c2_task_log"]    = saved.get("c2_task_log",    [])
+            aureon_state["c2_handoff_log"] = saved.get("c2_handoff_log", [])
+            aureon_state["c2_lineage_log"] = saved.get("c2_lineage_log", [])
+            # ── WS-2.2 AML/KYC eligibility log ───────────────────
+            aureon_state["c2_j_amlkyc_log"] = saved.get("c2_j_amlkyc_log", [])
         else:
             # ── First-ever launch — seed from INITIAL_POSITIONS ───
             aureon_state["positions"] = [dict(p) for p in INITIAL_POSITIONS]
@@ -4418,6 +4447,13 @@ def run_doctrine_stack():
 
         if not aureon_state["pending_decisions"]:
             aureon_state["pending_decisions"] = [dict(d) for d in PENDING_DECISIONS_INIT]
+
+    # ── WS-0.1: restore the full C2 registers (outside _lock) ─────
+    if saved:
+        try:
+            _thifur_c2.restore_registers(saved.get("c2_registers"))
+        except Exception as exc:
+            _log_error("WARN", "run_doctrine_stack.c2_restore", str(exc))
 
     n_pos = len(aureon_state["positions"])
     print(f"[AUREON] Stack complete — doctrine v1.3 active — audit: {audit_hash[:12]}...")
@@ -6335,6 +6371,11 @@ def api_snapshot():
             "market_open":           _market_is_open(),
             "live_inception_date":   aureon_state.get("live_inception_date", "2026-04-07"),
             "thesis_date":           "2024-11-01",
+            # WS-0.6 (AUR-ROADMAP-001 · TRACKERS "Deployment SHA not
+            # exposed"): positive confirmation of the serving commit.
+            # Railway injects RAILWAY_GIT_COMMIT_SHA; SOURCE_COMMIT is
+            # the generic buildpack fallback; "unset" means local dev.
+            "deploy_sha":            _deploy_sha(),
         })
 
 
