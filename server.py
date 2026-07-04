@@ -95,6 +95,7 @@ from aureon.integration_adapters.ems_adapter import build_execution_release
 from aureon.session.session_protocol import SessionProtocol
 from aureon.data.market_data import get_price, get_prices_batch
 from aureon.agents import ThifurJ, SettlementOps
+from aureon.agents.jtac import RiskReporting
 from aureon.agents.c2.coordinator import ThifurC2
 from aureon.mmf import (
     nav_engine,
@@ -431,6 +432,12 @@ _agent_r = SettlementOps(aureon_state, _lock)
 # in-memory task/handoff/lineage registers. Exposed via the /api/c2/*
 # endpoints for paused-lifecycle inspection and resume. Phase 4.
 _thifur_c2 = ThifurC2(aureon_state, _lock)
+
+# Risk Reporting (AUR-J-RISK-001) — one instance for the periodic
+# portfolio-level risk assessment run from market_loop (WS-2.5). This is
+# read-only advisory: it emits a risk disposition to c2_j_risk_log for the
+# operator; it takes no market action and halts nothing (Axiom 2).
+_risk_agent = RiskReporting(aureon_state, _lock)
 
 # Expose agents to session protocol for Step 4 readiness check
 app._aureon_agents = {
@@ -4492,6 +4499,31 @@ def run_doctrine_stack():
         print(f"[AUREON] Pipe [{_ps['pipe_id']}] {_ps.get('status', 'UNKNOWN').upper()} — {_ps['source']}")
 
 
+def _compute_risk_snapshot(total, drawdown, class_totals, prices):
+    """WS-2.5: derive the four Risk Reporting metrics from live portfolio
+    state. Read-only — no mutation. Returns the snapshot dict the
+    RiskReporting agent consumes, or a partial dict (missing keys route to
+    RISK_DATA_INCOMPLETE by design — the agent never certifies clean on a
+    gap)."""
+    snap = {"drawdown_pct": round(drawdown, 4)}
+    if total and total > 0:
+        # Liquidity buffer = (cash + MMF) / total portfolio value.
+        cash = aureon_state.get("cash", 0.0) + aureon_state.get("mmf_balance", 0.0)
+        snap["liquidity_buffer_pct"] = round(cash / total * 100.0, 4)
+        # Sector concentration = largest asset-class market value / total.
+        if class_totals:
+            snap["sector_concentration_pct"] = round(max(class_totals.values()) / total * 100.0, 4)
+        # Single-position concentration = largest position market value / total.
+        positions = aureon_state.get("positions", [])
+        if positions:
+            largest = max(
+                pos["shares"] * prices.get(pos["symbol"], pos["cost"])
+                for pos in positions
+            )
+            snap["single_position_concentration_pct"] = round(largest / total * 100.0, 4)
+    return snap
+
+
 def market_loop():
     """
     Runs forever in a background thread. Every 5 seconds:
@@ -4499,6 +4531,7 @@ def market_loop():
       2. Recalculate portfolio value
       3. Check drawdown for compliance alerts
       4. Occasionally surface a new Thifur-H trade signal (~every 10 min)
+      5. Periodically run the Risk Reporting agent (read-only, WS-2.5)
     """
     while True:
         try:
@@ -4525,6 +4558,20 @@ def market_loop():
             # Thifur-H only surfaces signals during US market hours
             if _market_is_open() and random.random() < 0.033:
                 _generate_signal()
+
+            # WS-2.5: periodic Risk Reporting assessment (~every 5 min at a
+            # 5s loop = every 60 cycles). Read-only advisory — emits a risk
+            # disposition to c2_j_risk_log for the operator; takes no action
+            # and halts nothing (Axiom 2). Never allowed to break the loop.
+            if aureon_state["cycle_count"] % 60 == 0:
+                try:
+                    snap = _compute_risk_snapshot(total, drawdown, class_totals, prices)
+                    _risk_agent.assess_portfolio_risk(
+                        task_id=f"RISK-CYCLE-{aureon_state['cycle_count']}",
+                        snapshot=snap,
+                    )
+                except Exception as rex:
+                    _log_error("WARN", "risk_reporting_cycle", str(rex))
 
             # Atrox origination scan (every ATROX_SCAN_INTERVAL)
             try:
@@ -6269,6 +6316,23 @@ def api_c2_paused():
     Phase 4 — halt-and-pend + resume-after-approval surface."""
     return jsonify({
         "paused_lifecycles": _thifur_c2.list_paused_lifecycles(),
+    })
+
+
+@app.route("/api/risk/latest", methods=["GET"])
+def api_risk_latest():
+    """WS-2.5 — latest Risk Reporting disposition(s) for operator/Leto view.
+    Read-only. Returns the most recent entries from c2_j_risk_log written by
+    the periodic assessment in market_loop. Query ?n= to control count."""
+    try:
+        n = min(int(request.args.get("n", 10)), 100)
+    except (TypeError, ValueError):
+        n = 10
+    with _lock:
+        log = list(aureon_state.get("c2_j_risk_log", []))
+    return jsonify({
+        "count": len(log),
+        "latest": log[:n],
     })
 
 

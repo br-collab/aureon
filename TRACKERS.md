@@ -241,6 +241,25 @@ Tier 2 band now COMPLETE: COMP + AML + RISK operator-approved,
 SURV built. AGENTS.md v0.5. AUR-INV-001 refreshed to v1.1 (Gap 1
 closed). Uncommitted.
 
+### Risk Reporting wired to the live book (WS-2.5, added 2026-07-04)
+Turns AUR-J-RISK-001 from "verified on injected inputs" to "running
+against the live portfolio." Added server._compute_risk_snapshot()
+deriving the four metrics from live state (drawdown from _calc_portfolio;
+single-position and sector concentration from positions/class_totals;
+liquidity from cash+MMF over total). market_loop runs the agent every 60
+cycles (~5 min); _risk_agent is a module-level singleton. READ-ONLY
+advisory — emits a disposition to c2_j_risk_log, takes no market action,
+halts nothing (Axiom 2). New GET /api/risk/latest surfaces the log for
+operator/Leto. Verified: a 53% single-position concentration correctly
+routes to RISK_LIMIT_BREACH and logs. Closes the sector-concentration
+compute gap noted in AUR-J-PATHSET-RISK-001 §VII (class_totals already
+existed; the metric was one division away). Uncommitted.
+
+Live-tasking status of the other Tier 2 agents: Compliance already live
+(Phase 4 OFAC in the pretrade lifecycle); AML/KYC and Trade Surveillance
+still need their C2-tasking hooks (AML on the pretrade counterparty flow,
+Surveillance post-execution) — next WS-2.5 follow-ons.
+
 ## Active — Architectural Findings
 [Observations about the system that shape future decisions but aren't prescriptive.]
 
