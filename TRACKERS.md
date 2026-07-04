@@ -444,6 +444,46 @@ one browser click-through to confirm visually. Pre-trade pipeline is now
 end-to-end for all four asset classes: originate -> dispatch -> gates ->
 disposition -> approve.
 
+WS-P5 UI verified live 2026-07-04 via browser click-through on the
+Railway deploy: ＋ NEW ORDER opens, asset-class -> tokenized reveals the
+eligibility panel and suppresses the FI fields, submit created
+DEC-E6AA8198 (OUSG/BUY/tokenized/$750k, PENDING, origin OPERATOR), and
+its pre-trade check returned TOKENIZED_ELIGIBILITY=PASS (issuer
+ONDO_OUSG AUTHORIZED) with an overall FAIL driven by CASH_SUFFICIENCY —
+i.e. the asset-class gate fired on operator-originated intent and
+precedence held. Nothing auto-executed. Test order then discarded via
+the existing Reject path (see WS-P6 finding). "Needs one click-through"
+is now closed.
+
+### Discard path already exists; DECISION_WITHDRAWN deferred (WS-P6, added 2026-07-04)
+Correction on the record. While verifying WS-P5 I asserted there was "no
+cancel/reject endpoint" for a pending decision and proposed building one.
+That was a probe error: I tested only `/reject`, `/cancel` sub-paths and
+DELETE, and missed that reject is a *resolution value* on the base route.
+The discard path was already fully wired:
+
+- server `POST /api/decisions/<id>` with `{resolution:"REJECTED"}` removes
+  the decision from `pending_decisions`, executes nothing, journals
+  `DECISION_REJECTED`, and writes a Commander's-log entry. Passes through
+  the CAOM-001 session guard like any resolution.
+- index.html:4790 renders a "Reject" button on every pending decision
+  card; `resolveDecision(id,'REJECTED')` calls the above and refreshes.
+
+Verified live: rejecting DEC-E6AA8198 returned status "rejected", queue
+went to 0, no trade. So the WS-P5 front door already has a matching exit.
+
+Deferred (not built): a semantically-distinct `DECISION_WITHDRAWN`
+disposition. Rationale for building it later — REJECT and WITHDRAW are
+functionally identical today but audit-distinct: REJECT = authority
+declined a reviewed order on the merits; WITHDRAW = originator retracted
+un-reviewed intent (fat-finger). Conflating them inflates the rejection
+population that a surveillance rule / audit sample / rejection-rate
+metric might read as signal. Trigger to build: **CAOM seat separation**
+(originator and approver become different people) OR the first time a
+downstream consumer reads rejection counts as a risk signal. Until then
+the existing Reject button is the discard path. Low priority; single
+operator holds both seats today, so the split buys nothing now.
+
 ## Active — Architectural Findings
 [Observations about the system that shape future decisions but aren't prescriptive.]
 
