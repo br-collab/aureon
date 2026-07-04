@@ -203,6 +203,26 @@ for everyone (dashboard included) — the operator can still halt via
 Leto/Kraken, but the dashboard button will 403. Also configure the same
 key in the Leto env so its post-kill Railway sync succeeds. Uncommitted.
 
+### Tier 2 Risk Reporting built (WS-2.3, added 2026-07-04)
+Third Tier 2 role, third distinct provenance pattern: risk SIGNALS
+existed (drawdown 5/8, position 20/35, sector 22/25, cash floor 3%)
+but only inside per-trade enforcement gates — no portfolio-level
+aggregation agent. Shipped: risk_thresholds_fixture.json (consolidated
+bands + regulatory anchors), jtac_paths/AUR-J-RISK-001.json (4-path
+worst-rung disposition set), aureon/agents/jtac/risk_reporting.py
+(RiskReporting, registered), c2_j_risk_log persistence,
+AUR-J-PATHSET-RISK-001 v1.0 + risk-reporting-analyst.md v0.1 DRAFT.
+
+DESIGN FIX during build (worth keeping): the interaction test caught
+an under-escalation — with DATA_INCOMPLETE ranked above BREACH, a
+visible breach concurrent with a missing metric routed to the weaker
+single-authority gap-ack instead of dual-authority breach signoff.
+Corrected ordering: WITHIN < WARN < INCOMPLETE < BREACH, so a hard
+breach always dominates a gap while the report still flags the gap on
+every path. Live-verified 6/6. Skill-file approval pending. Only
+Trade Surveillance FI remains locked (scenario library = new work).
+Uncommitted.
+
 ## Active — Architectural Findings
 [Observations about the system that shape future decisions but aren't prescriptive.]
 

@@ -1,0 +1,37 @@
+{
+  "_note": "Approved paths for Risk Reporting (AUR-J-RISK-001), WS-2.3. Unlike the screening ladders (COMP/AML), this is a portfolio-level risk-state disposition set: the agent computes every metric in risk_thresholds_fixture.json against live portfolio state and selects the path corresponding to the WORST rung any metric reaches. The risk REPORT (per-metric status) is always the deliverable regardless of path (BCBS 239 risk aggregation). Adding a path is a doctrine event.",
+  "paths": [
+    {
+      "path_id": "RISK_WITHIN_LIMITS",
+      "description": "Every metric below its warn threshold. Risk report emitted; lifecycle/session continues.",
+      "callable_ref": "aureon.agents.jtac.risk_reporting:_path_within_limits",
+      "requires_approval": false,
+      "approval_predicates": [],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "RISK_WARN_THRESHOLD",
+      "description": "At least one metric in its warn band (below breach). Risk report emitted with the flagged metric(s). Single-authority acknowledgment (Head of Risk / CRO, T2 governance) — not a halt; a governed acknowledgment recorded in lineage.",
+      "callable_ref": "aureon.agents.jtac.risk_reporting:_path_warn_threshold",
+      "requires_approval": true,
+      "approval_predicates": ["risk_warn_acknowledged"],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "RISK_LIMIT_BREACH",
+      "description": "At least one metric at or beyond its breach threshold. Halt-and-pend; dual authority (Head of Risk / CRO + Executive/operator) before risk-bearing activity resumes. Escalated through C2 to the single human authority surface.",
+      "callable_ref": "aureon.agents.jtac.risk_reporting:_path_limit_breach",
+      "requires_approval": true,
+      "approval_predicates": ["cro_risk_signoff", "executive_override"],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "RISK_DATA_INCOMPLETE",
+      "description": "A required metric cannot be computed from available state, AND no metric is in hard breach. Halt-and-pend. A risk report with a missing metric MUST NOT present as within-limits — the gap is flagged explicitly, never silently treated as clean (the Risk-Reporting analog of C2 Immutable Stop 4: gaps flagged, never silently filled). Single-authority acknowledgment of the gap is required but does NOT clear the underlying risk state. Ordering note: a concurrent hard breach DOMINATES a data gap — breach-plus-gap routes to RISK_LIMIT_BREACH (dual authority) and the report still lists the gap; a known breach never earns the lighter gap-ack ceremony.",
+      "callable_ref": "aureon.agents.jtac.risk_reporting:_path_data_incomplete",
+      "requires_approval": true,
+      "approval_predicates": ["data_gap_acknowledged"],
+      "conflict_keys": []
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "_note": "Risk Reporting thresholds (AUR-J-RISK-001, WS-2.3). Consolidates the portfolio-level risk bands that previously lived scattered across server.py INITIAL config and the mandate fixture. These are the PORTFOLIO-MONITORING bands used by the periodic Risk Reporting agent — distinct from the PRE-TRADE enforcement caps in pretrade_structuring.MANDATE_LIMITS (e.g. max_single_position_pct 0.15), which block an individual trade at entry. Reporting aggregates standing risk; gating blocks a bad trade. Complementary, not redundant. Editing this fixture is a doctrine event (fixtures are doctrine). Values sourced 2026-07-04 from server.py (drawdown/position bands) and mandate_fixture.json (sector, cash floor).",
+  "thresholds_version": "ARCADIA-RISK-v1.0",
+  "effective": "2026-07-04",
+  "metrics": {
+    "drawdown_pct": {
+      "label": "Portfolio drawdown",
+      "warn_at": 5.0,
+      "breach_at": 8.0,
+      "direction": "above",
+      "source": "server.py drawdown_warn_pct / drawdown_fail_pct",
+      "regulatory_anchor": "BCBS 239 P5 timeliness; SR 11-7 risk monitoring"
+    },
+    "single_position_concentration_pct": {
+      "label": "Largest single-position concentration",
+      "warn_at": 20.0,
+      "breach_at": 35.0,
+      "direction": "above",
+      "source": "server.py position_warn_pct / position_fail_pct",
+      "pretrade_counterpart": "MANDATE_LIMITS.max_single_position_pct 15% (pre-trade hard stop)",
+      "regulatory_anchor": "BCBS 239 P3 accuracy; concentration risk"
+    },
+    "sector_concentration_pct": {
+      "label": "Largest sector concentration",
+      "warn_at": 22.0,
+      "breach_at": 25.0,
+      "direction": "above",
+      "source": "mandate_fixture hold_thresholds.sector_concentration_pct_hold_at / max_sector_concentration_pct",
+      "regulatory_anchor": "BCBS 239 P3; mandate compliance"
+    },
+    "liquidity_buffer_pct": {
+      "label": "Cash / liquidity buffer",
+      "warn_at": 4.5,
+      "breach_at": 3.0,
+      "direction": "below",
+      "source": "mandate MANDATE_LIMITS.min_cash_floor_pct 3% (breach = floor); warn at 1.5x floor",
+      "regulatory_anchor": "DORA liquidity resilience; mandate cash floor"
+    }
+  }
+}
