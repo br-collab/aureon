@@ -50,6 +50,19 @@ def save_state(*, state, lock, state_file, resolve_mmf_provider, log_error):
                 # Renamed from neptune_recommendations. Migration
                 # handled at load time via migrate_neptune_to_atrox.
                 "atrox_recommendations": list(state.get("atrox_recommendations", [])),
+                # ── WS-0.1 C2 persistence (AUR-ROADMAP-001) ─────────
+                # Closes TRACKERS "C2 log persistence gap": the three
+                # dashboard logs plus the full C2 registers mirrored by
+                # ThifurC2.mirror_registers_into_state() (called from
+                # server._save_state() immediately before this snapshot).
+                # Lineage must survive a deploy — the unified lineage
+                # record is the product (Axiom 4).
+                "c2_task_log":       list(state.get("c2_task_log", [])),
+                "c2_handoff_log":    list(state.get("c2_handoff_log", [])),
+                "c2_lineage_log":    list(state.get("c2_lineage_log", [])),
+                "c2_registers":      dict(state.get("c2_registers", {})),
+                # ── WS-2.2 AML/KYC (AUR-J-AML-001) ─────────────────
+                "c2_j_amlkyc_log":   list(state.get("c2_j_amlkyc_log", [])),
                 "saved_at":          datetime.now(timezone.utc).isoformat(),
             }
         # Atomic save: write to tmp in the same directory, then rename.

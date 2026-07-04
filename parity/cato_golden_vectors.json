@@ -1,0 +1,28 @@
+{
+  "_doc": "WS-0.2 (AUR-ROADMAP-001) — Cato Parity Principle golden vectors. Each vector defines identical inputs for the Node decision core (cato-mcp/gate_core.js) and the Python twin (aureon/mcp/cato_client.py::atomic_settlement_gate). Expected values encode Cato v0.2.2 doctrine: ESCALATE if OFR > 1.0; HOLD if OFR > 0.5 OR gas > 50 gwei OR |SOFR delta| > 10 bps; PROCEED otherwise. Thresholds are strict inequalities — boundary-equal vectors must NOT trip. Editing expectations here is a doctrine event, not a test fix.",
+  "vectors": [
+    {"id": "V01_all_clear",            "ofr_stress": 0.20,  "gas_gwei": 20.0, "sofr_rate": 5.30, "sofr_prev": 5.28, "expect": {"gate_decision": "PROCEED",  "recommended_rail": "atomic"}},
+    {"id": "V02_ofr_hold_boundary_eq", "ofr_stress": 0.50,  "gas_gwei": 20.0, "sofr_rate": 5.30, "sofr_prev": 5.30, "expect": {"gate_decision": "PROCEED",  "recommended_rail": "atomic"}},
+    {"id": "V03_ofr_hold_trip",        "ofr_stress": 0.51,  "gas_gwei": 20.0, "sofr_rate": 5.30, "sofr_prev": 5.30, "expect": {"gate_decision": "HOLD",     "recommended_rail": "traditional"}},
+    {"id": "V04_ofr_escalate_boundary_eq", "ofr_stress": 1.00, "gas_gwei": 20.0, "sofr_rate": 5.30, "sofr_prev": 5.30, "expect": {"gate_decision": "HOLD",  "recommended_rail": "traditional"}},
+    {"id": "V05_ofr_escalate_trip",    "ofr_stress": 1.01,  "gas_gwei": 20.0, "sofr_rate": 5.30, "sofr_prev": 5.30, "expect": {"gate_decision": "ESCALATE", "recommended_rail": "human_authority"}},
+    {"id": "V06_gas_boundary_eq",      "ofr_stress": 0.10,  "gas_gwei": 50.0, "sofr_rate": 5.30, "sofr_prev": 5.30, "expect": {"gate_decision": "PROCEED",  "recommended_rail": "atomic"}},
+    {"id": "V07_gas_trip",             "ofr_stress": 0.10,  "gas_gwei": 50.5, "sofr_rate": 5.30, "sofr_prev": 5.30, "expect": {"gate_decision": "HOLD",     "recommended_rail": "traditional"}},
+    {"id": "V08_sofr_below_boundary",  "ofr_stress": 0.10,  "gas_gwei": 20.0, "sofr_rate": 6.00, "sofr_prev": 5.90, "_note": "IEEE-754: 6.00-5.90 = 9.999999... bps (<10, no trip). A nominal 10.0 bps delta like 5.40-5.30 evaluates to 10.000000000000009 and TRIPS the strict > check identically in Node and Python — the boundary is float-sensitive by construction. Both implementations agree bit-for-bit either way; harness run 2026-07-04 confirmed.", "expect": {"gate_decision": "PROCEED",  "recommended_rail": "atomic"}},
+    {"id": "V09_sofr_trip",            "ofr_stress": 0.10,  "gas_gwei": 20.0, "sofr_rate": 5.41, "sofr_prev": 5.30, "expect": {"gate_decision": "HOLD",     "recommended_rail": "traditional"}},
+    {"id": "V10_gas_missing_clear",    "ofr_stress": 0.10,  "gas_gwei": null, "sofr_rate": 5.30, "sofr_prev": 5.30, "expect": {"gate_decision": "PROCEED",  "recommended_rail": "atomic"}},
+    {"id": "V11_sofr_missing_clear",   "ofr_stress": 0.10,  "gas_gwei": 20.0, "sofr_rate": 5.30, "sofr_prev": null, "expect": {"gate_decision": "PROCEED",  "recommended_rail": "atomic"}},
+    {"id": "V12_sept2019_repo_spike",  "ofr_stress": -0.155, "gas_gwei": 12.0, "sofr_rate": 5.25, "sofr_prev": 2.43, "expect": {"gate_decision": "HOLD",    "recommended_rail": "traditional"}},
+    {"id": "V13_mar2020_covid",        "ofr_stress": 5.657, "gas_gwei": 35.0, "sofr_rate": 0.26, "sofr_prev": 1.10, "expect": {"gate_decision": "ESCALATE", "recommended_rail": "human_authority"}},
+    {"id": "V14_multi_trigger_hold",   "ofr_stress": 0.70,  "gas_gwei": 60.0, "sofr_rate": 5.45, "sofr_prev": 5.30, "expect": {"gate_decision": "HOLD",     "recommended_rail": "traditional"}},
+    {"id": "V15_escalate_overrides_gas", "ofr_stress": 2.00, "gas_gwei": 80.0, "sofr_rate": 5.30, "sofr_prev": 5.30, "expect": {"gate_decision": "ESCALATE", "recommended_rail": "human_authority"}}
+  ],
+  "chain_state": {
+    "_doc": "Shared chain_state for recommended_chain parity (PROCEED vectors only). Solana fee below $0.01 so the cheapest-wins picker resolves 'solana' on both sides.",
+    "ethereum": {"gas_gwei": 20.0},
+    "base": {"gas_gwei": 0.01},
+    "arbitrum": {"gas_gwei": 0.6},
+    "solana": {"fee_usd_estimate": 0.0004}
+  },
+  "expected_chain_on_proceed": "solana"
+}

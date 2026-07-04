@@ -434,6 +434,62 @@ class ThifurC2(Agent):
             return dict(self._lineage[task_id]) if task_id in self._lineage else None
 
     # ─────────────────────────────────────────────────────────────────────────
+    # C2 REGISTER PERSISTENCE (WS-0.1, AUR-ROADMAP-001 · TRACKERS "C2 log
+    # persistence gap")
+    #
+    # The dashboard mirrors (c2_task_log / c2_handoff_log / c2_lineage_log in
+    # aureon_state) are truncated views. The full coordination state lives in
+    # the instance registers (_tasks / _handoff_log / _lineage) and previously
+    # died on every restart — breaking audit-trail continuity across a deploy
+    # (Axiom 4 exposure). These two methods close the gap:
+    #
+    #   mirror_registers_into_state()  — called by server._save_state() before
+    #       each snapshot write; copies the registers into
+    #       aureon_state["c2_registers"] so persistence.store picks them up.
+    #   restore_registers(payload)     — called once at boot after the snapshot
+    #       rehydrates aureon_state; rebuilds the registers.
+    #
+    # Lock discipline: _c2_lock and the shared state lock are NEVER held
+    # simultaneously here (copy under _c2_lock → release → write under _lock),
+    # so no lock-order inversion is possible against the mutation paths.
+    # _reconstitute_task_on_resume remains as the fallback for snapshots
+    # written before this key existed.
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def mirror_registers_into_state(self) -> None:
+        """Copy the full C2 registers into aureon_state["c2_registers"]
+        so save_state() persists them. JSON-safe by construction: every
+        record in the registers originated from JSON-serializable packets."""
+        with self._c2_lock:
+            payload = {
+                "tasks":       {tid: dict(t) for tid, t in self._tasks.items()},
+                "handoff_log": [dict(h) for h in self._handoff_log],
+                "lineage":     {tid: dict(l) for tid, l in self._lineage.items()},
+                "mirrored_at": datetime.now(timezone.utc).isoformat(),
+            }
+        with self._lock:
+            self._state["c2_registers"] = payload
+
+    def restore_registers(self, payload: dict | None) -> bool:
+        """Rebuild the C2 registers from a persisted c2_registers payload.
+        Returns True if registers were restored, False on empty/absent payload
+        (first boot, or a snapshot predating WS-0.1 — the
+        _reconstitute_task_on_resume fallback still covers those).
+        Touches only _c2_lock; must be called OUTSIDE the shared state lock."""
+        if not payload or not isinstance(payload, dict):
+            print("[THIFUR-C2] No persisted registers — starting empty "
+                  "(pre-WS-0.1 snapshot or first boot)")
+            return False
+        with self._c2_lock:
+            self._tasks       = {tid: dict(t) for tid, t in (payload.get("tasks") or {}).items()}
+            self._handoff_log = [dict(h) for h in (payload.get("handoff_log") or [])]
+            self._lineage     = {tid: dict(l) for tid, l in (payload.get("lineage") or {}).items()}
+            n_t, n_h, n_l = len(self._tasks), len(self._handoff_log), len(self._lineage)
+        print(f"[THIFUR-C2] Registers restored — {n_t} tasks, {n_h} handoffs, "
+              f"{n_l} lineage records — mirrored_at {payload.get('mirrored_at', 'unknown')}")
+        return True
+
+    # ─────────────────────────────────────────────────────────────────────────
     # MANDATE 4: SINGLE ESCALATION SURFACE
     # ─────────────────────────────────────────────────────────────────────────
 
