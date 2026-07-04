@@ -84,9 +84,17 @@ _APPROVAL_LINEAGE_RULES = os.path.join(_DOCTRINE, "approval_lineage_rules.json")
 class Compliance(JTACConcreteBase):
     """AUR-J-COMP-001 — Compliance Monitoring.
 
-    Phase 4 implements ONE task end-to-end: OFAC counterparty screening.
-    All other Compliance tasks are declared stubs raising NotImplementedError;
-    they land in Phase 4.5.
+    Phase 4 shipped OFAC counterparty screening end-to-end. Phase 4.5
+    shipped pre-trade policy (mandate + IPS), MiFID II RTS 6 algorithm
+    inventory, and approval lineage determination — all live against
+    the fixtures in aureon/doctrine/ and the seven-path inventory in
+    jtac_paths/AUR-J-COMP-001.json.
+
+    WS-2.1 (2026-07-04): role operationalized as the first Tier 2
+    workforce skill file — see AUR-J-PATHSET-COMP-001 (path-set spec)
+    and compliance-monitoring-analyst.md. Remaining deferred scope:
+    surveillance hooks (future path-inventory addition) and fuzzy OFAC
+    matching (blocking at first external-counterparty engagement).
     """
 
     role_id   = ROLE_ID
@@ -726,12 +734,14 @@ class Compliance(JTACConcreteBase):
             "version":        AGENT_COMP_VERSION,
             "role_id":        self.role_id,
             "status":         "ACTIVE",
-            "phase":          "Phase 4 — OFAC Counterparty Screening",
+            "phase":          "Phase 4.5 — OFAC screening + pre-trade policy + algo inventory",
             "approved_paths": list(self._approved_paths.keys()),
             "sr_11_7_tier":   "Tier 1",
             "scope_note":     (
-                "Phase 4 implements OFAC counterparty screening only. "
-                "Other Compliance tasks are Phase 4.5 stubs."
+                "Operationalized as first Tier 2 workforce role (WS-2.1, "
+                "AUR-J-PATHSET-COMP-001). Live: OFAC counterparty screening, "
+                "pre-trade policy (mandate + IPS), RTS 6 algo inventory, "
+                "approval lineage. Deferred: surveillance hooks, fuzzy OFAC."
             ),
             "guardrails":     [
                 "Approved paths only",

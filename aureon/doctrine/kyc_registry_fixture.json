@@ -1,0 +1,72 @@
+{
+  "_note": "Clearly fictional KYC/KYB registry fixture for AUR-J-AML-001 (WS-2.2). Does NOT contain real counterparty data. Used by aureon/agents/jtac/aml_kyc.py AmlKyc.verify_counterparty_eligibility(). Same doctrine-seam convention as sdn_fixture.json: source_path override on the loader is the seam for a future KYC utility / registry integration (LSEG, Fenergo-class). Editing this fixture is a doctrine event — it changes what the agent may decide.",
+  "prohibited_jurisdictions": ["KP", "IR", "SY", "CU"],
+  "high_risk_jurisdictions": ["FICTIONALSTAN", "EXAMPLELAND"],
+  "kyc_entries": [
+    {
+      "counterparty_id": "KYC-FICTION-001",
+      "primary_name": "ACME CLEAN CORP",
+      "aliases": ["ACME CLEAN CORPORATION"],
+      "jurisdiction": "US",
+      "kyc_status": "VERIFIED",
+      "kyb_status": "VERIFIED",
+      "ubo_resolved": true,
+      "pep_flag": false,
+      "risk_rating": "LOW",
+      "verified_at": "2026-03-01T00:00:00Z",
+      "expires_at": "2027-03-01T00:00:00Z"
+    },
+    {
+      "counterparty_id": "KYC-FICTION-002",
+      "primary_name": "STALE VERIFICATION PARTNERS LLC",
+      "aliases": [],
+      "jurisdiction": "GB",
+      "kyc_status": "VERIFIED",
+      "kyb_status": "VERIFIED",
+      "ubo_resolved": true,
+      "pep_flag": false,
+      "risk_rating": "LOW",
+      "verified_at": "2024-05-01T00:00:00Z",
+      "expires_at": "2025-05-01T00:00:00Z"
+    },
+    {
+      "counterparty_id": "KYC-FICTION-003",
+      "primary_name": "OPAQUE HOLDINGS SA",
+      "aliases": ["OPAQUE HOLDING COMPANY"],
+      "jurisdiction": "LU",
+      "kyc_status": "VERIFIED",
+      "kyb_status": "PENDING",
+      "ubo_resolved": false,
+      "pep_flag": false,
+      "risk_rating": "MEDIUM",
+      "verified_at": "2026-05-01T00:00:00Z",
+      "expires_at": "2027-05-01T00:00:00Z"
+    },
+    {
+      "counterparty_id": "KYC-FICTION-004",
+      "primary_name": "POLITICALLY CONNECTED VENTURES",
+      "aliases": [],
+      "jurisdiction": "FICTIONALSTAN",
+      "kyc_status": "VERIFIED",
+      "kyb_status": "VERIFIED",
+      "ubo_resolved": true,
+      "pep_flag": true,
+      "risk_rating": "HIGH",
+      "verified_at": "2026-06-01T00:00:00Z",
+      "expires_at": "2027-06-01T00:00:00Z"
+    },
+    {
+      "counterparty_id": "KYC-FICTION-005",
+      "primary_name": "EMBARGOED TRADING GMBH",
+      "aliases": [],
+      "jurisdiction": "KP",
+      "kyc_status": "VERIFIED",
+      "kyb_status": "VERIFIED",
+      "ubo_resolved": true,
+      "pep_flag": false,
+      "risk_rating": "PROHIBITED",
+      "verified_at": "2026-01-01T00:00:00Z",
+      "expires_at": "2027-01-01T00:00:00Z"
+    }
+  ]
+}
