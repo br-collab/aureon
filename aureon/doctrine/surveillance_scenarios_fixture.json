@@ -1,0 +1,58 @@
+{
+  "_note": "Trade Surveillance scenario library (AUR-J-SURV-001, WS-2.4). This is genuine new work — unlike the prior three Tier 2 roles, no detection signals existed in code. Each scenario declares severity (REVIEW -> flag for human review; ESCALATE -> halt + dual authority + potential regulatory reporting), an enabled flag, the record fields it requires, and detection parameters. DOCTRINAL INVARIANT: a flagged pattern is NEVER auto-disposed by the system — only human review clears it. A missing required field for an ENABLED scenario means the check could not run, which routes to SURVEIL_DATA_INCOMPLETE (cannot certify clean). Editing this fixture is a doctrine event. Fixed-income / Argus scope.",
+  "library_version": "ARCADIA-SURVEIL-v1.0",
+  "effective": "2026-07-04",
+  "scenarios": {
+    "WASH_TRADE": {
+      "label": "Wash trade — no change in beneficial ownership",
+      "severity": "ESCALATE",
+      "enabled": true,
+      "requires": ["buy_beneficial_owner", "sell_beneficial_owner"],
+      "detect": "match if buy_beneficial_owner == sell_beneficial_owner",
+      "regulatory_anchor": "MAR Art. 12; MiFID II; SEC 10b-5; CFTC anti-wash"
+    },
+    "MARKING_THE_CLOSE": {
+      "label": "Marking the close — outsized volume in the closing window",
+      "severity": "ESCALATE",
+      "enabled": true,
+      "requires": ["seconds_to_close", "session_volume_pct"],
+      "params": {"close_window_seconds": 300, "volume_pct_threshold": 20.0},
+      "detect": "match if seconds_to_close <= close_window_seconds AND session_volume_pct >= volume_pct_threshold",
+      "regulatory_anchor": "MAR Art. 12(1)(a); FINRA 5210"
+    },
+    "FRONT_RUNNING": {
+      "label": "Front running — proprietary trade ahead of a known client order",
+      "severity": "ESCALATE",
+      "enabled": true,
+      "requires": ["prop_trade_ahead_of_client"],
+      "detect": "match if prop_trade_ahead_of_client is true",
+      "regulatory_anchor": "FINRA 5270; MiFID II conflicts of interest"
+    },
+    "UNUSUAL_PRICE_DEVIATION": {
+      "label": "Execution price deviates from prevailing reference",
+      "severity": "REVIEW",
+      "enabled": true,
+      "requires": ["exec_price", "reference_price"],
+      "params": {"deviation_bps_threshold": 50.0},
+      "detect": "match if abs(exec_price - reference_price)/reference_price * 10000 > deviation_bps_threshold",
+      "regulatory_anchor": "MiFID II best execution; FINRA 5310"
+    },
+    "CONCENTRATED_COUNTERPARTY": {
+      "label": "Single counterparty concentration in session flow",
+      "severity": "REVIEW",
+      "enabled": true,
+      "requires": ["counterparty_session_volume_pct"],
+      "params": {"concentration_pct_threshold": 40.0},
+      "detect": "match if counterparty_session_volume_pct > concentration_pct_threshold",
+      "regulatory_anchor": "BCBS 239 concentration; MAR surveillance"
+    },
+    "LAYERING_SPOOFING": {
+      "label": "Layering / spoofing — non-bona-fide orders then cancel",
+      "severity": "ESCALATE",
+      "enabled": false,
+      "requires": ["order_book_events"],
+      "declared_not_active_reason": "Requires order-book / order-lifecycle event data not in the Argus deployment scope. Declared in the library so activation is a fixture flip, not a schema change, once order data is available.",
+      "regulatory_anchor": "MAR Art. 12(1)(c); CFTC anti-spoofing 4c(a)(5)(C); Dodd-Frank"
+    }
+  }
+}

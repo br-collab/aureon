@@ -1,0 +1,37 @@
+{
+  "_note": "Approved paths for Trade Surveillance (AUR-J-SURV-001), WS-2.4. A surveillance-disposition set: the agent runs every ENABLED scenario in surveillance_scenarios_fixture.json against a trade/session record and selects the path of the worst outcome. Ordering by restrictiveness: CLEAR < PATTERN_FLAGGED < DATA_INCOMPLETE < PATTERN_ESCALATE — a confirmed high-severity pattern dominates a data gap (a known wash trade never earns the lighter gap-ack), while the surveillance report lists every match and every uncheckable scenario. DOCTRINAL INVARIANT: no flagged or escalated pattern is ever auto-disposed by the system; only human review clears it. Adding a path is a doctrine event.",
+  "paths": [
+    {
+      "path_id": "SURVEIL_CLEAR",
+      "description": "No enabled scenario matched and every enabled scenario could be evaluated. Surveillance report emitted; no pattern of concern.",
+      "callable_ref": "aureon.agents.jtac.trade_surveillance:_path_clear",
+      "requires_approval": false,
+      "approval_predicates": [],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "SURVEIL_PATTERN_FLAGGED",
+      "description": "At least one REVIEW-severity scenario matched (e.g. price deviation, counterparty concentration), no ESCALATE match. Flagged for human review; single-authority surveillance/compliance disposition. Never auto-cleared.",
+      "callable_ref": "aureon.agents.jtac.trade_surveillance:_path_pattern_flagged",
+      "requires_approval": true,
+      "approval_predicates": ["surveillance_review_dispositioned"],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "SURVEIL_DATA_INCOMPLETE",
+      "description": "An enabled scenario could not be evaluated because a required field was absent, AND no ESCALATE match occurred. Halt-and-pend. The trade is NOT certified clean when an active surveillance check could not run (analog of C2 Immutable Stop 4 and the Risk-Reporting gap-completeness invariant). Single-authority acknowledgment of the gap; does not clear the underlying surveillance state.",
+      "callable_ref": "aureon.agents.jtac.trade_surveillance:_path_data_incomplete",
+      "requires_approval": true,
+      "approval_predicates": ["surveillance_gap_acknowledged"],
+      "conflict_keys": []
+    },
+    {
+      "path_id": "SURVEIL_PATTERN_ESCALATE",
+      "description": "At least one ESCALATE-severity scenario matched (wash trade, marking the close, front running). Halt-and-pend; dual authority (Compliance + Executive) and potential regulatory reporting (e.g. STOR / SAR) before disposition. Escalated through C2 to the single human authority surface. Dominates a concurrent data gap; the report still lists the gap.",
+      "callable_ref": "aureon.agents.jtac.trade_surveillance:_path_pattern_escalate",
+      "requires_approval": true,
+      "approval_predicates": ["compliance_surveillance_signoff", "executive_override"],
+      "conflict_keys": []
+    }
+  ]
+}
