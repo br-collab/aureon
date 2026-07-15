@@ -6,5 +6,10 @@ python-dotenv>=1.0.0
 gunicorn>=21.2.0
 requests>=2.31.0
 flask-cors>=4.0.0
+# WS-1 Clearing Cockpit (AUR-COCKPIT-001): vendored aureon.cockpit / tier1 /
+# contracts use Pydantic v2 (ConfigDict, model_validator, model_dump).
+# server.py imports aureon.cockpit at boot — without this the app fails to
+# start and Railway returns 502.
+pydantic>=2.5.0
 # Phase 2 P2-2 — real atomic DvP on XRPL testnet for MMF Lane D.
 xrpl-py>=4.5.0
