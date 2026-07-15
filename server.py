@@ -9135,11 +9135,10 @@ def cockpit_workbench():
 def cockpit_dashboard():
     """Serve the Atreides Settlement & Custody Console (AUR-COCKPIT-001).
     The console's LIVE feed calls the /api/cockpit/* endpoints above,
-    same-origin."""
-    return send_from_directory(
-        os.path.join(THIS_DIR, "Project Atreides - Custody"),
-        "atreides-settlement-dashboard.html",
-    )
+    same-origin. Served from the repo root (THIS_DIR) — the working copy
+    under 'Project Atreides - Custody/' is gitignored (Restricted subtree)
+    and does not ship in the deploy, so the deployable copy lives here."""
+    return send_from_directory(THIS_DIR, "atreides-settlement-dashboard.html")
 
 
 if __name__ == "__main__":
