@@ -3810,114 +3810,12 @@ def _build_atrox_rec(action, symbol, shares, price, asset_class, thesis,
 # Only the fields that matter across restarts are persisted; ephemeral
 # data (prices, cycle_count, etc.) is always recalculated at runtime.
 
-def _save_state():
-    """
-    Serialize critical aureon_state fields to aureon_state_persist.json
-    in the same directory as server.py.  Called in a background thread
-    after every HITL approve/reject so it never blocks the response.
-    """
-    try:
-        with _lock:
-            trade_reports = []
-            for r in aureon_state["trade_reports"]:
-                trade_reports.append({k: v for k, v in r.items() if k != "pdf_bytes"})
-            snapshot = {
-                "positions":          list(aureon_state["positions"]),
-                "cash":               aureon_state["cash"],
-                "trades":             list(aureon_state["trades"]),
-                "trade_reports":      trade_reports,
-                "source_documents":   list(aureon_state.get("source_documents", [])),
-                "authority_log":      list(aureon_state["authority_log"]),
-                "compliance_alerts":  list(aureon_state["compliance_alerts"]),
-                "alert_history":      list(aureon_state["alert_history"]),
-                # ── MMF / Cash management ──────────────────────────
-                "mmf_balance":        aureon_state.get("mmf_balance", 0.0),
-                "mmf_yield_accrued":  aureon_state.get("mmf_yield_accrued", 0.0),
-                "mmf_provider":       _resolve_mmf_provider(aureon_state.get("mmf_provider")),
-                "sweep_log":          list(aureon_state.get("sweep_log", [])),
-                "operational_journal": list(aureon_state.get("operational_journal", [])),
-                "saved_at":           datetime.now(timezone.utc).isoformat(),
-            }
-        tmp_file = STATE_FILE + ".tmp"
-        with open(tmp_file, "w") as fh:
-            json.dump(snapshot, fh, indent=2)
-        os.replace(tmp_file, STATE_FILE)
-        print(f"[AUREON] State saved — {len(snapshot['positions'])} positions, "
-              f"{len(snapshot['trades'])} trades")
-    except Exception as exc:
-        _log_error("WARN", "_save_state", str(exc))
-
-
-def _load_state():
-    """
-    Load persisted state from aureon_state_persist.json.
-    Returns the snapshot dict on success, or None if no file / parse error.
-    Does NOT acquire _lock — must be called before the lock block in
-    run_doctrine_stack() to avoid a deadlock.
-    """
-    if not os.path.exists(STATE_FILE):
-        print("[AUREON] No persisted state found — initialising from INITIAL_POSITIONS")
-        return None
-    try:
-        with open(STATE_FILE, "r") as fh:
-            snapshot = json.load(fh)
-        n_pos    = len(snapshot.get("positions", []))
-        n_trades = len(snapshot.get("trades", []))
-        saved_at = snapshot.get("saved_at", "unknown")
-        print(f"[AUREON] Persisted state loaded — {n_pos} positions, "
-              f"{n_trades} trades — last saved {saved_at}")
-        return snapshot
-    except Exception as exc:
-        _log_error("WARN", "_load_state", f"{exc} — attempting salvage from corrupted state")
-
-    try:
-        text = open(STATE_FILE, "r", errors="ignore").read()
-        snapshot = {}
-
-        def _extract(key, next_key=None):
-            key_pat = f'"{key}":'
-            start = text.find(key_pat)
-            if start == -1:
-                return None
-            start += len(key_pat)
-            if next_key:
-                end = text.find(f',\n  "{next_key}":', start)
-                if end == -1:
-                    return None
-                raw = text[start:end].strip()
-            else:
-                raw = text[start:].strip()
-            return raw
-
-        positions_raw = _extract("positions", "cash")
-        cash_raw = _extract("cash", "trades")
-        trades_raw = _extract("trades", "trade_reports")
-        if positions_raw:
-            snapshot["positions"] = json.loads(positions_raw)
-        if cash_raw:
-            snapshot["cash"] = json.loads(cash_raw)
-        if trades_raw:
-            snapshot["trades"] = json.loads(trades_raw)
-
-        snapshot["trade_reports"] = []
-        snapshot["source_documents"] = []
-        snapshot["authority_log"] = []
-        snapshot["compliance_alerts"] = []
-        snapshot["alert_history"] = []
-        snapshot["mmf_balance"] = 0.0
-        snapshot["mmf_yield_accrued"] = 0.0
-        snapshot["sweep_log"] = []
-        snapshot["saved_at"] = datetime.now(timezone.utc).isoformat()
-
-        if snapshot.get("positions") is not None and snapshot.get("trades") is not None and "cash" in snapshot:
-            print(f"[AUREON] Salvaged corrupted state — {len(snapshot['positions'])} positions, {len(snapshot['trades'])} trades")
-            return snapshot
-    except Exception as salvage_exc:
-        _log_error("WARN", "_load_state", f"{salvage_exc} — salvage failed")
-
-    print("[AUREON] Falling back to INITIAL_POSITIONS")
-    return None
-
+# NOTE (2026-07-15, WS-0.1 hygiene): the standalone _save_state()/_load_state()
+# that previously sat here were dead code — shadowed by the redefinitions in
+# section 5b+ below — and wrote a smaller snapshot lacking c2_registers,
+# paused_lifecycles, and MMF fields. Removed to eliminate the divergent-
+# snapshot hazard. The authoritative definitions are in 5b+ (they delegate to
+# persistence.store and mirror the C2 registers).
 
 # ─────────────────────────────────────────────────────────────────
 # 5b+. EXPLICIT PHASE 1 SERVICE BOUNDARIES
@@ -9038,6 +8936,211 @@ def thifur_h_balance():
     if not _thifur_h_session:
         return jsonify({"status": "error", "message": "No active session"}), 400
     return jsonify({"status": "ok", "balance": _thifur_h_session.exchange.get_balance()})
+
+
+# ─────────────────────────────────────────────────────────────────
+# 9. CLEARING OPERATOR COCKPIT  (AUR-COCKPIT-001 v0.1 · WS-1)
+# ─────────────────────────────────────────────────────────────────
+# The human-facing settlement decision surface: gather → validate →
+# prepare → reconcile AROUND the external CCP/CSD portals. It never
+# submits, never holds credentials, never scrapes (Section II). Beat 4
+# (submission) is the entitled member's act, outside this surface.
+# Gate logic reuses the vendored Settlement Operations Analyst — one
+# gate set in the estate. Tier 0 Halt (aureon_state["halt_active"])
+# propagates across every primitive.
+from decimal import Decimal as _CkDecimal
+from uuid import UUID as _CkUUID
+from aureon.cockpit import (
+    ClearingCockpit as _ClearingCockpit,
+    CockpitHalted as _CockpitHalted,
+    PortalRegime as _PortalRegime,
+)
+from aureon.agents.tier1.outputs import (
+    SettlementRail as _CkRail,
+    SettlementKind as _CkKind,
+    CreditFacilityType as _CkCredit,
+    GCFPoolCustodian as _CkGCF,
+)
+from aureon.contracts.dsor_stub import CAOMTier as _CkTier
+
+_clearing_cockpit = _ClearingCockpit(
+    halt_check=lambda: bool(aureon_state.get("halt_active", False)),
+)
+# HTTP cycle state, keyed by operation_id, so the dashboard can drive the
+# five-beat cycle by id across stateless requests.
+_cockpit_ops: dict = {}
+
+
+def _ck_dec(v):
+    return None if v in (None, "") else _CkDecimal(str(v))
+
+
+def _ck_dt(v):
+    if isinstance(v, datetime):
+        return v
+    s = str(v).replace("Z", "+00:00")
+    d = datetime.fromisoformat(s)
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
+def _ck_dump(obj):
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump(mode="json")
+    if isinstance(obj, dict):
+        return {k: _ck_dump(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_ck_dump(x) for x in obj]
+    return obj
+
+
+def _ck_error(exc):
+    if isinstance(exc, _CockpitHalted):
+        return jsonify({"status": "halted", "message": str(exc)}), 423
+    return jsonify({"status": "error", "message": str(exc)}), 400
+
+
+@app.route("/api/cockpit/capture", methods=["POST"])
+def cockpit_capture():
+    """Beat 1 — capture the transaction picture (operator readback)."""
+    d = request.get_json(silent=True) or {}
+    try:
+        t = _clearing_cockpit.capture_tasking(
+            regime=_PortalRegime(d.get("regime", "ccp")),
+            rail=_CkRail(d["rail"]),
+            settlement_kind=_CkKind(d["settlement_kind"]),
+            counterparty_id=d["counterparty_id"],
+            settlement_date=_ck_dt(d["settlement_date"]),
+            authority_id=d.get("authority_id", "operator"),
+            authority_tier=_CkTier(d.get("authority_tier", "T1")),
+            cusip=d.get("cusip"),
+            net_delivery_quantity=_ck_dec(d.get("net_delivery_quantity")),
+            net_payment_amount=_ck_dec(d.get("net_payment_amount")),
+            ficc_published_net_delivery=_ck_dec(d.get("ficc_published_net_delivery")),
+            intraday_credit_limit=_ck_dec(d.get("intraday_credit_limit")),
+            intraday_credit_current_usage=_ck_dec(d.get("intraday_credit_current_usage")),
+            credit_facility_type=_CkCredit(d["credit_facility_type"]) if d.get("credit_facility_type") else None,
+            ficc_clearing_fund_compliant=bool(d.get("ficc_clearing_fund_compliant", True)),
+            sponsoring_member_id=d.get("sponsoring_member_id"),
+            gcf_pool_custodian=_CkGCF(d["gcf_pool_custodian"]) if d.get("gcf_pool_custodian") else None,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _ck_error(exc)
+    _cockpit_ops[str(t.operation_id)] = {"tasking": t}
+    return jsonify({"status": "ok", "operation_id": str(t.operation_id), "tasking": _ck_dump(t)})
+
+
+@app.route("/api/cockpit/validate", methods=["POST"])
+def cockpit_validate():
+    """Beat 2 — run the Settlement Operations Analyst gate set."""
+    d = request.get_json(silent=True) or {}
+    op = _cockpit_ops.get(str(d.get("operation_id")))
+    if not op:
+        return jsonify({"status": "error", "message": "unknown operation_id"}), 404
+    try:
+        gate = _clearing_cockpit.run_validation_gates(op["tasking"])
+    except Exception as exc:  # noqa: BLE001
+        return _ck_error(exc)
+    op["gate"] = gate
+    return jsonify({"status": "ok", "gate": _ck_dump(gate)})
+
+
+@app.route("/api/cockpit/prepare", methods=["POST"])
+def cockpit_prepare():
+    """Beat 3 — emit a governed instruction package (or HOLD). Never a submission."""
+    d = request.get_json(silent=True) or {}
+    op = _cockpit_ops.get(str(d.get("operation_id")))
+    if not op or "gate" not in op:
+        return jsonify({"status": "error", "message": "capture+validate required first"}), 409
+    try:
+        pkg = _clearing_cockpit.emit_instruction_package(op["tasking"], op["gate"])
+    except Exception as exc:  # noqa: BLE001
+        return _ck_error(exc)
+    op["package"] = pkg
+    return jsonify({"status": "ok", "package": _ck_dump(pkg)})
+
+
+@app.route("/api/cockpit/readback", methods=["POST"])
+def cockpit_readback():
+    """Beat 5 inbound — accept operator-entered post-submission portal state."""
+    d = request.get_json(silent=True) or {}
+    op = _cockpit_ops.get(str(d.get("operation_id")))
+    if not op:
+        return jsonify({"status": "error", "message": "unknown operation_id"}), 404
+    try:
+        rb = _clearing_cockpit.ingest_portal_readback(
+            operation_id=op["tasking"].operation_id,
+            regime=op["tasking"].regime,
+            position_balance=_ck_dec(d.get("position_balance")),
+            clearing_fund_deficit=_ck_dec(d.get("clearing_fund_deficit")),
+            ccp_net_obligation=_ck_dec(d.get("ccp_net_obligation")),
+            intraday_credit_usage=_ck_dec(d.get("intraday_credit_usage")),
+            risk_control_status=d.get("risk_control_status"),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _ck_error(exc)
+    op["readback"] = rb
+    return jsonify({"status": "ok", "readback": _ck_dump(rb)})
+
+
+@app.route("/api/cockpit/reconcile", methods=["POST"])
+def cockpit_reconcile():
+    """Beat 5 — diff expected vs actual; classify breaks by leg."""
+    d = request.get_json(silent=True) or {}
+    op = _cockpit_ops.get(str(d.get("operation_id")))
+    if not op or "package" not in op or "readback" not in op:
+        return jsonify({"status": "error", "message": "prepare+readback required first"}), 409
+    try:
+        recon = _clearing_cockpit.reconcile_expected_actual(op["package"], op["readback"])
+    except Exception as exc:  # noqa: BLE001
+        return _ck_error(exc)
+    op["reconcile"] = recon
+    return jsonify({"status": "ok", "reconciliation": _ck_dump(recon)})
+
+
+@app.route("/api/cockpit/break", methods=["POST"])
+def cockpit_break():
+    """Route reconciliation breaks to the workbench with full lineage."""
+    d = request.get_json(silent=True) or {}
+    op = _cockpit_ops.get(str(d.get("operation_id")))
+    if not op or "reconcile" not in op or "gate" not in op:
+        return jsonify({"status": "error", "message": "reconcile required first"}), 409
+    try:
+        tickets = _clearing_cockpit.raise_break(op["reconcile"], op["gate"].dsor_pre_trade_record_id)
+    except Exception as exc:  # noqa: BLE001
+        return _ck_error(exc)
+    return jsonify({"status": "ok", "tickets": [_ck_dump(t) for t in tickets]})
+
+
+@app.route("/api/cockpit/ledger/<op_id>", methods=["GET"])
+def cockpit_ledger(op_id):
+    """The replayable gather→validate→prepare→reconcile lineage for one op."""
+    try:
+        entries = _clearing_cockpit.get_cycle_ledger(_CkUUID(op_id))
+    except Exception as exc:  # noqa: BLE001
+        return _ck_error(exc)
+    return jsonify({
+        "status": "ok",
+        "operation_id": op_id,
+        "ledger": [{"beat": e["beat"], "at": e["at"], "record": _ck_dump(e["record"])} for e in entries],
+    })
+
+
+@app.route("/api/cockpit/workbench", methods=["GET"])
+def cockpit_workbench():
+    """Open break tickets on the workbench."""
+    return jsonify({"status": "ok", "tickets": [_ck_dump(t) for t in _clearing_cockpit.workbench]})
+
+
+@app.route("/cockpit", methods=["GET"])
+def cockpit_dashboard():
+    """Serve the Atreides Settlement & Custody Console (AUR-COCKPIT-001).
+    The console's LIVE feed calls the /api/cockpit/* endpoints above,
+    same-origin."""
+    return send_from_directory(
+        os.path.join(THIS_DIR, "Project Atreides - Custody"),
+        "atreides-settlement-dashboard.html",
+    )
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", os.environ.get("AUREON_PORT", "5001")))
