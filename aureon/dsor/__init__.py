@@ -78,4 +78,12 @@ class DSORStore:
         return False
 
 
-__all__ = ["DSORStore", "DSORRecord", "DSORAppendOnlyError"]
+from aureon.dsor.bridge import AureonStateDSORStore, BridgedDSORRecord  # noqa: E402
+
+__all__ = [
+    "DSORStore",
+    "DSORRecord",
+    "DSORAppendOnlyError",
+    "AureonStateDSORStore",
+    "BridgedDSORRecord",
+]

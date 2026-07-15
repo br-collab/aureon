@@ -458,13 +458,17 @@ function liveRender(st, lb, disp, dd, cls){
 async function runLive(preset){
   document.querySelectorAll('.scn').forEach(b=>b.setAttribute('aria-pressed','false'));
   const btn=document.getElementById('scn-'+preset.id); if(btn)btn.setAttribute('aria-pressed','true');
+  const body=Object.assign({}, preset.body, {authority_id:'operator-bill', settlement_date:new Date(Date.now()+864e5).toISOString()});
+  return runLiveCycle(body);
+}
+
+async function runLiveCycle(body){
   dispV.className='dv idle'; dispV.textContent='Running live…'; dispD.textContent='Calling /api/cockpit …';
   try{
-    const body=Object.assign({}, preset.body, {authority_id:'operator-bill', settlement_date:new Date(Date.now()+864e5).toISOString()});
     const cap=await api('/api/cockpit/capture',{method:'POST',body:JSON.stringify(body)});
     if(cap.status===423){ throw new Error('Tier 0 Halt active — surface frozen'); }
     if(cap.status!==200) throw new Error('capture '+cap.status+' '+(cap.json.message||''));
-    const op=cap.json.operation_id; liveState[preset.id]=op;
+    const op=cap.json.operation_id; window.__lastLiveOp=op;
     const val=await api('/api/cockpit/validate',{method:'POST',body:JSON.stringify({operation_id:op})});
     const prep=await api('/api/cockpit/prepare',{method:'POST',body:JSON.stringify({operation_id:op})});
     const gate=val.json.gate||{}, pkg=prep.json.package||{};
@@ -495,8 +499,10 @@ async function runLive(preset){
     const empty=ledger.querySelector('.ledempty'); if(empty)empty.remove();
     const rid=(gate.dsor_pre_trade_record_id||'').slice(0,8), oid=(op||'').slice(0,8);
     const li=document.createElement('li');
-    li.innerHTML=`<span class="dtg">${dtg()}</span> · op ${oid} · <span class="k">${kind}</span> · ${(preset.body.rail||'').toUpperCase()} · DSOR ${rid} · <span class="r ${cls}">${outLabel}</span>`;
+    li.innerHTML=`<span class="dtg">${dtg()}</span> · op ${oid} · <span class="k">${kind}</span> · ${(body.rail||'').toUpperCase()} · DSOR ${rid} · <span class="r ${cls}">${outLabel}</span>`;
     ledger.insertBefore(li, ledger.firstChild);
+    const rbf=document.getElementById('rbform'); if(rbf) rbf.style.display='block';
+    return op;
   }catch(e){
     dispV.className='dv escalated'; dispV.textContent='OFFLINE';
     dispD.textContent='Live call failed: '+e.message+'. Start server.py (serves /api/cockpit/*) or open with ?api=<server-url>. Synthetic mode still works.';
@@ -512,13 +518,98 @@ function renderSynthRail(){
     b.addEventListener('click',()=>run(s)); scnList.appendChild(b);
   });
 }
+/* ---------- LIVE operator capture form ---------- */
+const RAILS=['ficc_gsd_dvp','ficc_gcf_repo','ficc_sponsored_dvp','fedwire_funds','fedwire_securities','swift_mt202'];
+const KINDS=['dvp','mtm_margin_call','eod_net_funding'];
+function _opt(list,sel){return list.map(x=>`<option${x===sel?' selected':''}>${x}</option>`).join('');}
+let _capStyleInjected=false;
+function injectCapStyle(){
+  if(_capStyleInjected) return; _capStyleInjected=true;
+  const s=document.createElement('style');
+  s.textContent=`
+    .capform{display:flex;flex-direction:column;gap:4px}
+    .capform .qf{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+    .capform .qf button{font-size:9px;letter-spacing:.03em;padding:3px 6px;background:var(--ink2);border:1px solid var(--rule);color:var(--bone-dim);border-radius:2px;cursor:pointer}
+    .capform .qf button:hover{border-color:var(--sand);color:var(--sand)}
+    .capform label{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--sand-dim);margin-top:5px}
+    .capform input,.capform select{background:var(--ink2);border:1px solid var(--rule);color:var(--bone);font-family:inherit;font-size:12px;padding:5px 6px;border-radius:2px;width:100%;box-sizing:border-box}
+    .capform input:focus,.capform select:focus{outline:none;border-color:var(--sand)}
+    .capform .chk{display:flex;flex-direction:row;align-items:center;gap:7px;color:var(--bone);font-size:11px;text-transform:none;letter-spacing:0;margin-top:9px}
+    .capform .chk input{width:auto}
+    .capform .runbtn{margin-top:12px;background:var(--card-hi);border:1px solid var(--sand);color:var(--sand);font-family:inherit;font-size:11px;letter-spacing:.11em;text-transform:uppercase;padding:9px;border-radius:2px;cursor:pointer;width:100%}
+    .capform .runbtn:hover{background:var(--sand);color:var(--ink)}
+    #rbform{margin-top:14px;border-top:1px solid var(--rule);padding-top:10px}
+    #rbform .rbh{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--sand-dim);margin-bottom:2px}`;
+  document.head.appendChild(s);
+}
 function renderLiveRail(){
-  scnList.innerHTML='';
-  LIVE_TASKINGS.forEach(s=>{
-    const b=document.createElement('button'); b.className='scn'; b.id='scn-'+s.id; b.setAttribute('aria-pressed','false');
-    b.innerHTML=`<span class="tag ok" style="opacity:.7">live</span><span class="nm">${s.nm}</span><span class="ds">${s.ds}</span>`;
-    b.addEventListener('click',()=>runLive(s)); scnList.appendChild(b);
-  });
+  injectCapStyle();
+  scnList.innerHTML=`
+   <div class="capform">
+     <div class="qf">${LIVE_TASKINGS.map(p=>`<button data-fill="${p.id}" title="${p.ds}">${p.nm}</button>`).join('')}</div>
+     <label>Regime</label><select id="cf-regime"><option value="ccp">CCP · clearing</option><option value="csd">CSD · settlement</option></select>
+     <label>Rail</label><select id="cf-rail">${_opt(RAILS,'ficc_gsd_dvp')}</select>
+     <label>Settlement kind</label><select id="cf-kind">${_opt(KINDS,'dvp')}</select>
+     <label>Counterparty ID</label><input id="cf-cp" value="CP-OPERATOR">
+     <label>CUSIP</label><input id="cf-cusip" placeholder="912828XX">
+     <label>Net delivery qty</label><input id="cf-nd" inputmode="decimal" placeholder="1000000">
+     <label>Net payment amt (USD)</label><input id="cf-np" inputmode="decimal" placeholder="1000000">
+     <label>FICC published net delivery</label><input id="cf-fp" inputmode="decimal" placeholder="1000000">
+     <label>Intraday credit limit</label><input id="cf-il" inputmode="decimal" placeholder="100000000">
+     <label>Intraday credit usage</label><input id="cf-iu" inputmode="decimal" placeholder="10000000">
+     <label class="chk"><input type="checkbox" id="cf-cf" checked> FICC clearing-fund compliant</label>
+     <label>Authority ID (operator)</label><input id="cf-auth" value="operator-bill">
+     <button class="runbtn" id="cf-run">▶ Capture → Validate → Prepare</button>
+     <div id="rbform" style="display:none">
+       <div class="rbh">Post-submission readback (operator-entered)</div>
+       <label>Position balance</label><input id="rb-pos" inputmode="decimal">
+       <label>CCP net obligation</label><input id="rb-net" inputmode="decimal">
+       <label>Clearing-fund deficit</label><input id="rb-cfd" inputmode="decimal">
+       <label>Intraday usage (actual)</label><input id="rb-iu" inputmode="decimal">
+       <button class="runbtn" id="rb-run">▶ Readback → Reconcile → Breaks</button>
+     </div>
+   </div>`;
+  scnList.querySelectorAll('.qf button').forEach(b=>b.addEventListener('click',()=>fillForm(LIVE_TASKINGS.find(p=>p.id===b.dataset.fill))));
+  document.getElementById('cf-run').addEventListener('click',runLiveForm);
+  document.getElementById('rb-run').addEventListener('click',runLiveReadback);
+}
+function fillForm(preset){ if(!preset)return; const b=preset.body;
+  const set=(id,val)=>{const e=document.getElementById(id); if(!e)return; if(e.type==='checkbox')e.checked=(val!==false); else e.value=(val==null?'':val);};
+  set('cf-regime',b.regime||'ccp'); set('cf-rail',b.rail); set('cf-kind',b.settlement_kind);
+  set('cf-cp',b.counterparty_id); set('cf-cusip',b.cusip);
+  set('cf-nd',b.net_delivery_quantity); set('cf-np',b.net_payment_amount); set('cf-fp',b.ficc_published_net_delivery);
+  set('cf-il',b.intraday_credit_limit); set('cf-iu',b.intraday_credit_current_usage);
+  set('cf-cf',b.ficc_clearing_fund_compliant);
+}
+function readForm(){
+  const v=id=>document.getElementById(id); const num=id=>{const x=v(id).value.trim(); return x===''?undefined:x;};
+  const b={regime:v('cf-regime').value, rail:v('cf-rail').value, settlement_kind:v('cf-kind').value,
+    counterparty_id:v('cf-cp').value.trim()||'CP-OPERATOR', cusip:v('cf-cusip').value.trim()||undefined,
+    authority_id:v('cf-auth').value.trim()||'operator-bill', settlement_date:new Date(Date.now()+864e5).toISOString(),
+    net_delivery_quantity:num('cf-nd'), net_payment_amount:num('cf-np'), ficc_published_net_delivery:num('cf-fp'),
+    intraday_credit_limit:num('cf-il'), intraday_credit_current_usage:num('cf-iu'),
+    ficc_clearing_fund_compliant:v('cf-cf').checked};
+  Object.keys(b).forEach(k=>b[k]===undefined&&delete b[k]); return b;
+}
+function runLiveForm(){ return runLiveCycle(readForm()); }
+async function runLiveReadback(){
+  const op=window.__lastLiveOp; if(!op){ dispD.textContent='Run a capture first, then enter the portal readback.'; return; }
+  const v=id=>{const x=document.getElementById(id).value.trim(); return x===''?undefined:x;};
+  try{
+    const rb={operation_id:op, position_balance:v('rb-pos'), ccp_net_obligation:v('rb-net'), clearing_fund_deficit:v('rb-cfd'), intraday_credit_usage:v('rb-iu')};
+    Object.keys(rb).forEach(k=>rb[k]===undefined&&delete rb[k]);
+    const r=await api('/api/cockpit/readback',{method:'POST',body:JSON.stringify(rb)});
+    if(r.status===423) throw new Error('Tier 0 Halt active');
+    if(r.status!==200) throw new Error('readback '+r.status+' '+(r.json.message||''));
+    const rec=await api('/api/cockpit/reconcile',{method:'POST',body:JSON.stringify({operation_id:op})});
+    const recon=rec.json.reconciliation||{};
+    await api('/api/cockpit/break',{method:'POST',body:JSON.stringify({operation_id:op})});
+    const matched=!!recon.matched, brks=recon.breaks||[];
+    dispV.className='dv '+(matched?'settled':'escalated');
+    dispV.textContent=matched?'RECONCILED':(brks.length+' BREAK'+(brks.length===1?'':'S'));
+    dispD.textContent=matched?'Expected vs actual matched — no breaks raised.':('Breaks by leg: '+brks.join(', ')+'. Routed to the Breaks Workbench — open that tab and Sync live breaks.');
+    syncLiveBreaks();
+  }catch(e){ dispV.className='dv escalated'; dispV.textContent='OFFLINE'; dispD.textContent='Readback failed: '+e.message; }
 }
 
 const liveBtn=document.createElement('button');
@@ -527,7 +618,7 @@ const ctl=document.querySelector('.ctl'); if(ctl){ ctl.style.flexWrap='wrap'; li
 liveBtn.addEventListener('click',()=>{
   LIVE=!LIVE; liveBtn.setAttribute('aria-pressed',String(LIVE)); liveBtn.textContent='Feed · '+(LIVE?'LIVE':'Synthetic');
   clearStage(); dispV.className='dv idle'; dispV.textContent='— Select a tasking';
-  dispD.textContent=LIVE?'LIVE feed — presets call /api/cockpit and drive the phases the cockpit governs (quorum · settle · DSOR).':'Pick a tasking on the left to run it through the pipeline.';
+  dispD.textContent=LIVE?'LIVE — enter operator readback (or quick-fill), then Capture → Validate → Prepare against /api/cockpit. Readback-only; the operator is the source (AUR-COCKPIT-001).':'Pick a tasking on the left to run it through the pipeline.';
   if(LIVE)renderLiveRail(); else renderSynthRail();
 });
 

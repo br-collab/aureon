@@ -286,6 +286,7 @@ aureon_state = {
     # ── JTAC Phase 4 — halt-and-pend lifecycle + Compliance log ─────
     "paused_lifecycles":   {},     # task_id -> paused lifecycle record (halt-and-pend + resume)
     "c2_j_compliance_log": [],     # Compliance (AUR-J-COMP-001) screening trail
+    "cockpit_dsor_log":    [],     # WS-1 Clearing Cockpit DSOR bridge (AUR-COCKPIT-001)
 
     # ── Emergency halt (Tier 0 — above all doctrine) ─────────────
     "halt_active":    False,   # True = all Thifur execution frozen
@@ -4361,6 +4362,8 @@ def run_doctrine_stack():
             aureon_state["c2_j_risk_log"] = saved.get("c2_j_risk_log", [])
             # ── WS-2.4 Trade Surveillance log ────────────────────
             aureon_state["c2_j_surveillance_log"] = saved.get("c2_j_surveillance_log", [])
+            # ── WS-1 Clearing Cockpit DSOR bridge ────────────
+            aureon_state["cockpit_dsor_log"] = saved.get("cockpit_dsor_log", [])
         else:
             # ── First-ever launch — seed from INITIAL_POSITIONS ───
             aureon_state["positions"] = [dict(p) for p in INITIAL_POSITIONS]
@@ -8962,8 +8965,13 @@ from aureon.agents.tier1.outputs import (
     GCFPoolCustodian as _CkGCF,
 )
 from aureon.contracts.dsor_stub import CAOMTier as _CkTier
+from aureon.dsor import AureonStateDSORStore as _AureonStateDSORStore
 
+# WS-1: bridge cockpit gate DSOR records into the unified persisted lineage
+# (aureon_state["cockpit_dsor_log"]) so the cockpit cycle survives restarts
+# and surfaces in the DSOR — instead of an isolated in-memory sink.
 _clearing_cockpit = _ClearingCockpit(
+    dsor_store=_AureonStateDSORStore(aureon_state, _lock),
     halt_check=lambda: bool(aureon_state.get("halt_active", False)),
 )
 # HTTP cycle state, keyed by operation_id, so the dashboard can drive the
