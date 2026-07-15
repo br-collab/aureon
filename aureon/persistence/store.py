@@ -61,6 +61,11 @@ def save_state(*, state, lock, state_file, resolve_mmf_provider, log_error):
                 "c2_handoff_log":    list(state.get("c2_handoff_log", [])),
                 "c2_lineage_log":    list(state.get("c2_lineage_log", [])),
                 "c2_registers":      dict(state.get("c2_registers", {})),
+                # ── WS-1 Clearing Cockpit DSOR bridge (AUR-COCKPIT-001) ─
+                # Cockpit gate DSOR records (telemetry/escalation) mirrored
+                # by AureonStateDSORStore into the unified persisted lineage.
+                # Must survive a deploy — the cockpit cycle is audit-bearing.
+                "cockpit_dsor_log":  list(state.get("cockpit_dsor_log", [])),
                 # ── WS-2.2 AML/KYC (AUR-J-AML-001) ─────────────────
                 "c2_j_amlkyc_log":   list(state.get("c2_j_amlkyc_log", [])),
                 # ── WS-2.3 Risk Reporting (AUR-J-RISK-001) ─────────
