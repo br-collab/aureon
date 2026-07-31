@@ -84,7 +84,7 @@ Railway Dashboard → Your Project → Variables → Add:
 |----------|-------|
 | `AUREON_EMAIL` | aureonfsos@gmail.com |
 | `AUREON_EMAIL_PW` | your Gmail app password |
-| `FRED_API_KEY` | your FRED key (optional) |
+| `FRED_API_KEY` | your FRED key — **required**: powers live SOFR and OFR STLFSI4 for the Cato and CATO-F stress gates. Unset, both gates evaluate stress on fallback values. |
 | `RAILWAY_VOLUME_MOUNT_PATH` | /data |
 | `PYTHON_VERSION` | 3.11.9 |
 

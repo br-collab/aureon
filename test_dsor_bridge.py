@@ -9,7 +9,6 @@ Proves:
   3. cockpit_dsor_log survives a persistence.store save_state -> load_state
      cycle (a deploy) — the cockpit lineage is now durable (WS-0.1 parity).
 """
-import py311_shim  # noqa
 import threading, tempfile, os, json
 from decimal import Decimal
 from datetime import datetime, timezone

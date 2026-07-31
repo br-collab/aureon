@@ -76,6 +76,7 @@ Started via `_start_background_threads()` in `server.py`. On Railway, triggered 
 
 Required in `.env` (local) or Railway service variables (production):
 - `TWELVE_DATA_API_KEY` — market data
+- `FRED_API_KEY` — live SOFR + OFR STLFSI4; powers the Cato and CATO-F stress gates. Unset, both degrade to fallback values silently
 - `AUREON_EMAIL`, `AUREON_EMAIL_PW`, `AUREON_EMAIL_RECIPIENT` — Gmail SMTP reporting
 - `ALPACA_API_KEY`, `ALPACA_API_SECRET` — paper trading
 - `RAILWAY_VOLUME_MOUNT_PATH` — production state persistence directory

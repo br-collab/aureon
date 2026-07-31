@@ -2494,6 +2494,22 @@ def _atrox_refresh_loop():
     The first iteration fires immediately so caches are warm before the
     dashboard polls.
     """
+    # One-time boot check. Without FRED_API_KEY the SOFR and OFR fetches
+    # 400 and Cato falls back to cached/None values — the gate still
+    # answers, but on stale macro inputs. CATO-F (atreides.rails.cato_f)
+    # reuses the same OFR STLFSI4 band deliberately, so BOTH the securities
+    # and cash legs degrade together and silently. Surface it at boot, once,
+    # rather than only as a per-fetch WARN buried in the refresh loop.
+    if not FRED_API_KEY:
+        _log_error(
+            "WARN",
+            "boot:fred_api_key",
+            "FRED_API_KEY is unset — Cato and CATO-F will evaluate systemic "
+            "stress on fallback values, not live SOFR/OFR. A stress gate "
+            "reading a stale input will not fire when it matters. Set it in "
+            "Railway service variables (see DEPLOY.md).",
+        )
+
     while True:
         # Refresh Cato gate inputs first — these are fast (cache reads
         # + one FRED SOFR fetch) and power /api/cato/gate.
