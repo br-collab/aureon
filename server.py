@@ -8953,18 +8953,18 @@ def thifur_h_balance():
 # propagates across every primitive.
 from decimal import Decimal as _CkDecimal
 from uuid import UUID as _CkUUID
-from aureon.cockpit import (
+from atreides.cockpit import (
     ClearingCockpit as _ClearingCockpit,
     CockpitHalted as _CockpitHalted,
     PortalRegime as _PortalRegime,
 )
-from aureon.agents.tier1.outputs import (
+from atreides.agents.tier1.outputs import (
     SettlementRail as _CkRail,
     SettlementKind as _CkKind,
     CreditFacilityType as _CkCredit,
     GCFPoolCustodian as _CkGCF,
 )
-from aureon.contracts.dsor_stub import CAOMTier as _CkTier
+from atreides.contracts.dsor_stub import CAOMTier as _CkTier
 from aureon.dsor import AureonStateDSORStore as _AureonStateDSORStore
 
 # WS-1: bridge cockpit gate DSOR records into the unified persisted lineage

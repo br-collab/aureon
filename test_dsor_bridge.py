@@ -15,9 +15,9 @@ from decimal import Decimal
 from datetime import datetime, timezone
 
 from aureon.dsor.bridge import AureonStateDSORStore, DSORAppendOnlyError
-from aureon.cockpit import ClearingCockpit, PortalRegime
-from aureon.agents.tier1.outputs import SettlementRail, SettlementKind
-from aureon.contracts.dsor_stub import CAOMTier
+from atreides.cockpit import ClearingCockpit, PortalRegime
+from atreides.agents.tier1.outputs import SettlementRail, SettlementKind
+from atreides.contracts.dsor_stub import CAOMTier
 from aureon.persistence.store import save_state, load_state
 
 FAIL = []
