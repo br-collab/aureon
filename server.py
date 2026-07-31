@@ -9155,6 +9155,352 @@ def cockpit_workbench():
     return jsonify({"status": "ok", "tickets": [_ck_dump(t) for t in _clearing_cockpit.workbench]})
 
 
+# ---------------------------------------------------------------------------
+# Cash leg — CATO-F rail gate, intraday funding model, ISO 20022 emit
+#
+# AUR-CUSTODY-CASH-001 v0.2. These surface the atreides cash-leg modules that
+# were previously reachable only from the test suite. All three are PURE —
+# no I/O, no clock, no state — so the routes are thin: parse, call, serialise.
+#
+# The boundary is unchanged and unchangeable: /api/cashleg/instruction returns
+# a PREPARED artifact for the entitled member to submit. Nothing here submits.
+# ---------------------------------------------------------------------------
+from atreides.messaging import (                                     # noqa: E402
+    CashLegInstruction as _ClInstruction,
+    FinancialInstitution as _ClFI,
+    emit_instruction_artifact as _cl_emit,
+    settlement_method_for_rail as _cl_method_for_rail,
+)
+from atreides.rails.cato_f import (                                  # noqa: E402
+    CashRail as _ClRail,
+    FinalityClass as _ClFinality,
+    OperationContext as _ClOpCtx,
+    RailState as _ClRailState,
+    RailStatus as _ClRailStatus,
+    absent_gate_decision as _cl_absent_gate,
+    evaluate as _cl_gate_evaluate,
+)
+from atreides.rails.funding_state import (                           # noqa: E402
+    CashFlow as _ClCashFlow,
+    FundingInputs as _ClFundingInputs,
+    project_funding as _cl_project_funding,
+)
+
+
+def _cl_dump(obj):
+    """Serialise the cash-leg frozen dataclasses for JSON.
+
+    They are stdlib dataclasses with Decimal / StrEnum / tuple members, so
+    _ck_dump (which expects Pydantic) does not reach them.
+    """
+    import dataclasses as _dc
+    from decimal import Decimal as _D
+    from enum import Enum as _E
+
+    if obj is None or isinstance(obj, (str, bool, int, float)):
+        return obj
+    if isinstance(obj, _E):
+        return obj.value
+    if isinstance(obj, _D):
+        return str(obj)
+    if _dc.is_dataclass(obj) and not isinstance(obj, type):
+        return {f.name: _cl_dump(getattr(obj, f.name)) for f in _dc.fields(obj)}
+    if isinstance(obj, dict):
+        return {(k.value if isinstance(k, _E) else str(k)): _cl_dump(v)
+                for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_cl_dump(x) for x in obj]
+    return str(obj)
+
+
+def _cl_rails_from(payload):
+    """Build the rail-state map. ports_wholesale is ALWAYS present as a
+    reserved placeholder (CASH-001 SIII) — the shape does not change when
+    wholesale tokenized infrastructure ships; only the status flips."""
+    from decimal import Decimal as _D
+    spec = payload or {
+        "fedwire": {"status": "available", "seconds_to_cutoff": 7200},
+        "chips": {"status": "available", "seconds_to_cutoff": 7200},
+        "fednow": {"status": "available", "value_cap": "1000000"},
+    }
+    rails = {}
+    for name, cfg in spec.items():
+        rail = _ClRail(name)
+        cap = cfg.get("value_cap")
+        rails[rail] = _ClRailState(
+            rail,
+            _ClRailStatus(cfg.get("status", "available")),
+            cfg.get("seconds_to_cutoff"),
+            _D(str(cap)) if cap is not None else None,
+        )
+    rails.setdefault(
+        _ClRail.PORTS_WHOLESALE,
+        _ClRailState(_ClRail.PORTS_WHOLESALE, _ClRailStatus.NOT_YET_ISSUED),
+    )
+    return rails
+
+
+@app.route("/api/cashleg/funding", methods=["POST"])
+def cashleg_funding():
+    """Intraday funding projection (CASH-001 SVII).
+
+    Answers whether the leg can settle, and critically distinguishes
+    WILL_QUEUE from WILL_FAIL — a queued gross-final instruction is not a
+    failure, and re-issuing it creates a duplicate payment.
+    """
+    from decimal import Decimal as _D
+    d = request.get_json(silent=True) or {}
+    try:
+        inputs = _ClFundingInputs(
+            opening_position=_D(str(d.get("opening_position", "0"))),
+            obligation=_D(str(d.get("obligation", "0"))),
+            finality_class=_ClFinality(d.get("finality_class", "GROSS_FINAL")),
+            settlement_offset_seconds=int(d.get("settlement_offset_seconds", 1800)),
+            window_close_offset_seconds=(
+                None if d.get("window_close_offset_seconds") is None
+                else int(d["window_close_offset_seconds"])
+            ),
+            flows=tuple(
+                _ClCashFlow(
+                    int(f["offset_seconds"]), _D(str(f["amount"])),
+                    f.get("label", "flow"), bool(f.get("committed", True)),
+                )
+                for f in d.get("flows", [])
+            ),
+            net_debit_cap=(
+                None if d.get("net_debit_cap") is None
+                else _D(str(d["net_debit_cap"]))
+            ),
+            clearing_fund_requirement=_D(str(d.get("clearing_fund_requirement", "0"))),
+            clearing_fund_posted=_D(str(d.get("clearing_fund_posted", "0"))),
+        )
+        projection = _cl_project_funding(inputs)
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"status": "error", "message": str(exc)}), 400
+    return jsonify({
+        "status": "ok",
+        "projection": _cl_dump(projection),
+        "settles": projection.settles,
+        "is_failure": projection.is_failure,
+    })
+
+
+@app.route("/api/cashleg/gate", methods=["POST"])
+def cashleg_gate():
+    """CATO-F — the cash settlement-rail gate (CASH-001 SV).
+
+    Cato's twin for the money leg. Emits PROCEED / HOLD / ESCALATE plus a
+    recommended rail AND its finality class. Deterministic and replayable:
+    every evaluated input is returned on the decision.
+    """
+    from decimal import Decimal as _D
+    d = request.get_json(silent=True) or {}
+    if d.get("gate_unavailable"):
+        # CASH-001 SV.E — absent gate resolves to HOLD, never PROCEED.
+        return jsonify({"status": "ok", "decision": _cl_dump(_cl_absent_gate())})
+    try:
+        funding = _cl_project_funding(_ClFundingInputs(
+            opening_position=_D(str(d.get("opening_position", "0"))),
+            obligation=_D(str(d.get("obligation", "0"))),
+            finality_class=_ClFinality(d.get("finality_class", "GROSS_FINAL")),
+            settlement_offset_seconds=int(d.get("settlement_offset_seconds", 1800)),
+            window_close_offset_seconds=int(d.get("window_close_offset_seconds", 14400)),
+            net_debit_cap=_D(str(d.get("net_debit_cap", "50000000"))),
+            clearing_fund_requirement=_D(str(d.get("clearing_fund_requirement", "0"))),
+            clearing_fund_posted=_D(str(d.get("clearing_fund_posted", "0"))),
+        ))
+        decision = _cl_gate_evaluate(
+            operation=_ClOpCtx(
+                notional=_D(str(d.get("notional", "0"))),
+                currency=d.get("currency", "USD"),
+                is_material=bool(d.get("is_material", False)),
+                is_lvps_material=bool(d.get("is_lvps_material", False)),
+                is_fx_leg=bool(d.get("is_fx_leg", False)),
+                pvp_available=bool(d.get("pvp_available", True)),
+                within_business_hours=bool(d.get("within_business_hours", True)),
+            ),
+            funding=funding.to_gate_input(),
+            rails=_cl_rails_from(d.get("rails")),
+            ofr_stlfsi4=float(d.get("ofr_stlfsi4", 0.0)),
+            dsor_lineage_uri=d.get("dsor_lineage_uri"),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"status": "error", "message": str(exc)}), 400
+    return jsonify({"status": "ok", "decision": _cl_dump(decision),
+                    "funding": _cl_dump(funding)})
+
+
+@app.route("/api/cashleg/instruction", methods=["POST"])
+def cashleg_instruction():
+    """Emit an ISO 20022 instruction package (CASH-001 SVIII).
+
+    Returns pacs.009 + head.001, schema-valid against the published XSDs.
+    This is a PREPARED artifact for the entitled member to submit under
+    their own credentials — is_submission is Literal[False] and no submit
+    path exists anywhere in the framework.
+    """
+    from decimal import Decimal as _D
+    from datetime import datetime as _dt, timezone as _tz
+    d = request.get_json(silent=True) or {}
+    try:
+        rail = _ClRail(d.get("rail", "fedwire"))
+        method = _cl_method_for_rail(rail)
+        created = (
+            _dt.fromisoformat(d["created_at"]) if d.get("created_at")
+            else _dt.now(tz=_tz.utc)
+        )
+        instruction = _ClInstruction(
+            message_id=d.get("message_id", "AUR" + created.strftime("%Y%m%d%H%M%S")),
+            end_to_end_id=d.get("end_to_end_id", "E2E-DEMO"),
+            created_at=created,
+            amount=_D(str(d.get("amount", "1000000.00"))),
+            currency=d.get("currency", "USD"),
+            debtor=_ClFI(d.get("debtor_bic", "CHASUS33"), d.get("debtor_name")),
+            creditor=_ClFI(d.get("creditor_bic", "BOFAUS3N")),
+            settlement_method=method,
+            sender=_ClFI(d.get("sender_bic", "CHASUS33")),
+            receiver=_ClFI(d.get("receiver_bic", "DTCYUS33")),
+            dsor_lineage_uri=d.get("dsor_lineage_uri"),
+        )
+        artifact = _cl_emit(instruction)
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"status": "error", "message": str(exc)}), 400
+    return jsonify({
+        "status": "ok",
+        "rail": rail.value,
+        "settlement_method": method.value,
+        "message_definition": artifact.message_definition,
+        "profile": {"name": artifact.profile_name,
+                    "verified_against_published_spec": artifact.profile_verified},
+        "is_submission": artifact.is_submission,
+        "header_xml": artifact.header_xml.decode(),
+        "document_xml": artifact.document_xml.decode(),
+    })
+
+
+@app.route("/api/cashleg/demo", methods=["GET"])
+def cashleg_demo():
+    """One USD 1,000,000 cash leg, end to end, every stage returned.
+
+    Mirrors docs/CASH-LEG-WALKTHROUGH.md in the Project-Atreides repo, so
+    the site, the repo and the runnable script tell one story.
+    """
+    from decimal import Decimal as _D
+    from datetime import datetime as _dt, timezone as _tz
+    stages = []
+
+    # 1 — short at the instant, covered inside the window: a QUEUE, not a fail.
+    queued = _cl_project_funding(_ClFundingInputs(
+        opening_position=_D("250000"), obligation=_D("1000000"),
+        finality_class=_ClFinality.GROSS_FINAL,
+        settlement_offset_seconds=1800, window_close_offset_seconds=14400,
+        flows=(_ClCashFlow(5400, _D("900000"), "incoming FICC net receipt"),),
+        net_debit_cap=_D("50000000"),
+        clearing_fund_requirement=_D("500000"), clearing_fund_posted=_D("500000"),
+    ))
+    stages.append({
+        "stage": "1. Funding — can it settle?",
+        "module": "atreides/rails/funding_state.py",
+        "doctrine": "AUR-CUSTODY-CASH-001 SVII",
+        "headline": f"{queued.disposition.value} — shortfall {queued.shortfall}, "
+                    f"clears at +{queued.funded_at_offset_seconds}s",
+        "note": "A queued gross-final instruction is NOT a failure. Re-issuing "
+                "it creates a duplicate payment the settlement system cannot "
+                "reverse once final.",
+        "detail": _cl_dump(queued),
+    })
+
+    funded = _cl_project_funding(_ClFundingInputs(
+        opening_position=_D("5000000"), obligation=_D("1000000"),
+        finality_class=_ClFinality.GROSS_FINAL,
+        settlement_offset_seconds=1800, window_close_offset_seconds=14400,
+        net_debit_cap=_D("50000000"),
+        clearing_fund_requirement=_D("500000"), clearing_fund_posted=_D("500000"),
+    ))
+
+    # 2 — rail + finality, then the same operation under three conditions.
+    op = _ClOpCtx(notional=_D("1000000"), currency="USD",
+                  is_material=False, is_lvps_material=True)
+    rails = _cl_rails_from(None)
+    cleared = _cl_gate_evaluate(operation=op, funding=funded.to_gate_input(),
+                                rails=rails, ofr_stlfsi4=0.12)
+    stressed = _cl_gate_evaluate(operation=op, funding=funded.to_gate_input(),
+                                  rails=rails, ofr_stlfsi4=0.75)
+    on_queued = _cl_gate_evaluate(operation=op, funding=queued.to_gate_input(),
+                                   rails=rails, ofr_stlfsi4=0.12)
+    stages.append({
+        "stage": "2. CATO-F — which rail, how final?",
+        "module": "atreides/rails/cato_f.py",
+        "doctrine": "AUR-CUSTODY-CASH-001 SV",
+        "headline": f"{cleared.decision.value} — {cleared.recommended_rail.value} "
+                    f"({cleared.finality_class.value})",
+        "note": "Check order is doctrine, not optimisation. Absent gate "
+                "resolves to HOLD, never PROCEED.",
+        "detail": _cl_dump(cleared),
+        "contrasts": [
+            {"condition": "systemic stress 0.75",
+             "result": f"{stressed.decision.value} / {stressed.reason_code.value}"},
+            {"condition": "the queued leg above",
+             "result": f"{on_queued.decision.value} / {on_queued.reason_code.value}"},
+            {"condition": "gate unavailable",
+             "result": _cl_absent_gate().decision.value},
+        ],
+    })
+
+    # 3 — onto the wire.
+    method = _cl_method_for_rail(cleared.recommended_rail)
+    instruction = _ClInstruction(
+        message_id="AUR20260803000117", end_to_end_id="TSY-SETTL-000117",
+        created_at=_dt(2026, 8, 3, 14, 30, tzinfo=_tz.utc),
+        amount=_D("1000000.00"), currency="USD",
+        debtor=_ClFI("CHASUS33", "Debtor Bank NA"), creditor=_ClFI("BOFAUS3N"),
+        settlement_method=method,
+        sender=_ClFI("CHASUS33"), receiver=_ClFI("DTCYUS33"),
+        dsor_lineage_uri="dsor://operation/117",
+    )
+    artifact = _cl_emit(instruction)
+    stages.append({
+        "stage": "3. ISO 20022 — the instruction package",
+        "module": "atreides/messaging/",
+        "doctrine": "AUR-CUSTODY-CASH-001 SVIII",
+        "headline": f"{cleared.recommended_rail.value} -> SettlementMethod1Code "
+                    f"{method.value} -> {artifact.message_definition}",
+        "note": "Validated in CI against the published ISO 20022 XSDs. Profile "
+                f"'{artifact.profile_name}' is the BASE standard; venue "
+                "profiles (DTCC, Fedwire) need participant access and are "
+                "stubbed UNVERIFIED rather than guessed.",
+        "is_submission": artifact.is_submission,
+        "document_xml": artifact.document_xml.decode(),
+        "header_xml": artifact.header_xml.decode(),
+    })
+
+    # 4 — the rails we refuse to guess at.
+    refusals = []
+    for rail in (_ClRail.TOKENIZED_DEPOSIT, _ClRail.REGULATED_STABLECOIN,
+                 _ClRail.PORTS_WHOLESALE):
+        try:
+            _cl_method_for_rail(rail)
+        except ValueError as exc:
+            refusals.append({"rail": rail.value, "raises": str(exc)})
+    stages.append({
+        "stage": "4. Rails with no pacs expression",
+        "module": "atreides/messaging/canonical.py",
+        "doctrine": "AUR-CUSTODY-CASH-001 SIII, SVIII",
+        "headline": f"{len(refusals)} rails raise rather than defaulting",
+        "note": "Defaulting these to CLRG would assert on the wire that a "
+                "clearing system settled something it never touched.",
+        "detail": refusals,
+    })
+
+    return jsonify({
+        "status": "ok",
+        "scenario": "USD 1,000,000 cash leg against a Treasury purchase",
+        "boundary": "Atreides prepares, governs, reconciles. "
+                    "The entitled member submits.",
+        "stages": stages,
+    })
+
+
 @app.route("/cockpit", methods=["GET"])
 def cockpit_dashboard():
     """Serve the Atreides Settlement & Custody Console (AUR-COCKPIT-001).
