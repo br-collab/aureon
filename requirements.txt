@@ -6,10 +6,14 @@ python-dotenv>=1.0.0
 gunicorn>=21.2.0
 requests>=2.31.0
 flask-cors>=4.0.0
-# WS-1 Clearing Cockpit (AUR-COCKPIT-001): vendored aureon.cockpit / tier1 /
-# contracts use Pydantic v2 (ConfigDict, model_validator, model_dump).
-# server.py imports aureon.cockpit at boot — without this the app fails to
-# start and Railway returns 502.
+# WS-1 Clearing Cockpit (AUR-COCKPIT-001) + custody domain layer.
+# Formerly vendored into aureon/{cockpit,agents/tier1,contracts}; retired in
+# favour of a declared dependency per AUR-ADD-006 SV step 3. The vendoring is
+# what caused the Railway 502 in 1410e36 — a copied module carried a
+# transitive pydantic requirement the dependency list did not declare.
+atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.2.0
+# Pinned explicitly as well as transitively: server.py uses pydantic v2 idioms
+# directly, so the requirement is ours, not only atreides'.
 pydantic>=2.5.0
 # Phase 2 P2-2 — real atomic DvP on XRPL testnet for MMF Lane D.
 xrpl-py>=4.5.0

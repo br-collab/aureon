@@ -24,7 +24,7 @@ from decimal import Decimal
 
 import pytest
 
-from aureon.cockpit import (
+from atreides.cockpit import (
     BreakLeg,
     ClearingCockpit,
     CockpitHalted,
@@ -32,8 +32,8 @@ from aureon.cockpit import (
     PackageDisposition,
     PortalRegime,
 )
-from aureon.agents.tier1.outputs import SettlementKind, SettlementRail
-from aureon.contracts.dsor_stub import CAOMTier
+from atreides.agents.tier1.outputs import SettlementKind, SettlementRail
+from atreides.contracts.dsor_stub import CAOMTier
 
 SETTLE_DATE = datetime(2026, 7, 16, tzinfo=timezone.utc)
 
@@ -262,7 +262,7 @@ def test_instruction_package_is_never_a_submission():
 
 
 def test_no_credential_field_anywhere_on_models():
-    from aureon.cockpit.clearing_cockpit import (
+    from atreides.cockpit.clearing_cockpit import (
         CockpitTasking, InstructionPackage as IP, PortalReadback,
     )
     for model in (CockpitTasking, IP, PortalReadback):
