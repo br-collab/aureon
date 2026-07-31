@@ -31,6 +31,24 @@
   .sub{margin:10px 0 0;color:var(--bone-dim);font-size:12.5px;max-width:70ch}
   .sub .flag{color:var(--ochre)}
 
+
+  /* ===== CASH LEG (AUR-CUSTODY-CASH-001) ===== */
+  .cl-card{background:var(--ink2);border:1px solid var(--rule);border-radius:3px;padding:18px 20px;margin-bottom:14px}
+  .cl-stage{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--sand-dim);margin:0 0 10px}
+  .cl-hd{font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:21px;line-height:1.25;text-transform:uppercase;color:var(--sand);margin:0 0 10px}
+  .cl-meta{color:var(--mute);font-size:11.5px;margin:0 0 10px}
+  .cl-note{color:var(--bone-dim);font-size:12.5px;max-width:82ch;margin:0 0 4px}
+  .cl-rows{margin-top:12px;border-top:1px solid var(--rule);padding-top:10px}
+  .cl-row{display:grid;grid-template-columns:210px 1fr;gap:12px;padding:5px 0;font-size:12.5px;align-items:baseline}
+  .cl-row .cl-c{color:var(--mute)}
+  .cl-row .cl-r{color:var(--ochre)}
+  .cl-badge{display:inline-block;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;border:1px solid var(--rule-hi);border-radius:2px;padding:2px 8px;color:var(--olive);margin-top:10px}
+  .cl-xml{background:var(--ink);border:1px solid var(--rule);border-radius:3px;padding:14px;white-space:pre;overflow-x:auto;font-size:11px;line-height:1.55;color:var(--bone-dim);margin-top:10px}
+  .cl-det{margin-top:12px}
+  .cl-det summary{cursor:pointer;color:var(--sand-dim);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase}
+  .cl-det pre{background:var(--ink);border:1px solid var(--rule);border-radius:3px;padding:12px;white-space:pre-wrap;font-size:11px;color:var(--bone-dim);margin-top:8px;max-height:340px;overflow:auto}
+  .cl-bar{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+
   /* tabs */
   .tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--rule)}
   .tab{cursor:pointer;background:transparent;border:0;border-bottom:2px solid transparent;color:var(--bone-dim);
@@ -219,9 +237,9 @@
   <!-- ===== CASH LEG ===== -->
   <section class="tabpanel" id="tab-cashleg" role="tabpanel" aria-labelledby="t3" hidden>
     <p class="sub" style="margin-bottom:18px">The money side of settlement — funding feasibility, rail selection with finality class, and an ISO 20022 instruction package validated against the published schemas. <span class="flag">AUR-CUSTODY-CASH-001 v0.2 · live from <code>/api/cashleg/demo</code></span></p>
-    <div class="ctl" style="margin-bottom:14px">
+    <div class="cl-bar">
       <button id="clRun">Run cash leg ▸</button>
-      <span id="clBoundary" class="sub" style="margin-left:14px"></span>
+      <span id="clBoundary" class="sub" style="margin:0"></span>
     </div>
     <div id="clOut"></div>
   </section>
@@ -664,23 +682,27 @@ const wbq=document.querySelector('.wbq'); if(wbq){ wbq.insertBefore(syncBtn, brk
 const clEsc = t => String(t==null?'':t).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
 function clStage(st){
-  const contrasts = (st.contrasts||[]).map(c =>
-    `<div style="display:flex;gap:10px;padding:3px 0"><span class="sub" style="min-width:190px">${clEsc(c.condition)}</span><code>${clEsc(c.result)}</code></div>`).join('');
+  const rows = (st.contrasts||[]).map(c =>
+    `<div class="cl-row"><span class="cl-c">${clEsc(c.condition)}</span><span class="cl-r">${clEsc(c.result)}</span></div>`).join('');
+  const refusals = (Array.isArray(st.detail) && st.detail[0] && st.detail[0].rail)
+    ? st.detail.map(d => `<div class="cl-row"><span class="cl-c">${clEsc(d.rail)}</span><span class="cl-r">raises</span></div>`).join('')
+    : '';
   const xml = st.document_xml
-    ? `<p class="panel-label" style="margin-top:12px">Emitted pacs.009 — schema-valid</p><pre class="out" style="white-space:pre-wrap;font-size:11px;line-height:1.5">${clEsc(st.document_xml.replace(/></g,'>\n<'))}</pre>`
+    ? `<p class="cl-stage" style="margin-top:14px">Emitted pacs.009 · schema-valid</p><div class="cl-xml">${clEsc(st.document_xml.replace(/></g,'>\n<'))}</div>`
     : '';
-  const detail = (!st.document_xml && st.detail)
-    ? `<details style="margin-top:10px"><summary class="sub">decision record</summary><pre class="out" style="white-space:pre-wrap;font-size:11px">${clEsc(JSON.stringify(st.detail,null,2))}</pre></details>`
+  const detail = st.detail && !refusals
+    ? `<details class="cl-det"><summary>decision record</summary><pre>${clEsc(JSON.stringify(st.detail,null,2))}</pre></details>`
     : '';
-  const sub = st.is_submission===false
-    ? `<p class="sub" style="margin-top:8px"><code>is_submission: false</code> — a prepared artifact for the entitled member to submit. No submit path exists.</p>` : '';
-  return `<div class="out" style="margin-bottom:16px">
-    <p class="panel-label">${clEsc(st.stage)}</p>
-    <div class="dv" style="margin:6px 0 10px">${clEsc(st.headline)}</div>
-    <p class="sub"><code>${clEsc(st.module)}</code> · ${clEsc(st.doctrine)}</p>
-    <p class="sub" style="margin-top:8px">${clEsc(st.note)}</p>
-    ${contrasts?`<div style="margin-top:10px">${contrasts}</div>`:''}
-    ${sub}${xml}${detail}</div>`;
+  const badge = st.is_submission===false
+    ? `<div><span class="cl-badge">is_submission: false</span></div>
+       <p class="cl-note" style="margin-top:8px">A prepared artifact for the entitled member to submit. No submit path exists anywhere in the framework.</p>` : '';
+  return `<div class="cl-card">
+    <p class="cl-stage">${clEsc(st.stage)}</p>
+    <p class="cl-hd">${clEsc(st.headline)}</p>
+    <p class="cl-meta">${clEsc(st.module)} &middot; ${clEsc(st.doctrine)}</p>
+    <p class="cl-note">${clEsc(st.note)}</p>
+    ${(rows||refusals)?`<div class="cl-rows">${rows}${refusals}</div>`:''}
+    ${badge}${xml}${detail}</div>`;
 }
 
 async function clRunDemo(){
@@ -688,7 +710,7 @@ async function clRunDemo(){
   out.innerHTML = '<p class="sub">running…</p>';
   const {status, json} = await api('/api/cashleg/demo');
   if(status!==200 || json.status!=='ok'){
-    out.innerHTML = `<div class="out"><p class="sub">Cash-leg endpoints unavailable (${status}). They require atreides ≥ 0.3.0 on the server.</p></div>`;
+    out.innerHTML = `<div class="cl-card"><p class="cl-note">Cash-leg endpoints unavailable (${status}). They require atreides &ge; 0.3.0 on the server.</p></div>`;
     return;
   }
   document.getElementById('clBoundary').textContent = json.boundary;
