@@ -169,6 +169,7 @@
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="t1" aria-selected="true"  aria-controls="tab-pipeline" data-tab="pipeline">Pipeline</button>
     <button class="tab" role="tab" id="t2" aria-selected="false" aria-controls="tab-breaks"   data-tab="breaks">Breaks Workbench<span class="ct" id="brkCount"></span></button>
+    <button class="tab" role="tab" id="t3" aria-selected="false" aria-controls="tab-cashleg"  data-tab="cashleg">Cash Leg</button>
   </div>
 
   <!-- ===== PIPELINE ===== -->
@@ -214,6 +215,17 @@
       </main>
     </div>
   </section>
+
+  <!-- ===== CASH LEG ===== -->
+  <section class="tabpanel" id="tab-cashleg" role="tabpanel" aria-labelledby="t3" hidden>
+    <p class="sub" style="margin-bottom:18px">The money side of settlement — funding feasibility, rail selection with finality class, and an ISO 20022 instruction package validated against the published schemas. <span class="flag">AUR-CUSTODY-CASH-001 v0.2 · live from <code>/api/cashleg/demo</code></span></p>
+    <div class="ctl" style="margin-bottom:14px">
+      <button id="clRun">Run cash leg ▸</button>
+      <span id="clBoundary" class="sub" style="margin-left:14px"></span>
+    </div>
+    <div id="clOut"></div>
+  </section>
+
 
   <footer>
     DSOR is append-only by construction (cryptographic hash-chaining is roadmap — no tamper-evidence claimed). Quorum ceremony, live rail execution, and break actioning are roadmap; gate <em>decisions</em> are implemented and tested. Scenarios and breaks mirror the integration fixtures in <code>tests/agents/tier1/</code>.
@@ -647,6 +659,43 @@ const syncBtn=document.createElement('button');
 syncBtn.textContent='⟳ Sync live breaks'; syncBtn.id='syncLiveBtn';
 syncBtn.style.cssText='cursor:pointer;background:transparent;border:1px solid var(--rule);color:var(--sand);font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:7px 10px;border-radius:2px;margin:0 0 12px;width:100%';
 const wbq=document.querySelector('.wbq'); if(wbq){ wbq.insertBefore(syncBtn, brkList); syncBtn.addEventListener('click',syncLiveBreaks); }
+
+/* ===== CASH LEG (AUR-CUSTODY-CASH-001) ===== */
+const clEsc = t => String(t==null?'':t).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+function clStage(st){
+  const contrasts = (st.contrasts||[]).map(c =>
+    `<div style="display:flex;gap:10px;padding:3px 0"><span class="sub" style="min-width:190px">${clEsc(c.condition)}</span><code>${clEsc(c.result)}</code></div>`).join('');
+  const xml = st.document_xml
+    ? `<p class="panel-label" style="margin-top:12px">Emitted pacs.009 — schema-valid</p><pre class="out" style="white-space:pre-wrap;font-size:11px;line-height:1.5">${clEsc(st.document_xml.replace(/></g,'>\n<'))}</pre>`
+    : '';
+  const detail = (!st.document_xml && st.detail)
+    ? `<details style="margin-top:10px"><summary class="sub">decision record</summary><pre class="out" style="white-space:pre-wrap;font-size:11px">${clEsc(JSON.stringify(st.detail,null,2))}</pre></details>`
+    : '';
+  const sub = st.is_submission===false
+    ? `<p class="sub" style="margin-top:8px"><code>is_submission: false</code> — a prepared artifact for the entitled member to submit. No submit path exists.</p>` : '';
+  return `<div class="out" style="margin-bottom:16px">
+    <p class="panel-label">${clEsc(st.stage)}</p>
+    <div class="dv" style="margin:6px 0 10px">${clEsc(st.headline)}</div>
+    <p class="sub"><code>${clEsc(st.module)}</code> · ${clEsc(st.doctrine)}</p>
+    <p class="sub" style="margin-top:8px">${clEsc(st.note)}</p>
+    ${contrasts?`<div style="margin-top:10px">${contrasts}</div>`:''}
+    ${sub}${xml}${detail}</div>`;
+}
+
+async function clRunDemo(){
+  const out = document.getElementById('clOut');
+  out.innerHTML = '<p class="sub">running…</p>';
+  const {status, json} = await api('/api/cashleg/demo');
+  if(status!==200 || json.status!=='ok'){
+    out.innerHTML = `<div class="out"><p class="sub">Cash-leg endpoints unavailable (${status}). They require atreides ≥ 0.3.0 on the server.</p></div>`;
+    return;
+  }
+  document.getElementById('clBoundary').textContent = json.boundary;
+  out.innerHTML = json.stages.map(clStage).join('');
+}
+document.getElementById('clRun')?.addEventListener('click', clRunDemo);
+
 </script>
 </body>
 </html>
