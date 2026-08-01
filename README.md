@@ -60,7 +60,9 @@ Aureon went where the regulatory storm is hitting hardest, not where the sandbox
 
 ## Project Atreides — the custody and settlement estate
 
-The pre-trade estate described above governs what *enters* the execution stack. **Project Atreides** is the post-trade half: governance for clearing, custody, and settlement, with the **cash leg** as its centre of gravity. It lives in its own repository, [`br-collab/Project-Atreides`](https://github.com/br-collab/Project-Atreides), and this repository consumes it as a **pinned dependency** rather than a copy.
+The pre-trade estate described above governs what *enters* the execution stack. **Project Atreides** is the post-trade half: an **AI-assisted multi-asset settlement governance layer with custodial routing**. It lives in its own repository, [`br-collab/Project-Atreides`](https://github.com/br-collab/Project-Atreides), and this repository consumes it as a **pinned dependency** rather than a copy.
+
+Multi-asset is a scope claim the code carries: six securities rails, nine cash rails each with an explicit finality class, and three settlement kinds. Path selection runs across seven doctrine-defined dimensions — one of which is *depository membership versus sub-custodian intermediation*, weighed on operational efficiency, counterparty-risk concentration, jurisdictional compliance, and cost. Tier 2 agents enumerate from a pre-declared registry of 22 approved paths and **never construct a path at decision time**; an empty match escalates under `APPROVED_PATHS_ONLY` rather than improvising. The **cash leg** is where the implementation goes deepest — it is the centre of gravity, not the boundary.
 
 Most post-trade tooling governs the securities side and treats the money as a consequence. A settlement has two legs; governing one and defaulting the other is a half-governed settlement. Atreides governs the second.
 
