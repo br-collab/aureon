@@ -24,7 +24,12 @@ AUREON_PORT=5001 python server.py
 # Health check: GET /api/snapshot
 ```
 
-There is no automated test suite. Validation is manual via Railway deployment.
+Test posture: this repository carries a small number of root-level tests
+(`test_clearing_cockpit.py` — 12 tests, passing; `test_c2_persistence.py`;
+`test_dsor_bridge.py`, which imports a `py311_shim` module that is **not in the repository** and
+therefore cannot run on a fresh clone). Broad validation is still manual via Railway deployment.
+The custody domain layer is the tested half of the estate — `Project-Atreides` runs 793 tests at
+99% coverage in CI, and that is where custody logic should be added and tested.
 
 ## Architecture
 
@@ -54,6 +59,44 @@ There is no automated test suite. Validation is manual via Railway deployment.
   - `core/models.py` — GovernedDecision dataclass
   - `integration_adapters/` — OMS, EMS, FIX stubs
   - `data/market_data.py` — Twelve Data (primary) + yfinance (fallback), 60s cache
+  - `thifur/` — **canonical** Thifur-H code path (`thifur_h.py`, `agent_h.py`, `atrox_live.py`,
+    `atrox_sandbox.py`, `kraken_client.py`). See `aureon/thifur/README.md`.
+  - `agents/hunter_killer/` — **do not delete this, despite `AUR-CANONICAL-001 §549`.** It holds
+    a *second* `ThifurH` (`_base.py:200`, 532 lines) that is exported through
+    `aureon.agents.__all__`. `server.py:97` imports `aureon.agents`, so removing the directory
+    raises `ImportError` at boot. `cli/main.py:36` and `mcp/agents_server.py:31` also import it.
+    The name collision must be resolved before the directory can be retired; the sequence is in
+    `aureon/thifur/README.md`.
+  - `dsor/bridge.py` — adapter between this repo's lineage model and Atreides'. **Keep it.**
+    It is an adapter, not a duplicate.
+
+### Package topology — READ THIS BEFORE ADDING ANY CUSTODY CODE
+
+The custody and settlement domain layer lives in a **separate repository**,
+[`br-collab/Project-Atreides`](https://github.com/br-collab/Project-Atreides), and is consumed
+here as a pinned dependency declared in `requirements.txt`:
+
+```
+atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.3.1
+```
+
+**Do not vendor custody modules into this repository.** `aureon/cockpit/`,
+`aureon/agents/tier1/`, and `aureon/contracts/` existed as vendored copies until 31 July 2026
+and were deleted per `AUR-ADD-006`. The copy is what caused the Railway 502 on boot in
+`1410e36` — it carried a transitive pydantic requirement this repo's dependency list did not
+declare. If you need a custody symbol, import it from `atreides.*` and bump the pin.
+
+Bumping the pin is a **two-repository, ordered operation**: tag `Project-Atreides` and push the
+tag first, confirm it exists on the remote, and only then edit `requirements.txt` here. Railway
+builds on push; a pin pointing at a tag that does not yet exist fails `pip install` and takes
+the deployment down.
+
+### Security boundary — do not remove the `.gitignore` exclusion
+
+This is the **public** `br-collab/aureon` repository. The `Project Atreides - Custody/` subtree
+contains Restricted-Distribution doctrine which has its own private repository
+(`br-collab/Aureon---Private`). The `.gitignore` exclusion exists so that a stray `git add -A`
+cannot publish the constitution. Its annotation says "Do NOT remove." That stands.
 
 ### State Management
 
@@ -95,6 +138,18 @@ Required in `.env` (local) or Railway service variables (production):
 - `/api/cato/compare-rails` — Multi-chain rail cost comparison (FICC / ETH L1 / Base / Arbitrum / Solana / Fed L1)
 - `/api/cato/multichain-gas` — Live per-chain gas/fee state + live CoinGecko prices
 - `/api/cato/prices` — Live ETH / SOL USD prices cached from CoinGecko
+- `/api/cockpit/{capture,validate,prepare,readback,reconcile,break,ledger/<op_id>,workbench}`
+  — AUR-COCKPIT-001 operator cycle. There is no submit route and there never will be.
+- `/api/cashleg/funding` — funding-state disposition (FUNDED / WILL_QUEUE / WILL_FAIL /
+  CAP_BREACH / CLEARING_FUND_DEFICIENT / INDETERMINATE). WILL_QUEUE is **not** a failure.
+- `/api/cashleg/gate` — CATO-F cash settlement-rail gate (PROCEED / HOLD / ESCALATE + finality class)
+- `/api/cashleg/instruction` — ISO 20022 `pacs.009.001.13` emission with `head.001.001.04` header
+- `/api/cashleg/demo` — the full four-stage cash-leg path, computed server-side per request
+- `/api/thifur-h/{session/start,signal,approve,rollback,kill-switch,session,state,dsor,balance,auto-close/arm,auto-close/disarm}`
+  — Thifur-H advisory surface, 11 routes. `approve` is the CAOM-001 human gate on entries;
+  `kill-switch` cancels all open orders and halts the session; the `auto-close` pair arms and
+  disarms unattended exit handling for an already-approved position.
+- `/cockpit` — Settlement & Custody Console (pipeline · breaks workbench · cash leg)
 - `/mcp` — Model Context Protocol endpoint (JSON-RPC 2.0)
 
 ## Cato — Verana L0 Tokenized Settlement Doctrine Gate
@@ -198,5 +253,18 @@ These are non-negotiable design constraints:
 - Agents advise only — no autonomous execution
 - All decisions carry immutable audit lineage with hash
 - The 6-step session protocol must auto-complete at boot (CAOM-001)
-- Thifur-H remains declared but not activated (pending SR 11-7 Tier 1 independent validation)
+- Thifur-H is **two-state**, and the states are governed independently (`AUR-CANONICAL-001 v1.6 §II`).
+  **Advisory mode is ACTIVE in deployment**: signal surfacing, gate validation, session-bounded
+  execution under explicit per-signal CAOM-001 approval, and DSOR write-through against the live
+  Kraken account. **Autonomous mode is DECLARED, NOT ACTIVATED** — VWAP/TWAP/POV strategy
+  selection, autonomous collateral optimization, and autonomous FX hedging are architecturally
+  specified but not enabled. Activation per domain requires independent SR 11-7 Tier 1
+  validation, EU AI Act high-risk EU database registration, and a formal doctrine amendment in
+  the version log. Do not describe Thifur-H as simply "declared, not activated" — that is the
+  v1.1 rendering, and v1.6 §II corrected it as inconsistent with the deployed Kraken integration.
+- Nothing in the deployed system updates its own decision function from accumulated outcomes.
+  Atrox Live runs fixed, operator-specified constants (5-min cadence, 12-candle rolling high,
+  0.3% drop / 0.5% gain / 0.3% stop). Behaviour changes when a human edits a constant and
+  records why — not by learning. This is the property that keeps SR 11-7 ongoing-monitoring
+  obligations tractable; do not compromise it casually.
 - Operational journal entries use military DTG format (YYYYMMDDHHMM)
