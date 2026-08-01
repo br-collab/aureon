@@ -1,7 +1,8 @@
 # Project Aureon - The Grid 3
 
-**Doctrine Stack:** Aureon Consolidated Canonical Doctrine v1.5.1 · CAOM-001 · Cato (mixed: core v0.2.2 / cache v0.2.3)
+**Doctrine Stack:** Aureon Consolidated Canonical Doctrine v1.6 · CAOM-001 · Cato (mixed: core v0.2.2 / cache v0.2.3) · AUR-CUSTODY-001 v1.0 · AUR-CUSTODY-CASH-001 v0.2
 **Live Deployment:** [aureon-production.up.railway.app](https://aureon-production.up.railway.app) · Endowment Series I — Argus · $100M paper AUM
+**Settlement & Custody Console:** [/cockpit](https://aureon-production.up.railway.app/cockpit) — pipeline, breaks workbench, and cash leg
 **Status:** Paper trading · approaching institutional testing · no real capital at risk
 **Classification:** Public prototype · full doctrine available under NDA
 
@@ -54,6 +55,52 @@ Equities is the first pilot surface because it offered the cleanest validation h
 Equities post-trade is largely solved at the institutional level — Aladdin, Bloomberg AIM, the major custodians cover it. eFICC is the opposite: every desk has its own conventions, every counterparty has its own rails, every regulator has different requirements. That fragmentation is precisely why a doctrine-first governance layer wins there. The control layer doesn't care about the underlying mess as long as the gates and the lineage hold.
 
 Aureon went where the regulatory storm is hitting hardest, not where the sandbox was cleanest. Equities is the proof. eFICC is the deployment.
+
+---
+
+## Project Atreides — the custody and settlement estate
+
+The pre-trade estate described above governs what *enters* the execution stack. **Project Atreides** is the post-trade half: governance for clearing, custody, and settlement, with the **cash leg** as its centre of gravity. It lives in its own repository, [`br-collab/Project-Atreides`](https://github.com/br-collab/Project-Atreides), and this repository consumes it as a **pinned dependency** rather than a copy.
+
+Most post-trade tooling governs the securities side and treats the money as a consequence. A settlement has two legs; governing one and defaulting the other is a half-governed settlement. Atreides governs the second.
+
+**The cardinal boundary, which is permanent rather than a stage of maturity:**
+
+> Atreides prepares · governs · reconciles. **The entitled member submits.**
+
+The framework holds no depository, CCP, or payment-system credential, opens no sessions, submits nothing, and scrapes no portal. An outside framework cannot lawfully interpose itself in a regulated member's submission, so the seat it occupies is governance, not execution. This is enforced at the type layer rather than by convention — `InstructionPackage` and `InstructionArtifact` both pin `is_submission` to `Literal[False]`, which makes a submission object *unconstructible* rather than merely discouraged. There is no `submit()` method anywhere in the package.
+
+### What runs here
+
+| Surface | Route | What it does |
+| --- | --- | --- |
+| Clearing Operator Cockpit | `/api/cockpit/*` (8 routes) | The operator cycle: gather → validate → prepare → *(member submits)* → reconcile. Beat 4 is permanently absent by design. |
+| Funding-state model | `/api/cashleg/funding` | Can the leg settle at all? Returns FUNDED / WILL_QUEUE / WILL_FAIL / CAP_BREACH / CLEARING_FUND_DEFICIENT / INDETERMINATE. A queued gross-final instruction is **not** classified as a failure — re-issuing one creates an irreversible duplicate payment. |
+| CATO-F — cash settlement-rail gate | `/api/cashleg/gate` | Deterministic PROCEED / HOLD / ESCALATE across Fedwire, CHIPS, FedNow, NSS, FICC/GSD, correspondent and tokenized rails. Emits a rail **and a finality class**. The cash-leg twin of Cato; the two share OFR STLFSI4 stress bands so that parity is structural rather than a matter of discipline. An absent gate resolves to HOLD, never PROCEED. |
+| ISO 20022 emission | `/api/cashleg/instruction` | Rail → `SettlementMethod1Code` → a `pacs.009.001.13` instruction package with a `head.001.001.04` business application header, validated in CI against the published XSDs. |
+| Settlement & Custody Console | `/cockpit` | The operator surface for all of the above. |
+
+### Console layout
+
+**Custody is the console, not a tab.** It has three elements: **Pipeline** (the governance spine — one custody operation through seven gates to an append-only decision-of-record, stopping at the first gate that holds), **Breaks Workbench** (the exception surface — symptom traced to proximate cause traced to originating event), and **Cash Leg** (funding feasibility, rail with finality class, ISO 20022 package). The securities leg and the cash leg both run the Pipeline's gates; Breaks Workbench is orthogonal to both.
+
+### Package topology — a dependency, not a copy
+
+`requirements.txt` declares:
+
+```
+atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.3.1
+```
+
+This repository holds **no vendored copy** of the custody domain layer. That is a deliberate reversal: the cockpit originally reached production by being copied across the repository boundary, which was the only move available while both packages defined a top-level module named `aureon`. The copy carried a transitive pydantic requirement this repository did not declare and took the deployment down with a Railway 502 on boot. The `atreides` rename removed the constraint; the determination is recorded in `AUR-ADD-006`.
+
+The pin is an immutable tag, so a change on `Project-Atreides` `main` **cannot** reach this deployment without a deliberate version bump. That property was exercised in production on 31 July 2026: a doctrine-version correction on `main` was correctly invisible to the running system until the pin moved.
+
+`aureon/dsor/bridge.py` is kept — it is the adapter between the two lineage models, not a duplicate.
+
+### What is deliberately not built
+
+Beat 4 — submission — permanently. Live rail execution, the quorum signature ceremony, and break actioning are roadmap; gate *decisions* are implemented and tested. Depository-specific ISO 20022 profiles (DTCC Settlement Client Interface, Fedwire ISO migration) are stubbed **UNVERIFIED** rather than guessed, because confirming them requires participant access to documentation behind MyDTCC. That is a commercial gate, not a technical one.
 
 ---
 
@@ -350,6 +397,9 @@ Aureon's governance architecture is mapped against six regulatory frameworks:
 - Atrox alpha origination layer with 6 live data pipes (options flow, dark pool, VIX fear gauge, market snapshots, institutional 13F, on-chain intelligence)
 - MCP server (Verana L0) exposing 5 governance resources and 4 compliance tools to external AI agents
 - Atrox dashboard tab with pipe status, fear gauge, flow intelligence, and on-chain data
+- Settlement & Custody Console at `/cockpit` — governance pipeline, breaks workbench, and a full cash-leg path
+- cash-leg governance end to end: funding-state model, CATO-F rail gate with finality class, and a schema-validated ISO 20022 `pacs.009.001.13` instruction package
+- the custody domain layer consumed as a pinned external dependency rather than vendored, with the submission boundary enforced at the type layer
 
 The current implementation is still technically compressed. The backend is centered in `server.py`, the UI is concentrated in `index.html`, and several concerns remain co-located for prototype speed. That structural compression is a repository limitation, not the target product architecture.
 
@@ -358,56 +408,44 @@ The current implementation is still technically compressed. The backend is cente
 ## Current Repository Structure
 
 ```text
-The Grid 3/
-  README.md
-  server.py
-  index.html
-  fix_adapter.py
-  setup_launch_agent.sh
-  aureon_state_persist.json
-  scripts/
-  Thought notes/
+repository root/
+  server.py                            backend orchestration, state, governance, HTTP surface
+  index.html                           Phase 1 pre-trade operator dashboard
+  atreides-settlement-dashboard.html   Settlement & Custody Console, served at /cockpit
+  requirements.txt                     declares `atreides` as a pinned git dependency
+  gunicorn.conf.py  Procfile  railway.json  runtime.txt
+  scripts/  evidence/  parity/  Thought notes/
+
   aureon/
-    config/
-      caom.py
-      atrox.py
-      thifur_c2_doctrine.py
-    mcp/
-      __init__.py
-      server.py
-      atrox_client.py
-      tradier_client.py
-      alpaca_client.py
-      cboe_client.py
-      edgar_client.py
-      blockscout_client.py
-    session/
-      session_protocol.py
-    approval_service/
-      release_control.py
+    thifur/            CANONICAL Thifur-H code path — advisory mode, live Kraken account
+      thifur_h.py  agent_h.py  atrox_live.py  atrox_sandbox.py  kraken_client.py
+    agents/            agent base, CAOM wiring, payloads; c2/ jtac/ ranger/ subtrees
+    dsor/              bridge.py — adapter between this repo's lineage model and Atreides'
+    doctrine/          doctrine sources, conflicts register, JTAC path-sets
+    config/            caom.py · atrox.py · thifur_c2_doctrine.py · settings.py
+    mcp/               MCP server (Verana L0) + data pipes: atrox, tradier, alpaca,
+                       cboe, edgar, blockscout, cato
+    policy_engine/     policy and mandate evaluation
+    approval_service/  release control, routing, approval lineage
+    evidence_service/  evidence packaging for supervision and replay
+    integration_adapters/  oms_adapter.py · ems_adapter.py · fix_adapter.py
+    persistence/  core/  data/  cli/  session/  mmf/
 ```
+
+**What is deliberately absent.** There is no `aureon/cockpit/`, no `aureon/agents/tier1/`, and no `aureon/contracts/`. Those directories existed until 31 July 2026 as vendored copies of the Atreides custody domain layer, and were retired in favour of the declared dependency in `requirements.txt` per `AUR-ADD-006`. Do not reintroduce them — a copy of a module that has an authoritative home elsewhere is the failure mode that produced a Railway 502 on boot when it carried a transitive dependency this repository did not declare.
 
 Current file roles:
 
-- `server.py`: prototype backend orchestration, state, governance logic, and API routes
-- `index.html`: prototype dashboard and operator workflow UI
-- `fix_adapter.py`: FIX translation stub for OMS/EMS integration boundary exploration
-- `aureon_state_persist.json`: local persisted runtime state
+- `server.py`: backend orchestration, state, governance logic, and API routes — including the eight `/api/cockpit/*` routes, the four `/api/cashleg/*` routes, and the Thifur-H session surface
+- `index.html`: Phase 1 pre-trade operator dashboard
+- `atreides-settlement-dashboard.html`: Settlement & Custody Console — pipeline, breaks workbench, cash leg
+- `aureon/thifur/`: the canonical Thifur-H implementation. Advisory mode is active in deployment under CAOM-001 human-in-the-loop approval; autonomous mode is declared and not activated, gated on independent SR 11-7 Tier 1 validation and EU AI Act registration per `AUR-CANONICAL-001 v1.6 §II`
+- `aureon/dsor/bridge.py`: the lineage adapter. Kept deliberately — it is not a duplicate of anything in Atreides
 - `aureon/config/caom.py`: CAOM-001 Consolidated Authority Operating Mode configuration
-- `aureon/config/atrox.py`: Thifur-Atrox doctrine declaration and knowledge base text
-- `aureon/config/thifur_c2_doctrine.py`: Thifur-C2 Command and Control doctrine declaration
 - `aureon/mcp/server.py`: MCP server — Phase 1 Verana L0 (JSON-RPC 2.0 over HTTP, `POST /mcp`)
-- `aureon/mcp/atrox_client.py`: Atrox data pipe — Unusual Whales options flow, dark pool prints, market sentiment
-- `aureon/mcp/tradier_client.py`: Atrox data pipe — Tradier options chains, Greeks, IV surface, historical volatility
-- `aureon/mcp/alpaca_client.py`: Atrox data pipe — Alpaca price bars, news feed, market snapshots, corporate actions
-- `aureon/mcp/cboe_client.py`: Atrox data pipe — CBOE VIX term structure, put/call ratios, SKEW, fear gauge (no auth)
-- `aureon/mcp/edgar_client.py`: Atrox data pipe — SEC EDGAR 13F institutional holdings, insider Form 4 transactions (no auth)
-- `aureon/mcp/blockscout_client.py`: Atrox data pipe — Blockscout on-chain intelligence, ETH gas/blocks, multi-chain (no auth)
-- `aureon/session/session_protocol.py`: six-step session auto-complete protocol
-- `aureon/approval_service/release_control.py`: governed release control and approval lineage
-- `scripts/`: local startup helpers
+- `aureon/integration_adapters/fix_adapter.py`: FIX translation stub for the OMS/EMS integration boundary
 
-Phase 5 will refactor this structure to better separate decision orchestration, policy/risk checks, approvals, integration adapters, evidence services, presentation, and infrastructure concerns.
+The backend remains centred in `server.py` and the pre-trade UI in `index.html`; several concerns are still co-located for prototype speed. That structural compression is a repository limitation, not the target product architecture. A later phase will separate decision orchestration, policy and risk checks, approvals, integration adapters, evidence services, presentation, and infrastructure concerns.
 
 ---
 
