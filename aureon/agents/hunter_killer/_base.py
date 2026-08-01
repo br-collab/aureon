@@ -197,7 +197,7 @@ PRICE_FEED_CONFIG = {
 }
 
 
-class ThifurH(HunterKillerAgent):
+class ThifurHAgent(HunterKillerAgent):
     """
     Thifur-H — Hunter-Killer — Adaptive Intelligence Agent.
 
@@ -216,6 +216,19 @@ class ThifurH(HunterKillerAgent):
 
     This is the governance statement. The capability follows the governance.
     Not the other way around.
+
+    NAME DISAMBIGUATION (AUR-CANONICAL-AMD-001 §II). This class was named
+    ``ThifurH`` and collided with ``aureon.thifur.thifur_h.ThifurH`` -- a
+    different, live class that ``server.py`` actually runs and that drives the
+    eleven ``/api/thifur-h/*`` routes. Two ``ThifurH`` classes in one installed
+    distribution is the defect the canonical Open register mischaracterised as a
+    dead stub. Renamed to ``ThifurHAgent``: this is the agent-framework class,
+    surfaced in the CLI and MCP agent registries.
+
+    This module is imported at boot -- ``server.py:97`` imports ``aureon.agents``,
+    whose ``__init__`` imports this package. Do not delete it without first
+    repointing the registry sites in ``aureon/cli/main.py`` and
+    ``aureon/mcp/agents_server.py``.
     """
 
     role_id   = "AUR-H-ADAPTIVE-001"

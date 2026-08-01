@@ -236,6 +236,18 @@ CORS(app, origins=[
 app.register_blueprint(mcp_bp)
 
 
+# ── Canonical doctrine version (AUR-CANONICAL-AMD-001 §IV) ───────────────────
+# Single source for the doctrine version this process reports. It was previously
+# hardcoded as "1.3" in three places inside run_doctrine_stack(), which meant the
+# public /api/snapshot endpoint advertised doctrine 1.3 against a v1.6 canonical —
+# a stale doctrine claim served by the health endpoint of a system whose product
+# is doctrine lineage. Bump this, and the boot stamp, the audit-hash seed, and the
+# registration default all follow. Runtime amendments through the governed
+# /api/doctrine route still override it and are recorded in doctrine_version_log.
+CANONICAL_DOCTRINE_VERSION = "1.6"
+
+
+
 # ─────────────────────────────────────────────────────────────────
 # 3. AUREON STATE  (single source of truth)
 # ─────────────────────────────────────────────────────────────────
@@ -254,7 +266,7 @@ _lock = threading.RLock()
 aureon_state = {
     # ── Doctrine stack ──────────────────────────────────────────
     "stack_status":      "initializing",   # initializing → running → ready
-    "doctrine_version":  "1.0",
+    "doctrine_version":  CANONICAL_DOCTRINE_VERSION,
     "stack_result":      None,
     "audit":             None,
     "cycle_count":       0,
@@ -298,34 +310,20 @@ aureon_state = {
     "pending_doctrine_updates": [],   # proposed, awaiting Tier 1 approval
     "doctrine_version_log": [
         {
-            "version":   "1.0",
-            "prev":      None,
-            "hash":      hashlib.sha256(b"AUREON-DOCTRINE-1.0-INIT").hexdigest()[:16].upper(),
+            "version":   CANONICAL_DOCTRINE_VERSION,
+            "prev":      "1.3",
+            "hash":      hashlib.sha256(
+                f"AUREON-DOCTRINE-{CANONICAL_DOCTRINE_VERSION}-ATROX-C2".encode()
+            ).hexdigest()[:16].upper(),
             "ts":        datetime.now(timezone.utc).isoformat(),
-            "authority": "SYSTEM",
-            "tier":      "System Init",
-            "trigger":   "SYSTEM_INIT",
-            "reason":    "Initial doctrine load — Aureon Grid 3 deployment",
-        },
-        {
-            "version":   "1.1",
-            "prev":      "1.0",
-            "hash":      hashlib.sha256(b"AUREON-DOCTRINE-1.1-DORA").hexdigest()[:16].upper(),
-            "ts":        datetime.now(timezone.utc).isoformat(),
-            "authority": "Verana L0 (Regulatory Absorption)",
-            "tier":      "Tier 2 — Regulatory Mandate",
-            "trigger":   "REGULATORY",
-            "reason":    "EU DORA Article 28 absorbed. 4 nodes flagged. Doctrine updated.",
-        },
-        {
-            "version":   "1.2",
-            "prev":      "1.1",
-            "hash":      hashlib.sha256(b"AUREON-DOCTRINE-1.2-BASEL").hexdigest()[:16].upper(),
-            "ts":        datetime.now(timezone.utc).isoformat(),
-            "authority": "br@ravelobizdev.com",
+            "authority": "Guillermo Ravelo (CAOM-001)",
             "tier":      "Tier 1 — Human Authority",
             "trigger":   "HUMAN_AUTHORITY",
-            "reason":    "Basel III Endgame vs EU CRR III conflict resolved. Apply HIGHER RWA standard.",
+            "reason":    (
+                "Runtime doctrine stamp corrected to the canonical version. The boot "
+                "path stamped 1.3 while AUR-CANONICAL-001 stood at v1.6; the stale "
+                "value was served publicly by /api/snapshot. Per AUR-CANONICAL-AMD-001 §IV."
+            ),
         },
         {
             "version":   "1.3",
@@ -343,6 +341,37 @@ aureon_state = {
                 "codified in C2 doctrine. CAOM agent advisory updated to reflect Atrox."
             ),
         },
+        {
+            "version":   "1.2",
+            "prev":      "1.1",
+            "hash":      hashlib.sha256(b"AUREON-DOCTRINE-1.2-BASEL").hexdigest()[:16].upper(),
+            "ts":        datetime.now(timezone.utc).isoformat(),
+            "authority": "br@ravelobizdev.com",
+            "tier":      "Tier 1 — Human Authority",
+            "trigger":   "HUMAN_AUTHORITY",
+            "reason":    "Basel III Endgame vs EU CRR III conflict resolved. Apply HIGHER RWA standard.",
+        },
+        {
+            "version":   "1.1",
+            "prev":      "1.0",
+            "hash":      hashlib.sha256(b"AUREON-DOCTRINE-1.1-DORA").hexdigest()[:16].upper(),
+            "ts":        datetime.now(timezone.utc).isoformat(),
+            "authority": "Verana L0 (Regulatory Absorption)",
+            "tier":      "Tier 2 — Regulatory Mandate",
+            "trigger":   "REGULATORY",
+            "reason":    "EU DORA Article 28 absorbed. 4 nodes flagged. Doctrine updated.",
+        },
+        {
+            "version":   "1.0",
+            "prev":      None,
+            "hash":      hashlib.sha256(b"AUREON-DOCTRINE-1.0-INIT").hexdigest()[:16].upper(),
+            "ts":        datetime.now(timezone.utc).isoformat(),
+            "authority": "SYSTEM",
+            "tier":      "System Init",
+            "trigger":   "SYSTEM_INIT",
+            "reason":    "Initial doctrine load — Aureon Grid 3 deployment",
+        },
+
     ],
 
     # ── Compliance trade reports (Kaladan L2 lifecycle artifact) ────
@@ -760,101 +789,6 @@ _INSTRUMENT_REF = {
 }
 
 
-def _build_trade_report(decision, exec_price, authority_hash, gate_results, portfolio_before):
-    """
-    Write the governance-enriched compliance record at the moment Kaladan confirms execution.
-    Called immediately after position is recorded and cash is deducted.
-    Returns the report dict (also stored in aureon_state['trade_reports']).
-
-    Tape fields follow institutional standards:
-      - ISIN (ISO 6166) as primary instrument identifier
-      - CUSIP for US instruments
-      - FIX 4.4 SecurityType (Tag 167) and Product (Tag 460)
-      - LEI for entity identification (MiFID II counterparty disclosure)
-      - MIC (ISO 10383) for execution venue
-    """
-    now_utc   = datetime.now(timezone.utc)
-    exec_ts   = now_utc.isoformat()
-    report_id = f"CTR-{decision['id'][-8:]}"
-
-    CRYPTO     = {"BTC", "ETH", "SOL"}
-    is_crypto  = decision["symbol"] in CRYPTO
-    settlement = "T+0" if is_crypto else "T+1"
-    macro_snapshot = _get_fred_macro_snapshot()
-    ofr_snapshot = _get_ofr_stress_snapshot(macro_snapshot)
-
-    notional   = decision["shares"] * exec_price
-    action_sign = -1 if decision["action"] == "BUY" else 1
-    cash_after = portfolio_before["cash"] + (action_sign * notional)
-
-    pv               = portfolio_before["portfolio_value"]
-    n_positions_pre  = portfolio_before["n_positions"]
-    n_positions_post = n_positions_pre + 1 if decision["action"] == "BUY" else max(0, n_positions_pre - 1)
-    conc_pre   = (notional / pv * 100) if pv > 0 else 0
-    conc_post  = conc_pre
-    var_impact = (-(notional / pv * 0.08 * 100) if decision["action"] == "BUY" else (notional / pv * 0.05 * 100)) if pv > 0 else 0
-
-    # Instrument reference lookup
-    sym = decision["symbol"]
-    ref = _INSTRUMENT_REF.get(sym, {})
-
-    report = {
-        "report_id":   report_id,
-        "decision_id": decision["id"],
-        "generated_ts": exec_ts,
-        "exec_ts":      exec_ts,
-        "approval_ts":  exec_ts,
-
-        # ── Trade Identity (institutional tape fields) ────────────
-        "action":        decision["action"],
-        "symbol":        sym,
-        "isin":          ref.get("isin"),           # ISO 6166 — primary identifier
-        "cusip":         ref.get("cusip"),          # CUSIP — US/CA instruments
-        "fix_type":      ref.get("fix_type"),       # FIX Tag 167 SecurityType
-        "fix_product":   ref.get("fix_product"),    # FIX Tag 460 Product
-        "mic":           ref.get("mic"),            # ISO 10383 execution venue
-        "currency":      ref.get("currency","USD"), # ISO 4217 settlement currency
-        "asset_class":   decision["asset_class"],
-        "shares":        decision["shares"],
-        "exec_price":    round(exec_price, 2),
-        "notional":      round(notional, 2),
-        "settlement":    settlement,
-        "agent":         "THIFUR_H",
-        "authority_hash": authority_hash,
-        "entity_lei":    _AUREON_LEI,              # ISO 17442 — MiFID II Art.26
-
-        # ── Governance Block ──────────────────────────────────────
-        "doctrine_version":  aureon_state["doctrine_version"],
-        "tier_authority":    "Tier 1 — Human Authority",
-        "approved_by":       "br@ravelobizdev.com",
-        "gate_results":      gate_results,
-        "frameworks_active": [
-            "MiFID II Art.17/RTS6", "SR 11-7", "Basel III",
-            "DORA Art.28", "Dodd-Frank 4a(1)",
-        ],
-
-        # ── Risk State at Execution ────────────────────────────────
-        "drawdown_at_exec":        portfolio_before["drawdown"],
-        "portfolio_value_at_exec": pv,
-        "cash_before":             portfolio_before["cash"],
-        "cash_after":              round(cash_after, 2),
-        "position_conc_pre":       round(conc_pre, 2),
-        "position_conc_post":      round(conc_post, 2),
-        "var_impact":              round(var_impact, 4),
-        "positions_post":          n_positions_post,
-        "macro_regime_at_exec":    macro_snapshot.get("macro_regime"),
-        "ofr_fsi_at_exec":         ofr_snapshot.get("fsi_value"),
-        "ofr_band_at_exec":        ofr_snapshot.get("fsi_band"),
-        "systemic_overlay_source": ofr_snapshot.get("source"),
-    }
-
-    try:
-        report["pdf_bytes"] = _generate_compliance_pdf(report)
-    except Exception as exc:
-        print(f"[AUREON] PDF generation failed: {exc}")
-        report["pdf_bytes"] = None
-
-    return report
 
 
 def _apply_approved_trade(decision: dict, exec_price: float):
@@ -4247,7 +4181,7 @@ def _register_canonical_architecture_v1_1() -> None:
         "version":                          "1.1",
         "effective_date":                   "2026-04-17",
         "registered_at":                    datetime.now(timezone.utc).isoformat(),
-        "doctrine_version_at_registration": aureon_state.get("doctrine_version", "1.3"),
+        "doctrine_version_at_registration": aureon_state.get("doctrine_version", CANONICAL_DOCTRINE_VERSION),
         "authority":                        "Guillermo 'Bill' Ravelo · CAOM-001 Tier 3 (Executive)",
         "sha256":                           sha256_full,
         "content_format":                   "markdown",
@@ -4283,9 +4217,19 @@ def _register_canonical_architecture_v1_1() -> None:
 
 def run_doctrine_stack():
     """
-    The full L0 → L3 doctrine cycle.
+    Seeds doctrine state and restores persisted state at boot.
     Runs ONCE on startup in a background thread (non-blocking).
-    Simulates the result since we have no external modules to import.
+
+    HONESTY NOTE (AUR-CANONICAL-AMD-001). This function does NOT execute the
+    L0-L3 layer modules. It seeds the doctrine state they are described by and
+    then restores persisted operating state. The layer statuses it reports are
+    therefore ``SEEDED``, not ``COMPLETE``, and ``stack_result["execution_mode"]``
+    says so in the payload rather than only in this comment. The six
+    ``time.sleep()`` calls that previously made this read as a running pipeline
+    have been removed -- they cost 2.0s of boot time and signified nothing.
+
+    Actually invoking the layer modules remains open; it is a larger change than
+    a hygiene pass and is tracked in the canonical Open register.
 
     Layer sequence:
       Verana  (L0) — network governance, absorbs regulatory changes
@@ -4298,28 +4242,32 @@ def run_doctrine_stack():
     with _lock:
         aureon_state["stack_status"] = "running"
 
-    # Simulate each layer completing in sequence
-    time.sleep(0.5)   # Verana L0 — network scan
-    time.sleep(0.5)   # Mentat L1 — doctrine parse
-    time.sleep(0.4)   # Kaladan L2 — lifecycle map
-    time.sleep(0.3)   # Thifur L3 — execution plan
-    time.sleep(0.2)   # Telemetry loop
-    time.sleep(0.1)   # Audit report
+    # No simulated layer latency. The layers are not executed here; pretending
+    # otherwise with sleeps was doctrine theater, which is what Axiom 1 forbids.
 
-    # Audit hash = SHA-256 fingerprint of the doctrine seed
-    # In a real system this would hash the actual execution trace
-    audit_hash = hashlib.sha256(b"AUREON-DOCTRINE-1.3-NEPTUNE-C2").hexdigest()[:40].upper()
+    # Audit hash = SHA-256 fingerprint of the doctrine seed string. It signs the
+    # seed, not an execution trace, and the field name should not be read as
+    # signing one. Derived from CANONICAL_DOCTRINE_VERSION so this cannot drift
+    # from the canonical again.
+    audit_hash = hashlib.sha256(
+        f"AUREON-DOCTRINE-{CANONICAL_DOCTRINE_VERSION}-ATROX-C2".encode()
+    ).hexdigest()[:40].upper()
 
     stack_result = {
-        "integrity":        "PASS",
-        "doctrine_version": "1.3",
+        "integrity":        "SEEDED",
+        "execution_mode":   "seeded",
+        "execution_note":   (
+            "Doctrine state seeded and persisted state restored. The L0-L3 layer "
+            "modules are not invoked by this function (AUR-CANONICAL-AMD-001)."
+        ),
+        "doctrine_version": CANONICAL_DOCTRINE_VERSION,
         "audit_hash":       audit_hash,
         "layers": {
-            "verana":    {"status": "COMPLETE", "nodes": 15, "phase": "RECOVER"},
-            "mentat":    {"status": "COMPLETE", "doctrine": "1.3", "decisions": 9},
-            "kaladan":   {"status": "COMPLETE", "executions": 6},
-            "thifur":    {"status": "COMPLETE", "R": 2, "J": 4, "H": 0, "C2": 1, "ATROX": 1},
-            "telemetry": {"status": "COMPLETE", "signals": 6},
+            "verana":    {"status": "SEEDED", "nodes": 15, "phase": "RECOVER"},
+            "mentat":    {"status": "SEEDED", "doctrine": CANONICAL_DOCTRINE_VERSION, "decisions": 9},
+            "kaladan":   {"status": "SEEDED", "executions": 6},
+            "thifur":    {"status": "SEEDED", "R": 2, "J": 4, "H": 0, "C2": 1, "ATROX": 1},
+            "telemetry": {"status": "SEEDED", "signals": 6},
         },
     }
 
@@ -4333,7 +4281,10 @@ def run_doctrine_stack():
 
     with _lock:
         aureon_state["stack_status"]     = "ready"
-        aureon_state["doctrine_version"] = "1.3"
+        # Stamped from the single canonical constant. Previously hardcoded
+        # "1.3", which /api/snapshot served publicly against a v1.6 canonical
+        # (AUR-CANONICAL-AMD-001 §IV).
+        aureon_state["doctrine_version"] = CANONICAL_DOCTRINE_VERSION
         aureon_state["stack_result"]     = stack_result
         aureon_state["audit"]            = audit_hash
         aureon_state["last_stack_run"]   = datetime.now(timezone.utc).isoformat()
