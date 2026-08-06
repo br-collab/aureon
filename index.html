@@ -107,6 +107,23 @@ header {
   text-transform: uppercase;
 }
 
+.synthetic-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 12px;
+  padding: 3px 8px;
+  border: 1px solid rgba(245,158,11,0.4);
+  border-radius: 4px;
+  background: rgba(245,158,11,0.1);
+  color: var(--yellow);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 nav {
   display: flex;
   gap: 4px;
@@ -392,6 +409,27 @@ main {
   position: relative;
   z-index: 1;
 }
+
+/* ── SYNTHETIC DATA DISCLOSURE ──────────────────────────
+   Shared banner: rendered once, outside the tab containers,
+   so it is visible above the KPI tiles on every tab (Overview,
+   Treasury, Reports, Compliance, ...) without duplicating copy. */
+.disclosure-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.3);
+  border-radius: 6px;
+  padding: 10px 16px;
+  margin-bottom: 20px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--yellow);
+}
+.disclosure-banner-icon { flex-shrink: 0; font-size: 13px; line-height: 1.5; }
+.disclosure-banner strong { color: var(--yellow); font-weight: 700; letter-spacing: .04em; }
 
 /* ── TABS ────────────────────────────────────────────── */
 .tab { display: none; }
@@ -1205,6 +1243,7 @@ main {
       <div class="logo-name">Aureon</div>
       <div class="logo-sub">Multi-Asset Pre-Trade Governance Dashboard</div>
     </div>
+    <span class="synthetic-badge" title="Representative data from the test suite — not a live portfolio, not live market data, no client or production data">SYNTHETIC DEMO</span>
   </div>
 
   <nav>
@@ -1241,6 +1280,16 @@ main {
 </header>
 
 <main>
+
+<!-- ── SYNTHETIC DATA DISCLOSURE — shared across every tab, rendered
+     above all KPI/portfolio content so it is visible before any dollar
+     figure, on Overview and on every other view (Treasury, Reports,
+     Compliance, ...). This is the single source of truth for the
+     disclosure copy — do not duplicate this string elsewhere. ── -->
+<div class="disclosure-banner" role="note">
+  <span class="disclosure-banner-icon">⚠</span>
+  <span><strong>SYNTHETIC DEMONSTRATION</strong> — representative data from the test suite. Not a live portfolio, not live market data, no client or production data. Pre-operational demonstration only.</span>
+</div>
 
 <!-- ════════════════════════════════════════════════════════
      TAB 1 — OVERVIEW
@@ -1404,7 +1453,7 @@ main {
     </div>
 
     <div class="card">
-      <div class="card-label">Live Market Feed</div>
+      <div class="card-label">Market Feed · Synthetic</div>
       <div id="market-ticker" style="font-size:12px;line-height:2.2"></div>
     </div>
 
@@ -5621,8 +5670,7 @@ async function tick() {
   renderTrading();
   renderReports();
   document.getElementById('cycle-clock').textContent =
-    'Cycle ' + state.cycleCount + ' · ' + new Date().toTimeString().slice(0,8) +
-    (state.liveMode ? ' · LIVE' : ' · SIM');
+    'Cycle ' + state.cycleCount + ' · ' + new Date().toTimeString().slice(0,8) + ' · SIM';
 }
 
 async function fetchCato() {
