@@ -219,7 +219,7 @@ Cato exists in two implementations that must produce bit-for-bit identical decis
 
 **SR 11-7 Tier 1 backtest verified:** March 2020 COVID repo freeze (100%), September 2019 repo spike (80% post-fix), March 2023 SVB collapse (45.5% — documented calibration limit; Cato is a market-regime gate, not a counterparty-credit gate).
 
-**Supported settlement rails:** FICC traditional, Ethereum L1, Base, Arbitrum, Solana — with the `fed_l1` placeholder reserved for sovereign tokenized reserve rails (Fed L1 / PORTS, pending GENIUS Act).
+**Supported settlement rails:** FICC traditional, Ethereum L1, Base, Arbitrum, Solana — with the `fed_l1` placeholder reserved for a sovereign tokenized reserve rail - documented, non-functional, and pending an issuance that does not yet exist. PORTS is deliberately not listed as a rail: Perpetual Overnight Rate Treasury Securities (Duffie & Wilson, Brookings, December 2025) is an instrument proposal that would settle on the rails above, and its relevance to a settlement gate is second-order - a perpetual near-cash Treasury shifts repo substitution and intraday collateral velocity, changing the load on these rails rather than adding one. The GENIUS Act governs privately issued payment stablecoins, not central-bank money.
 
 **The governance gate — not the rail — is the product.** When market structure shifts, Cato routes to the new rail. The doctrine does not change.
 
