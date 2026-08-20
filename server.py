@@ -8733,11 +8733,80 @@ def _get_kraken_engine():
     engine.doctrine = ThifurHDoctrineLive
     engine.gates = ThifurHGates(engine.ledger, ThifurHDoctrineLive)
     engine.exchange = KrakenLiveClient(api_key, api_secret)
+    # The autonomous close loop has no HTTP route, so a route-level guard
+    # cannot reach it. Bind the same halt predicate the cockpit already uses,
+    # so Tier 0 stops execution rather than only stopping the simulated
+    # surfaces.
+    engine.halt_check = lambda: bool(aureon_state.get("halt_active", False))
     engine.ledger.state = SessionState.ACTIVE
     return engine, None
 
+# ---------------------------------------------------------------------------
+# Thifur-H guard
+#
+# THE POLICY, STATED ONCE: anything that can INCREASE exposure requires the
+# admin key. Anything that can only REDUCE it does not.
+#
+# That asymmetry is deliberate and it is the reverse of what this file had
+# before. Previously the only authenticated routes were /api/halt and
+# /api/halt/resume - the brake was gated and the accelerator was open, so an
+# anonymous caller could place a live order but not stop one. The kill switch
+# and the auto-close disarm stay open below for the same reason the halt was
+# gated in the first place, read correctly: a control that only ever makes the
+# system safer should not sit behind a credential somebody might not have at
+# the moment they need it.
+#
+# The three read-only GETs (/session, /dsor, /state) also stay open, for a
+# less principled reason that is recorded rather than hidden: the Leto console
+# gathers its context from them over plain HTTP and does not send the admin
+# key. Gating them would break Leto's situational awareness. They disclose
+# session and ledger state to anonymous callers, and /dsor in particular is
+# the read side of a prompt-injection path into Leto's Anthropic call. Closing
+# that properly means teaching Leto to send the key, which is a change to a
+# component that could not be tested here. Tracked, not fixed.
+
+#: Ceilings on how long, and for how many cycles, autonomous close execution
+#: may be armed by one request. Shorter than a working day and no larger than
+#: the doctrine's own per-session order cap, so an arm request can never
+#: outlive the operator's attention or exceed the limit that already exists.
+_AUTO_CLOSE_MAX_MINUTES: int = 480
+_AUTO_CLOSE_MAX_CYCLES: int = 20
+
+
+def _thifur_guard(action: str):
+    """Return an error response for a blocked Thifur-H action, or None.
+
+    Two checks in one place so that a new route cannot acquire one and miss
+    the other - which is how the halt came to guard five simulated surfaces
+    and not the one that spends money.
+    """
+    if not _require_admin_key():
+        return jsonify({
+            "status": "error",
+            "message": "unauthorized",
+            "detail": (
+                "Thifur-H exposure-increasing routes require X-Admin-Key. "
+                "Fails closed when AUREON_ADMIN_KEY is unset."
+            ),
+        }), 401
+    if bool(aureon_state.get("halt_active", False)):
+        return jsonify({
+            "status": "halted",
+            "message": f"Tier 0 Emergency Halt is active; {action} refused",
+            "halt": {
+                "since": aureon_state.get("halt_at"),
+                "authority": aureon_state.get("halt_authority"),
+                "reason": aureon_state.get("halt_reason"),
+            },
+        }), 423
+    return None
+
+
 @app.route("/api/thifur-h/session/start", methods=["POST"])
 def thifur_h_start_session():
+    blocked = _thifur_guard("session start")
+    if blocked is not None:
+        return blocked
     global _thifur_h_session
     if _thifur_h_session and _thifur_h_session.ledger.state == SessionState.ACTIVE:
         return jsonify({"status": "error", "message": "Session already active", "session_id": _thifur_h_session.session_id}), 400
@@ -8749,6 +8818,9 @@ def thifur_h_start_session():
 
 @app.route("/api/thifur-h/signal", methods=["POST"])
 def thifur_h_generate_signal():
+    blocked = _thifur_guard("signal generation")
+    if blocked is not None:
+        return blocked
     global _pending_signal
     if not _thifur_h_session:
         return jsonify({"status": "error", "message": "No active session"}), 400
@@ -8782,6 +8854,9 @@ def thifur_h_generate_signal():
 
 @app.route("/api/thifur-h/approve", methods=["POST"])
 def thifur_h_approve_signal():
+    blocked = _thifur_guard("order approval")
+    if blocked is not None:
+        return blocked
     global _pending_signal
     if not _thifur_h_session:
         return jsonify({"status": "error", "message": "No active session"}), 400
@@ -8801,6 +8876,9 @@ def thifur_h_approve_signal():
 
 @app.route("/api/thifur-h/rollback", methods=["POST"])
 def thifur_h_rollback():
+    blocked = _thifur_guard("order cancellation by txid")
+    if blocked is not None:
+        return blocked
     if not _thifur_h_session:
         return jsonify({"status": "error", "message": "No active session"}), 400
     body = request.get_json(silent=True) or {}
@@ -8867,11 +8945,33 @@ def thifur_h_auto_close_arm():
     Within (now, now+minutes) and up to max_cycles, SELL/STOP signals
     auto-execute without HITL. BUYS still require explicit operator approval.
     """
+    blocked = _thifur_guard("arming autonomous execution")
+    if blocked is not None:
+        return blocked
     if _thifur_h_session is None:
         return jsonify({"status": "error", "message": "No active session"}), 400
     body = request.get_json(silent=True) or {}
-    minutes = int(body.get("minutes", 60))
-    max_cycles = int(body.get("max_cycles", 20))
+    # Bounded, and non-numeric input is a 400 rather than an unhandled 500.
+    # Unbounded before: {"minutes": 525600, "max_cycles": 1000000} armed
+    # autonomous execution for a year.
+    try:
+        minutes = int(body.get("minutes", 60))
+        max_cycles = int(body.get("max_cycles", 20))
+    except (TypeError, ValueError):
+        return jsonify({
+            "status": "error",
+            "message": "minutes and max_cycles must be integers",
+        }), 400
+    if not (1 <= minutes <= _AUTO_CLOSE_MAX_MINUTES):
+        return jsonify({
+            "status": "error",
+            "message": f"minutes must be between 1 and {_AUTO_CLOSE_MAX_MINUTES}",
+        }), 400
+    if not (1 <= max_cycles <= _AUTO_CLOSE_MAX_CYCLES):
+        return jsonify({
+            "status": "error",
+            "message": f"max_cycles must be between 1 and {_AUTO_CLOSE_MAX_CYCLES}",
+        }), 400
     now = _dt.now(_tz.utc)
     _auto_close_policy["armed"] = True
     _auto_close_policy["armed_at"] = now.isoformat()
@@ -8919,6 +9019,9 @@ def thifur_h_state():
 
 @app.route("/api/thifur-h/balance", methods=["GET"])
 def thifur_h_balance():
+    blocked = _thifur_guard("live balance disclosure")
+    if blocked is not None:
+        return blocked
     if not _thifur_h_session:
         return jsonify({"status": "error", "message": "No active session"}), 400
     return jsonify({"status": "ok", "balance": _thifur_h_session.exchange.get_balance()})
