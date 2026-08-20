@@ -421,7 +421,21 @@ class ThifurH:
     Every action is: Signal → Gates → HITL → Exchange → Ledger → DSOR.
     """
 
-    def __init__(self, api_key: str, api_secret: str, doctrine=ThifurHDoctrine):
+    def __init__(self, api_key: str, api_secret: str, doctrine=ThifurHDoctrine,
+                 halt_check=None):
+        #: Optional zero-argument predicate returning True while a Tier 0
+        #: Emergency Halt is active. Checked at the top of BOTH entry points
+        #: below, before any gate runs.
+        #:
+        #: It lives on the engine rather than only on the HTTP routes because
+        #: the autonomous close loop reaches process_close_signal directly
+        #: from a background thread and never touches a route. A halt that
+        #: guards only the HTTP surface would stop the operator and not the
+        #: machine, which is the wrong way round.
+        #:
+        #: Defaults to None - no halt awareness - so every existing caller
+        #: behaves exactly as before until one binds it.
+        self.halt_check = halt_check
         self.session_id = f"THIFUR-H-{int(time.time())}"
         self.ledger = SessionLedger(
             session_id=self.session_id,
@@ -458,6 +472,11 @@ class ThifurH:
         Main entry point. One signal in, one governed outcome out.
         Returns a result dict for DSOR and session reporting.
         """
+        if self.halt_check is not None and self.halt_check():
+            self._dsor("HALT_REFUSED", signal.signal_id,
+                       {"reason": "Tier 0 Emergency Halt active"})
+            return {"result": "BLOCKED", "reason": "Tier 0 Emergency Halt active"}
+
         if self.ledger.state != SessionState.ACTIVE:
             return {"result": "BLOCKED", "reason": f"Session state: {self.ledger.state.value}"}
 
@@ -539,6 +558,11 @@ class ThifurH:
         # the live -> sandbox -> live circular import. Keep the two in sync.
         MAKER_FEE = 0.0016
         TAKER_FEE = 0.0025
+
+        if self.halt_check is not None and self.halt_check():
+            self._dsor("HALT_REFUSED", signal.signal_id,
+                       {"reason": "Tier 0 Emergency Halt active"})
+            return {"result": "BLOCKED", "reason": "Tier 0 Emergency Halt active"}
 
         if self.ledger.state != SessionState.ACTIVE:
             return {"result": "BLOCKED", "reason": f"Session state: {self.ledger.state.value}"}

@@ -229,6 +229,25 @@ def _apply_trade(state, decision, exec_price):
     notional   = shares * exec_price
 
     if decision["action"] == "BUY":
+        # A cash floor, absent until now.
+        #
+        # The SELL branch below has always validated available shares. BUY
+        # validated nothing, so cash could go arbitrarily negative - and did.
+        # On 14 March 2026 a runaway loop of sixty GLD buys appended
+        # sixty-one position lots and took a $100M book to -$54,785,875.20.
+        # The three aureon_state_persist.*.json snapshots at the repo root are
+        # the forensic record of it, and the repair deleted the lots.
+        #
+        # Refusing here rather than clamping: a BUY that cannot be paid for
+        # did not happen, and recording a partial fill nobody instructed would
+        # invent an execution. The caller gets an error it can surface.
+        available_cash = state.get("cash", 0.0)
+        if notional > available_cash:
+            return False, (
+                f"BUY blocked - notional {notional:,.2f} exceeds available "
+                f"cash {available_cash:,.2f}. A purchase that cannot be "
+                f"funded is not executed and is not partially executed."
+            )
         state.setdefault("positions", []).append({
             "symbol":      symbol,
             "asset_class": asset_class,
@@ -236,7 +255,7 @@ def _apply_trade(state, decision, exec_price):
             "cost":        round(exec_price, 2),
             "agent":       "THIFUR_H",
         })
-        state["cash"] = state.get("cash", 0.0) - notional
+        state["cash"] = available_cash - notional
         return True, None
 
     # SELL — FIFO lot reduction
