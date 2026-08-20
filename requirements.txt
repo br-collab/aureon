@@ -11,7 +11,7 @@ flask-cors>=4.0.0
 # favour of a declared dependency per AUR-ADD-006 SV step 3. The vendoring is
 # what caused the Railway 502 in 1410e36 — a copied module carried a
 # transitive pydantic requirement the dependency list did not declare.
-atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.3.1
+atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.3.2
 # Pinned explicitly as well as transitively: server.py uses pydantic v2 idioms
 # directly, so the requirement is ours, not only atreides'.
 pydantic>=2.5.0
