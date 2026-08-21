@@ -15,7 +15,8 @@
     {"id": "V12_sept2019_repo_spike",  "ofr_stress": -0.155, "gas_gwei": 12.0, "sofr_rate": 5.25, "sofr_prev": 2.43, "expect": {"gate_decision": "HOLD",    "recommended_rail": "traditional"}},
     {"id": "V13_mar2020_covid",        "ofr_stress": 5.657, "gas_gwei": 35.0, "sofr_rate": 0.26, "sofr_prev": 1.10, "expect": {"gate_decision": "ESCALATE", "recommended_rail": "human_authority"}},
     {"id": "V14_multi_trigger_hold",   "ofr_stress": 0.70,  "gas_gwei": 60.0, "sofr_rate": 5.45, "sofr_prev": 5.30, "expect": {"gate_decision": "HOLD",     "recommended_rail": "traditional"}},
-    {"id": "V15_escalate_overrides_gas", "ofr_stress": 2.00, "gas_gwei": 80.0, "sofr_rate": 5.30, "sofr_prev": 5.30, "expect": {"gate_decision": "ESCALATE", "recommended_rail": "human_authority"}}
+    {"id": "V15_escalate_overrides_gas", "ofr_stress": 2.00, "gas_gwei": 80.0, "sofr_rate": 5.30, "sofr_prev": 5.30, "expect": {"gate_decision": "ESCALATE", "recommended_rail": "human_authority"}},
+    {"id": "V16_ofr_stress_unusable", "ofr_stress": null, "gas_gwei": 20.0, "sofr_rate": 5.30, "sofr_prev": 5.30, "_note": "2026-08-21 audit finding: a missing/malformed OFR reading (NaN in production, via parseFloat('.') on a FRED missing-observation marker) must never fall through to PROCEED. null here stands in for 'not a usable number' — isUsableStressReading/_is_usable_stress_reading treat null, NaN, and +/-Infinity identically.", "expect": {"gate_decision": "HOLD", "recommended_rail": "traditional"}}
   ],
   "chain_state": {
     "_doc": "Shared chain_state for recommended_chain parity (PROCEED vectors only). Solana fee below $0.01 so the cheapest-wins picker resolves 'solana' on both sides.",
