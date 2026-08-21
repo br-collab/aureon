@@ -215,7 +215,7 @@ All Thifur agents operate under strict governance constraints:
 
 Cato is the Verana L0 pre-settlement doctrine gate for tokenized institutional repo. It answers one question before every settlement: is atomic on-chain Delivery-versus-Payment viable right now, or should this trade route to FICC (Fixed Income Clearing Corporation)? The gate runs four deterministic checks and emits PROCEED, HOLD, or ESCALATE plus a recommended settlement rail.
 
-Cato exists in two implementations that must produce bit-for-bit identical decisions for identical inputs: the external open-source MCP server (Node.js, MIT license, 23 tools at [github.com/br-collab/Cato---FICC-MCP](https://github.com/br-collab/Cato---FICC-MCP)) and the in-process Python twin inside Aureon. The deterministic parity is currently in a known mixed state and tracked in the open conflicts log.
+Cato exists in two implementations that must produce bit-for-bit identical decisions for identical inputs: the external open-source MCP server (Node.js, MIT license, 23 tools at [github.com/br-collab/Cato-FICC-MCP](https://github.com/br-collab/Cato-FICC-MCP)) and the in-process Python twin inside Aureon. The deterministic parity is currently in a known mixed state and tracked in the open conflicts log.
 
 **SR 11-7 Tier 1 backtest verified:** March 2020 COVID repo freeze (100%), September 2019 repo spike (80% post-fix), March 2023 SVB collapse (45.5% — documented calibration limit; Cato is a market-regime gate, not a counterparty-credit gate).
 
@@ -535,6 +535,43 @@ POST /mcp
 {"jsonrpc": "2.0", "id": "3", "method": "resources/read",
  "params": {"uri": "aureon://verana/network-registry"}}
 ```
+
+---
+
+### Cato — External Public MCP Server (Verana L0 Settlement Twin)
+
+Cato is the **public-facing twin** of Verana L0's settlement-doctrine gate. Where Verana L0 exposes Aureon's full governance state over HTTP JSON-RPC to authenticated clients (above), Cato re-implements the settlement-doctrine portion as a stdio MCP server suitable for desktop AI clients (Claude Desktop, Claude Code, Agent SDK apps).
+
+**Repository:** [github.com/br-collab/Cato-FICC-MCP](https://github.com/br-collab/Cato-FICC-MCP) — Node.js, MIT, 23 tools
+**Transport:** stdio JSON-RPC (per MCP convention for desktop clients)
+**Paired with:** `aureon/mcp/cato_client.py` — the in-process Python twin called by `/api/cato/*` endpoints
+
+```
+Public MCP client (Claude Desktop / Claude Code / Agent SDK)
+        │
+        │  stdio JSON-RPC
+        ▼
+Cato MCP Server (Node.js · github.com/br-collab/Cato-FICC-MCP)
+        │
+        │  Must produce bit-for-bit identical decisions to:
+        ▼
+Aureon in-process twin (aureon/mcp/cato_client.py)
+        │
+        │  Called by Verana L0 for /api/cato/* HTTP endpoints
+        ▼
+Verana L0 (POST /mcp — Aureon-internal HTTP JSON-RPC)
+```
+
+**Parity invariant:** the external Cato server and the Aureon in-process Python twin must produce bit-for-bit identical decisions for identical inputs. Any doctrine change — new threshold, new input, new decision branch — must land in both codebases in the same commit series. The deterministic identity is what lets a regulator trust the gate regardless of which caller invoked it.
+
+**Tool surface exposed externally (subset of Verana L0 doctrine):**
+
+- Governance gates: `cato_gate`, `get_atomic_settlement_gate`
+- Settlement rails: `compare_settlement_rails`, `get_tokenized_settlement_context`, `get_multichain_gas`
+- On-chain pricing: `get_onchain_prices`
+- 17 FICC market data tools: NY Fed reference rates, Treasury curve, OFR stress, macro regime, SEC EDGAR filings
+
+See the [Cato README](https://github.com/br-collab/Cato-FICC-MCP) for full tool inventory, routing doctrine pseudocode, rails cost methodology, and the `SECURITY_NOTES.md` supply-chain reachability analysis.
 
 ---
 
