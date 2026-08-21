@@ -1,6 +1,6 @@
 # Project Aureon - The Grid 3
 
-**Doctrine Stack:** Aureon Consolidated Canonical Doctrine v1.6 · CAOM-001 · Cato (mixed: core v0.2.2 / cache v0.2.3) · AUR-CUSTODY-001 v1.0 · AUR-CUSTODY-CASH-001 v0.2
+**Doctrine Stack:** Aureon Consolidated Canonical Doctrine v1.6 · CAOM-001 · Cato (external MCP server v0.3.0 · in-process Python twin v0.2.3 — the twin has not yet taken the v0.3.0 XRPL rail; disclosed, dated divergence in `cato-mcp/PARITY_XRPL.md`) · AUR-CUSTODY-001 v1.0 · AUR-CUSTODY-CASH-001 v0.2
 **Live Deployment:** [aureon-production.up.railway.app](https://aureon-production.up.railway.app) · Endowment Series I — Argus · $100M paper AUM
 **Settlement & Custody Console:** [/cockpit](https://aureon-production.up.railway.app/cockpit) — pipeline, breaks workbench, and cash leg
 **Status:** Paper trading · approaching institutional testing · no real capital at risk
@@ -79,7 +79,7 @@ The framework holds no depository, CCP, or payment-system credential, opens no s
 | Clearing Operator Cockpit | `/api/cockpit/*` (8 routes) | The operator cycle: gather → validate → prepare → *(member submits)* → reconcile. Beat 4 is permanently absent by design. |
 | Funding-state model | `/api/cashleg/funding` | Can the leg settle at all? Returns FUNDED / WILL_QUEUE / WILL_FAIL / CAP_BREACH / CLEARING_FUND_DEFICIENT / INDETERMINATE. A queued gross-final instruction is **not** classified as a failure — re-issuing one creates an irreversible duplicate payment. |
 | CATO-F — cash settlement-rail gate | `/api/cashleg/gate` | Deterministic PROCEED / HOLD / ESCALATE across Fedwire, CHIPS, FedNow, NSS, FICC/GSD, correspondent and tokenized rails. Emits a rail **and a finality class**. The cash-leg twin of Cato; the two share OFR STLFSI4 stress bands so that parity is structural rather than a matter of discipline. An absent gate resolves to HOLD, never PROCEED. |
-| ISO 20022 emission | `/api/cashleg/instruction` | Rail → `SettlementMethod1Code` → a `pacs.009.001.13` instruction package with a `head.001.001.04` business application header, validated in CI against the published XSDs. |
+| ISO 20022 emission | `/api/cashleg/instruction` | Rail → `SettlementMethod1Code` → a `pacs.009.001.13` instruction package with a `head.001.001.04` business application header. The emitter is `Project-Atreides`' (`atreides/messaging/emit.py`); its 21 schema-conformance tests validate against the published XSDs in that repository's own CI, not this one — Aureon has no CI of its own. |
 | Settlement & Custody Console | `/cockpit` | The operator surface for all of the above. |
 
 ### Console layout

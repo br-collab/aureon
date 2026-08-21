@@ -28,7 +28,7 @@ Test posture: this repository carries a small number of root-level tests
 (`test_clearing_cockpit.py` — 12 tests, passing; `test_c2_persistence.py`;
 `test_dsor_bridge.py`, which imports a `py311_shim` module that is **not in the repository** and
 therefore cannot run on a fresh clone). Broad validation is still manual via Railway deployment.
-The custody domain layer is the tested half of the estate — `Project-Atreides` runs 793 tests at
+The custody domain layer is the tested half of the estate — `Project-Atreides` runs 1,259 tests at
 99% coverage in CI, and that is where custody logic should be added and tested.
 
 ## Architecture
