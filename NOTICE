@@ -1,0 +1,19 @@
+NOTICE
+
+This repository runs on synthetic data and has not been through an
+independent assurance process. Portfolio values, P&L, positions, and other
+figures surfaced by the running system are generated, not observed from a
+real account or a real market, unless a specific deployment has been
+separately configured, funded, and disclosed as live.
+
+This NOTICE does not restrict any of the rights granted under the MIT
+LICENSE in this repository. It exists so that no one deploys this software
+into a live settlement or trading path assuming an assurance process has
+happened when it has not.
+
+Parity gap: the Parity Principle (AUR-CANONICAL-001 §VIII) requires the
+external Node MCP decision core and the in-process Python twin to produce
+bit-for-bit identical decisions. That comparison currently cannot run in
+this repository — see parity/run_parity.py — because the Node core it
+depends on is not vendored here. Until it is, parity is asserted by
+doctrine, not verified by this repository's own tooling.

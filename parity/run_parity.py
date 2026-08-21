@@ -61,7 +61,18 @@ def run_python(spec):
     return out
 
 
+class ParityUnavailable(Exception):
+    """Raised when the Node decision core this harness compares against
+    is not present, so no parity verdict — pass or fail — can be issued."""
+
+
 def run_node():
+    core = os.path.join(ROOT, "cato-mcp", "gate_core.js")
+    if not os.path.exists(core):
+        raise ParityUnavailable(
+            f"the Node decision core is absent ({core} does not exist). "
+            "cato-mcp is not vendored into this repository."
+        )
     proc = subprocess.run(
         ["node", os.path.join(HERE, "run_gate_core.js")],
         capture_output=True, text=True, check=True,
@@ -74,7 +85,12 @@ def main():
         spec = json.load(fh)
 
     py = {r["id"]: r for r in run_python(spec)}
-    nd = {r["id"]: r for r in run_node()}
+    try:
+        nd = {r["id"]: r for r in run_node()}
+    except ParityUnavailable as exc:
+        print(f"PARITY NOT ASSESSED - {exc}")
+        print("The fifteen vectors were not compared. Do not record this as a pass.")
+        sys.exit(2)
 
     fields = ("gate_decision", "recommended_rail", "recommended_chain")
     failures = 0

@@ -25,3 +25,13 @@ Project Atreides - Custody/
 aureon-leto/
 sam/
 Git Repository/
+
+# SECURITY (2026-08-21): a Wells Fargo financial PDF and two Fidelity/FMR
+# PDFs were committed to this public repo and had to be purged from
+# history. PDFs are not source; they should never have been tracked.
+# "Thought notes/" is exempted because it holds the operator's own
+# briefs, not third-party material.
+*.pdf
+*.PDF
+!Thought notes/
+!Thought notes/**
