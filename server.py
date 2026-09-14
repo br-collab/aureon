@@ -88,7 +88,7 @@ from aureon.mcp.cato_client import (
 from aureon.persistence.store import load_state as persistence_load_state, save_state as persistence_save_state
 from aureon.policy_engine.service import evaluate_pretrade_decision
 from aureon.evidence_service.service import build_trade_report as evidence_build_trade_report
-from aureon.approval_service.release_control import can_release, missing_roles, normalize_decision, release_to_oms
+from aureon.approval_service.release_control import OMSReleaseError, can_release, missing_roles, normalize_decision, release_to_oms
 from aureon.approval_service.service import resolve_pending_decision
 from aureon.integration_adapters.oms_adapter import send as oms_send
 from aureon.integration_adapters.ems_adapter import build_execution_release
@@ -5382,25 +5382,47 @@ def api_resolve_decision(decision_id):
 
     authority_hash = result["hash"]
     decision = result["decision"]
+    release_failure = None
     if resolution == "APPROVED" and result["status"] == "ok":
         print(f"[AUREON] APPROVED: {decision['action']} {decision['symbol']} "
               f"${decision['notional']:,} — hash {authority_hash}")
+
+        # EMS-targeted decisions go straight to the EMS release package and
+        # never touch the OMS. Everything else is sent to the OMS, and a send
+        # that fails or is not ACCEPTED raises — it cannot read as released.
+        if decision.get("release_target") == "EMS":
+            release_mode = "EMS"
+            release_packet = build_execution_release(decision, authority_hash)
+        else:
+            release_mode = "OMS"
+            try:
+                release_packet = release_to_oms(
+                    decision,
+                    authority_hash=authority_hash,
+                    oms_send=oms_send,
+                )
+            except OMSReleaseError as exc:
+                release_packet = exc.package
+                release_failure = exc
+        with _lock:
+            aureon_state.setdefault("integration_handoffs", []).insert(0, release_packet)
+
+    if release_failure is not None:
+        # The approval is recorded and resolve_pending_decision has already
+        # booked the trade; the OMS never received it. Record the break and
+        # skip the post-release steps that would assert a release happened.
+        print(f"[AUREON] RELEASE FAILED: {decision['symbol']} — {release_failure.reason}")
+        _journal("DECISION_RELEASE_FAILED", "OPERATOR", decision["symbol"],
+                 f"{decision['action']} {decision['symbol']} "
+                 f"${decision.get('notional',0):,.0f} approved and booked, but the OMS "
+                 f"did not receive it: {release_failure.reason}",
+                 authority=approval_role, outcome=release_packet.get("status", "SEND_FAILED"),
+                 ref_id=authority_hash)
+    elif resolution == "APPROVED" and result["status"] == "ok":
         _journal("DECISION_APPROVED", "OPERATOR", decision["symbol"],
                  f"{decision['action']} {decision['symbol']} "
                  f"${decision.get('notional',0):,.0f} — {decision.get('rationale','')}",
                  authority=approval_role, outcome="RELEASED", ref_id=authority_hash)
-
-        release_packet = release_to_oms(
-            decision,
-            authority_hash=authority_hash,
-            oms_send=oms_send,
-        )
-        release_mode = "OMS"
-        if decision.get("release_target") == "EMS":
-            release_mode = "EMS"
-            release_packet = build_execution_release(decision, authority_hash)
-        with _lock:
-            aureon_state.setdefault("integration_handoffs", []).insert(0, release_packet)
 
         trade_report = result["trade_report"]
         if trade_report:
@@ -5476,6 +5498,9 @@ def api_resolve_decision(decision_id):
         "signal_brief":           _dec_obj.get("signal_brief"),
         "pretrade_gates":         _build_pretrade_checks_from_cache(result["decision_id"]),
     }
+    if release_failure is not None:
+        _jrn_entry["release_status"] = release_packet.get("status")
+        _jrn_entry["release_error"]  = release_failure.reason
     with _lock:
         aureon_state["decision_journal"].insert(0, _jrn_entry)
         if len(aureon_state["decision_journal"]) > 1000:
@@ -5483,6 +5508,18 @@ def api_resolve_decision(decision_id):
 
     # ── Persist state after every HITL decision (non-blocking) ───
     threading.Thread(target=_save_state, daemon=True).start()
+
+    if release_failure is not None:
+        return jsonify({
+            "status":         "release_failed",
+            "error":          "The approval is recorded and the trade is booked, but the OMS "
+                              "did not receive it. Reconcile before any re-release.",
+            "reason":         release_failure.reason,
+            "release_status": release_packet.get("status"),
+            "decision_id":    result["decision_id"],
+            "hash":           authority_hash,
+            "report_id":      result["report_id"],
+        }), 502
 
     return jsonify({
         "status": result["status"],

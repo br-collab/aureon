@@ -220,6 +220,9 @@ def release_to_oms(
     Build the governed OMS release package and optionally call oms_send.
 
     Stamps CAOM-001 operating mode on the package if CAOM is active.
+
+    Raises OMSReleaseError if oms_send raises or does not return an
+    ACCEPTED acknowledgement. There is no failed-but-returned package.
     """
     ts = datetime.now(timezone.utc).isoformat()
 
@@ -247,12 +250,34 @@ def release_to_oms(
 
     if oms_send is not None:
         try:
-            oms_send(package)
+            ack = oms_send(package)
         except Exception as exc:
-            package["oms_send_error"] = str(exc)
-            package["status"]         = "RELEASED_SEND_FAILED"
+            package["status"]         = "SEND_FAILED"
+            package["oms_send_error"] = f"{type(exc).__name__}: {exc}"
+            raise OMSReleaseError(package, package["oms_send_error"]) from exc
+        package["oms_ack"] = ack
+        if not isinstance(ack, dict) or ack.get("oms_status") != "ACCEPTED":
+            package["status"] = "SEND_REJECTED"
+            raise OMSReleaseError(package, f"OMS did not accept: {ack!r}")
 
     return package
+
+
+# ── OMS release failure ───────────────────────────────────────────────────────
+
+class OMSReleaseError(RuntimeError):
+    """A governed release did not reach the OMS.
+
+    By the time release_to_oms runs, resolve_pending_decision has already
+    booked the trade, so this is a break between the book and the OMS, not a
+    no-op. It carries the package (with authority_hash) so the caller can
+    record the break against the approval.
+    """
+
+    def __init__(self, package: dict, reason: str):
+        super().__init__(f"OMS release failed for {package.get('decision_id')}: {reason}")
+        self.package = package
+        self.reason  = reason
 
 
 # ── Execution Release (EMS path) ──────────────────────────────────────────────
