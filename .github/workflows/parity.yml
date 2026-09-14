@@ -1,0 +1,52 @@
+name: Cato parity
+
+# Runs parity/run_parity.py: the in-process Python twin
+# (aureon/mcp/cato_client.py) against the exact Node decision core the public
+# MCP server executes (gate_core.js in br-collab/Cato-FICC-MCP), on the golden
+# vectors. Mirrored by .github/workflows/parity.yml in Cato-FICC-MCP, which
+# runs the same harness from the other side.
+#
+# Cato is checked out at `main` by default, not pinned: the question this job
+# answers is whether the two repositories as they stand agree. The daily run
+# catches a doctrine change landing on the Cato side with no aureon push.
+# Exit codes: 0 parity holds (known-failing vectors disclosed, not hidden),
+# 1 parity violated, 2 not assessed — all non-zero codes fail the job.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      cato_ref:
+        description: "Cato-FICC-MCP ref to compare against (branch, tag or SHA)"
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the Node decision core (Cato-FICC-MCP)
+        uses: actions/checkout@v4
+        with:
+          repository: br-collab/Cato-FICC-MCP
+          ref: ${{ inputs.cato_ref || 'main' }}
+          path: cato-mcp
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run parity harness
+        run: python parity/run_parity.py

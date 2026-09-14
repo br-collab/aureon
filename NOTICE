@@ -13,7 +13,17 @@ happened when it has not.
 
 Parity gap: the Parity Principle (AUR-CANONICAL-001 §VIII) requires the
 external Node MCP decision core and the in-process Python twin to produce
-bit-for-bit identical decisions. That comparison currently cannot run in
-this repository — see parity/run_parity.py — because the Node core it
-depends on is not vendored here. Until it is, parity is asserted by
-doctrine, not verified by this repository's own tooling.
+bit-for-bit identical decisions for identical inputs. That is a stated
+requirement, not an automatically guaranteed property. parity/run_parity.py
+compares the two on a fixed set of golden vectors, and
+.github/workflows/parity.yml runs it in CI against gate_core.js checked out
+from br-collab/Cato-FICC-MCP; the Node core is still not vendored here. The
+comparison covers only what the vectors exercise.
+
+One divergence is known and unrepaired. Since Cato v0.3.0 the Node chain
+picker prefers XRPL when its fee is under $0.01; the Python twin has no XRPL
+branch. On the same chain state (XRPL fee $0.00003, Solana $0.0004, Base
+0.01 gwei, Ethereum 0.5 gwei) Node recommends xrpl and the twin recommends
+solana. Golden vector V17 records this as KNOWN-FAILING and is reported on
+every run; the mirror spec is PARITY_XRPL.md in br-collab/Cato-FICC-MCP, and
+the work to land it is tracked in https://github.com/br-collab/aureon/issues/9.

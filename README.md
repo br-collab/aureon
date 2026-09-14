@@ -1,6 +1,6 @@
 # Project Aureon - The Grid 3
 
-**Doctrine Stack:** Aureon Consolidated Canonical Doctrine v1.6 · CAOM-001 · Cato (mixed: core v0.2.2 / cache v0.2.3) · AUR-CUSTODY-001 v1.0 · AUR-CUSTODY-CASH-001 v0.2
+**Doctrine Stack:** Aureon Consolidated Canonical Doctrine v1.6 · CAOM-001 · Cato (external MCP server v0.3.1 · in-process Python twin v0.2.3 — the twin has not yet taken the v0.3.0 XRPL rail; disclosed, dated divergence in `PARITY_XRPL.md` in Cato-FICC-MCP. The v0.3.1 stress guard *is* mirrored in the twin and pinned by golden vector V16 on both sides) · AUR-CUSTODY-001 v1.0 · AUR-CUSTODY-CASH-001 v0.2
 **Live Deployment:** [aureon-production.up.railway.app](https://aureon-production.up.railway.app) · Endowment Series I — Argus · $100M paper AUM
 **Settlement & Custody Console:** [/cockpit](https://aureon-production.up.railway.app/cockpit) — pipeline, breaks workbench, and cash leg
 **Status:** Paper trading · approaching institutional testing · no real capital at risk
@@ -79,7 +79,7 @@ The framework holds no depository, CCP, or payment-system credential, opens no s
 | Clearing Operator Cockpit | `/api/cockpit/*` (8 routes) | The operator cycle: gather → validate → prepare → *(member submits)* → reconcile. Beat 4 is permanently absent by design. |
 | Funding-state model | `/api/cashleg/funding` | Can the leg settle at all? Returns FUNDED / WILL_QUEUE / WILL_FAIL / CAP_BREACH / CLEARING_FUND_DEFICIENT / INDETERMINATE. A queued gross-final instruction is **not** classified as a failure — re-issuing one creates an irreversible duplicate payment. |
 | CATO-F — cash settlement-rail gate | `/api/cashleg/gate` | Deterministic PROCEED / HOLD / ESCALATE across Fedwire, CHIPS, FedNow, NSS, FICC/GSD, correspondent and tokenized rails. Emits a rail **and a finality class**. The cash-leg twin of Cato; the two share OFR STLFSI4 stress bands so that parity is structural rather than a matter of discipline. An absent gate resolves to HOLD, never PROCEED. |
-| ISO 20022 emission | `/api/cashleg/instruction` | Rail → `SettlementMethod1Code` → a `pacs.009.001.13` instruction package with a `head.001.001.04` business application header, validated in CI against the published XSDs. |
+| ISO 20022 emission | `/api/cashleg/instruction` | Rail → `SettlementMethod1Code` → a `pacs.009.001.13` instruction package with a `head.001.001.04` business application header. The emitter is `Project-Atreides`' (`atreides/messaging/emit.py`); its 21 schema-conformance tests validate against the published XSDs in that repository's own CI, not this one — Aureon has no CI of its own. |
 | Settlement & Custody Console | `/cockpit` | The operator surface for all of the above. |
 
 ### Console layout
@@ -215,7 +215,7 @@ All Thifur agents operate under strict governance constraints:
 
 Cato is the Verana L0 pre-settlement doctrine gate for tokenized institutional repo. It answers one question before every settlement: is atomic on-chain Delivery-versus-Payment viable right now, or should this trade route to FICC (Fixed Income Clearing Corporation)? The gate runs four deterministic checks and emits PROCEED, HOLD, or ESCALATE plus a recommended settlement rail.
 
-Cato exists in two implementations that must produce bit-for-bit identical decisions for identical inputs: the external open-source MCP server (Node.js, MIT license, 23 tools at [github.com/br-collab/Cato---FICC-MCP](https://github.com/br-collab/Cato---FICC-MCP)) and the in-process Python twin inside Aureon. The deterministic parity is currently in a known mixed state and tracked in the open conflicts log.
+Cato exists in two implementations that must produce bit-for-bit identical decisions for identical inputs: the external open-source MCP server (Node.js, MIT license, 23 tools at [github.com/br-collab/Cato-FICC-MCP](https://github.com/br-collab/Cato-FICC-MCP)) and the in-process Python twin inside Aureon. The deterministic parity is currently in a known mixed state and tracked in the open conflicts log.
 
 **SR 11-7 Tier 1 backtest verified:** March 2020 COVID repo freeze (100%), September 2019 repo spike (80% post-fix), March 2023 SVB collapse (45.5% — documented calibration limit; Cato is a market-regime gate, not a counterparty-credit gate).
 
@@ -535,6 +535,43 @@ POST /mcp
 {"jsonrpc": "2.0", "id": "3", "method": "resources/read",
  "params": {"uri": "aureon://verana/network-registry"}}
 ```
+
+---
+
+### Cato — External Public MCP Server (Verana L0 Settlement Twin)
+
+Cato is the **public-facing twin** of Verana L0's settlement-doctrine gate. Where Verana L0 exposes Aureon's full governance state over HTTP JSON-RPC to authenticated clients (above), Cato re-implements the settlement-doctrine portion as a stdio MCP server suitable for desktop AI clients (Claude Desktop, Claude Code, Agent SDK apps).
+
+**Repository:** [github.com/br-collab/Cato-FICC-MCP](https://github.com/br-collab/Cato-FICC-MCP) — Node.js, MIT, 23 tools
+**Transport:** stdio JSON-RPC (per MCP convention for desktop clients)
+**Paired with:** `aureon/mcp/cato_client.py` — the in-process Python twin called by `/api/cato/*` endpoints
+
+```
+Public MCP client (Claude Desktop / Claude Code / Agent SDK)
+        │
+        │  stdio JSON-RPC
+        ▼
+Cato MCP Server (Node.js · github.com/br-collab/Cato-FICC-MCP)
+        │
+        │  Must produce bit-for-bit identical decisions to:
+        ▼
+Aureon in-process twin (aureon/mcp/cato_client.py)
+        │
+        │  Called by Verana L0 for /api/cato/* HTTP endpoints
+        ▼
+Verana L0 (POST /mcp — Aureon-internal HTTP JSON-RPC)
+```
+
+**Parity invariant:** the external Cato server and the Aureon in-process Python twin must produce bit-for-bit identical decisions for identical inputs. Any doctrine change — new threshold, new input, new decision branch — must land in both codebases in the same commit series. The deterministic identity is what lets a regulator trust the gate regardless of which caller invoked it.
+
+**Tool surface exposed externally (subset of Verana L0 doctrine):**
+
+- Governance gates: `cato_gate`, `get_atomic_settlement_gate`
+- Settlement rails: `compare_settlement_rails`, `get_tokenized_settlement_context`, `get_multichain_gas`
+- On-chain pricing: `get_onchain_prices`
+- 17 FICC market data tools: NY Fed reference rates, Treasury curve, OFR stress, macro regime, SEC EDGAR filings
+
+See the [Cato README](https://github.com/br-collab/Cato-FICC-MCP) for full tool inventory, routing doctrine pseudocode, rails cost methodology, and the `SECURITY_NOTES.md` supply-chain reachability analysis.
 
 ---
 

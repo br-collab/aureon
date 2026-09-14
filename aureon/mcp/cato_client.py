@@ -33,6 +33,7 @@ Reference: Duffie (2025) "The Case for PORTS" — Brookings Institution.
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -58,6 +59,25 @@ CATO_POSTURE_MONITOR_GAS = 30.0
 CATO_POSTURE_MONITOR_STRESS = 0.5
 CATO_POSTURE_ELEVATED_GAS = 50.0
 CATO_POSTURE_ELEVATED_STRESS = 1.0
+
+# Declared cost-model parameters for the FICC traditional rail. Not
+# published FICC statistics. Mirrors FICC_CLEARING_FEE_BPS and
+# FICC_NETTING_BENEFIT_PCT in Cato-FICC-MCP index.js; both are echoed back
+# in the `inputs` field of every compare_settlement_rails response.
+FICC_CLEARING_FEE_BPS = 0.5
+FICC_NETTING_BENEFIT_PCT = 40
+
+
+def _is_usable_stress_reading(value: Optional[float]) -> bool:
+    """True only for a real, finite number — the one shape a systemic-
+    stress reading must have to be usable. None, NaN, and +/-Infinity
+    all fail this. Mirrors gate_core.js::isUsableStressReading in the
+    Node twin (cato-mcp/gate_core.js) — the Parity Principle requires
+    both sides to refuse the same unusable readings the same way,
+    2026-08-21 audit finding: a missing OFR reading silently cleared
+    the gate via `ofr_stress if ofr_stress is not None else 0.0`.
+    """
+    return isinstance(value, (int, float)) and math.isfinite(value)
 
 # Price fallbacks — used only when CoinGecko is unreachable and the caller
 # doesn't supply a live `prices` dict. The doctrine principle: live prices
@@ -152,9 +172,15 @@ def _eth_gas(chain_state: dict) -> Optional[float]:
 # ── Cost helpers (mirror Cato MCP v0.2.1 — live prices) ─────────────────────
 
 def _ficc_cost(notional_usd: float, sofr_pct: float, term_days: int) -> float:
-    """FICC rail: 0.5 bps clearing fee net of 40% netting, annualized
-    to the term, plus SOFR cost of capital for the term."""
-    clearing = notional_usd * 0.00005 * (1 - 0.4) * (term_days / 360.0)
+    """FICC rail: FICC_CLEARING_FEE_BPS clearing fee net of
+    FICC_NETTING_BENEFIT_PCT netting, annualized to the term, plus SOFR
+    cost of capital for the term."""
+    clearing = (
+        notional_usd
+        * (FICC_CLEARING_FEE_BPS / 10000)
+        * (1 - FICC_NETTING_BENEFIT_PCT / 100)
+        * (term_days / 360.0)
+    )
     coc = notional_usd * (sofr_pct / 100.0) * (term_days / 360.0)
     return clearing + coc
 
@@ -222,9 +248,13 @@ def tokenized_settlement_context(
     """
     state = _get_chain_state(chain_state)
     gas_gwei = _eth_gas(state)
-    ofr = ofr_stress if ofr_stress is not None else 0.0
+    stress_reading_usable = _is_usable_stress_reading(ofr_stress)
+    ofr = ofr_stress if stress_reading_usable else None
 
-    if ofr > CATO_POSTURE_ELEVATED_STRESS or (
+    # An unusable reading (missing, NaN, +/-Infinity) maps to "elevated"
+    # rather than falling through to "favorable" — a posture tool that
+    # can't assess stress is not a posture tool that assumes calm.
+    if not stress_reading_usable or ofr > CATO_POSTURE_ELEVATED_STRESS or (
         gas_gwei is not None and gas_gwei > CATO_POSTURE_ELEVATED_GAS
     ):
         posture = "elevated"
@@ -241,6 +271,7 @@ def tokenized_settlement_context(
         "gas_gwei": gas_gwei,
         "sofr_rate": sofr_rate,
         "ofr_stress": ofr,
+        "stress_reading_usable": stress_reading_usable,
         "settlement_posture": posture,
     }
 
@@ -299,7 +330,8 @@ def atomic_settlement_gate(
     resolved_prices = _resolve_prices(prices)
     state = _get_chain_state(chain_state)
     eth_gas = _eth_gas(state)
-    ofr = ofr_stress if ofr_stress is not None else 0.0
+    stress_reading_usable = _is_usable_stress_reading(ofr_stress)
+    ofr = ofr_stress if stress_reading_usable else None
 
     # SOFR 1-day delta — absolute value in basis points. None if either
     # observation is missing (caller hasn't supplied prev yet, or first
@@ -312,7 +344,18 @@ def atomic_settlement_gate(
     decision = "PROCEED"
     recommended_rail = "atomic"
 
-    if ofr > CATO_OFR_ESCALATE_THRESHOLD:
+    # Check 0 — the reading has to exist before it can be measured against
+    # anything. NaN and +/-Infinity fail every comparison below, which is
+    # exactly how a missing feed used to clear the gate silently (mirrors
+    # gate_core.js's isUsableStressReading check in the Node twin).
+    if not stress_reading_usable:
+        decision = "HOLD"
+        recommended_rail = "traditional"
+        reasons.append(
+            f"OFR stress reading is not a usable number (got {ofr_stress!r}) — "
+            "feed missing or malformed; holding rather than assuming clear"
+        )
+    elif ofr > CATO_OFR_ESCALATE_THRESHOLD:
         decision = "ESCALATE"
         recommended_rail = "human_authority"
         reasons.append(
@@ -365,6 +408,7 @@ def atomic_settlement_gate(
             "sofr_prev": sofr_prev,
             "sofr_delta_bps": round(sofr_delta_bps, 2) if sofr_delta_bps is not None else None,
             "ofr_stress": ofr,
+            "stress_reading_usable": stress_reading_usable,
             "gas_gwei": eth_gas,
             "settlement_posture": posture["settlement_posture"],
         },
@@ -470,8 +514,8 @@ def compare_settlement_rails(
             "inputs": {
                 "sofr_pct": sofr_pct,
                 "term_days": term_days,
-                "clearing_fee_bps": 0.5,
-                "netting_benefit_pct": 40,
+                "clearing_fee_bps": FICC_CLEARING_FEE_BPS,
+                "netting_benefit_pct": FICC_NETTING_BENEFIT_PCT,
             },
         },
         "ethereum_l1": {
