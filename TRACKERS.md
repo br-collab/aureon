@@ -624,11 +624,50 @@ an undelivered message into a normal-looking success value.
 | Timeout-fallback gate 6 | `server._build_pretrade_checks_from_cache` | PASS from a state key nothing writes | Open — found 2026-09-14 |
 | Session-open OFR warning | `session_protocol` | no warning, from the same unwritten key | Open — found 2026-09-14 |
 | EMS "release" | `ems_adapter.build_execution_release` | `status: SENT` on a packet that is only built, never transmitted | Open — found 2026-09-14 |
+| FRED STLFSI4 fetch fails | Cato `index.js` gate handler, `value ?? "0"` | PROCEED, "All doctrine thresholds clear" | Fix open — Cato-FICC-MCP#2; tracked in #12 |
+| FRED outage feeds a fabricated stress reading | `_fallback_macro_snapshot` → `_fallback_ofr_snapshot` → twin, gate 6, `ofr_fsi_at_exec` | a measured-looking 0.38 | Open — see the entry below; #11, #12 |
 
 **How to apply:** when a check's input is absent, malformed or
 unreachable, the result is HOLD (or an exception the caller must handle),
 never the value that means "clear". Treat `except Exception: <success>`,
 `.get(key, <clear value>)` and "return 200 on error" as review flags.
+
+---
+
+### A fabricated number in an audit artifact: `ofr_fsi_at_exec` during a FRED outage (finding, 2026-09-14)
+Instance of "a failure that reads as success", logged on its own because
+the output is not a status flag but a number stored as evidence.
+
+When FRED is unreachable, `_get_fred_macro_snapshot` falls back to
+`_fallback_macro_snapshot`, which returns fixed constants (VIX 24.0, HY
+OAS 4.25, curve −47 bps). When the OFR scrape also fails,
+`_fallback_ofr_snapshot` turns those constants into `fsi_value = 0.38`,
+band "watch", `source: "ofr_proxy"`. That 0.38 is then:
+
+- handed to the Python twin by `_cato_refresh_inputs` as a usable reading
+  (the twin PROCEEDs; its v0.3.1 guard never sees an unusable value);
+- read by gate 6 as a usable reading;
+- written into trade reports by `evidence_service` as
+  `ofr_fsi_at_exec = 0.38`, `ofr_band_at_exec = "watch"`, with **no field
+  recording that it was not measured** (the `source` is dropped).
+
+Reproduced offline on 2026-09-14: an approval with every feed down stored
+`ofr_fsi_at_exec: 0.38` in the trade report.
+
+**Parallel:** br-collab/cepti branch `quarantine/phase2-overnight`. There,
+`docs/sma/PHASE2_E2E_IMPLEMENTATION_SUMMARY.md` presents an E2E results
+block ("7 passed, 0 failed … All tests PASSED!", with per-test durations)
+for a suite whose own tip commit (a20541e) says the scripts could not be
+executed directly, and `scripts/sma/e2e-test-performance.ts` derives
+per-platform publish time by assuming "~3 platforms". Same output class — a
+plausible, specific number standing in for one that was never observed —
+different mechanism: a code fallback there is a written summary here.
+
+**Trigger:** the evidence errata work (approved 2026-09-14) —
+`ofr_source_at_exec` plus an erratum covering reports stored while the
+proxy or fallback constants were in effect. Removed at the source by the
+STLFSI4 ingest contract (#11): no proxy, no constants, an unreadable feed
+holds.
 
 ---
 
@@ -710,6 +749,68 @@ paths, gitlinks, or key-shaped strings.
 approval, release or execution. Check it against `api_resolve_decision`'s
 guards (session, halt, role) before merging; a second path to the same
 action must carry every guard the first one does.
+
+---
+
+### Stale Cato copies on this public repository (logged 2026-09-14, not fixed)
+`CATO DEMO/` and `eFICC - MCP/` are tracked on `main` and referenced by
+nothing else in the repository.
+
+- `CATO DEMO/index.js` and `CATO DEMO/cato_client.py` are a **v0.2.2** copy
+  of the Cato server and twin, and carry the defects since fixed upstream:
+  the gate handler's `ofr_stress_index?.value ?? "0"` (a FRED outage reads
+  as PROCEED; Cato-FICC-MCP#2), and the twin's
+  `ofr_stress if ofr_stress is not None else 0.0` with no v0.3.1
+  usable-reading guard at all (Cato f34d375 / aureon c2bfd9d). It also
+  carries the hardcoded 0.5 bps / 40% cost literals.
+- `eFICC - MCP/eficc-mcp-index.js` is an older read-only FICC data server
+  with no gate logic; it reads STLFSI4 for display. Stale, but it does not
+  carry the gate defects.
+
+**Trigger:** before anyone points a reader at this repository as a
+reference for Cato — a public copy of the gate with the pre-fix defects
+reads as current code. Remove, or replace with a pointer to
+br-collab/Cato-FICC-MCP.
+
+---
+
+### Boot warning misstates what FRED_API_KEY controls (logged 2026-09-14, not fixed)
+`server._atrox_refresh_loop` warns at boot that without `FRED_API_KEY` "the
+SOFR and OFR fetches 400" and that CATO-F "reuses the same OFR STLFSI4
+band". The OFR reading does not come from FRED at all — it is a scrape of
+financialresearch.gov with a FRED-derived proxy fallback — and CATO-F in
+aureon is fed only from request bodies and demo constants. The warning
+points an operator at the wrong cause.
+
+**Trigger:** fix with the STLFSI4 ingest contract (#11), when the stress
+reading does come from FRED and the warning becomes true.
+
+---
+
+### CLAUDE.md says the twin reads OFR STLFSI4 (logged 2026-09-14, not fixed)
+CLAUDE.md's Cato section ("Live market data flow") says
+`_cato_refresh_inputs` reads "OFR STLFSI4 from the existing `_ofr_cache`".
+`_ofr_cache.fsi_value` is the OFR Financial Stress Index (or its proxy),
+not FRED STLFSI4 — the divergence tracked in #11.
+
+**Trigger:** correct in the same change set as #11, so the document never
+describes the twin's input as something it is not.
+
+---
+
+### A live-execution loop starts at import (logged 2026-09-14, not fixed)
+CLAUDE.md says background threads start from `_start_background_threads()`
+via gunicorn's `post_fork`, "not at import time". `server.py:8761` calls
+`_atrox_live.start()` at module top level, so importing `server` — a worker,
+a test (`test_c2_persistence.py` imports it), a script — starts the Atrox
+Live loop, which is wired to `execute_close_signal`. Observed 2026-09-14:
+importing `server` in a test harness logged "Atrox Live loop started
+(interval=300s)".
+
+**Trigger:** before any test or tool imports `server` in an environment
+holding Kraken credentials. Move the start into
+`_start_background_threads()`, or correct CLAUDE.md if import-time start is
+intended.
 
 
 ## Closed
