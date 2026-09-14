@@ -60,6 +60,13 @@ CATO_POSTURE_MONITOR_STRESS = 0.5
 CATO_POSTURE_ELEVATED_GAS = 50.0
 CATO_POSTURE_ELEVATED_STRESS = 1.0
 
+# Declared cost-model parameters for the FICC traditional rail. Not
+# published FICC statistics. Mirrors FICC_CLEARING_FEE_BPS and
+# FICC_NETTING_BENEFIT_PCT in Cato-FICC-MCP index.js; both are echoed back
+# in the `inputs` field of every compare_settlement_rails response.
+FICC_CLEARING_FEE_BPS = 0.5
+FICC_NETTING_BENEFIT_PCT = 40
+
 
 def _is_usable_stress_reading(value: Optional[float]) -> bool:
     """True only for a real, finite number — the one shape a systemic-
@@ -165,9 +172,15 @@ def _eth_gas(chain_state: dict) -> Optional[float]:
 # ── Cost helpers (mirror Cato MCP v0.2.1 — live prices) ─────────────────────
 
 def _ficc_cost(notional_usd: float, sofr_pct: float, term_days: int) -> float:
-    """FICC rail: 0.5 bps clearing fee net of 40% netting, annualized
-    to the term, plus SOFR cost of capital for the term."""
-    clearing = notional_usd * 0.00005 * (1 - 0.4) * (term_days / 360.0)
+    """FICC rail: FICC_CLEARING_FEE_BPS clearing fee net of
+    FICC_NETTING_BENEFIT_PCT netting, annualized to the term, plus SOFR
+    cost of capital for the term."""
+    clearing = (
+        notional_usd
+        * (FICC_CLEARING_FEE_BPS / 10000)
+        * (1 - FICC_NETTING_BENEFIT_PCT / 100)
+        * (term_days / 360.0)
+    )
     coc = notional_usd * (sofr_pct / 100.0) * (term_days / 360.0)
     return clearing + coc
 
@@ -501,8 +514,8 @@ def compare_settlement_rails(
             "inputs": {
                 "sofr_pct": sofr_pct,
                 "term_days": term_days,
-                "clearing_fee_bps": 0.5,
-                "netting_benefit_pct": 40,
+                "clearing_fee_bps": FICC_CLEARING_FEE_BPS,
+                "netting_benefit_pct": FICC_NETTING_BENEFIT_PCT,
             },
         },
         "ethereum_l1": {
