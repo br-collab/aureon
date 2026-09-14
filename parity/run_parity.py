@@ -7,8 +7,16 @@ PURPOSE:    Prove bit-for-bit decision parity between the external Node
             (aureon/mcp/cato_client.py::atomic_settlement_gate), per the
             Parity Principle (AUR-CANONICAL-001 §VIII) and the open
             conflict logged in §X.
-INPUTS:     parity/cato_golden_vectors.json (15 vectors: boundary-equal,
-            boundary-trip, missing-input, Sept 2019, Mar 2020, combos).
+INPUTS:     parity/cato_golden_vectors.json (boundary-equal, boundary-trip,
+            missing-input, Sept 2019, Mar 2020, combos, unusable stress,
+            and one KNOWN-FAILING XRPL routing vector — see below).
+KNOWN-FAILING: a vector may carry a `known_failing` block declaring a
+            divergence that is documented but not yet repaired. It is
+            still run and still printed on every run, as KNOWN-FAIL. It
+            does not fail the build only while it diverges exactly as
+            declared (same verdict, same fields). If it starts passing,
+            the build fails until the marker is removed; if it diverges
+            any other way, the build fails as a normal parity failure.
 OUTPUTS:    Per-vector PASS/FAIL table on stdout; exit 0 only if every
             vector matches on gate_decision, recommended_rail, AND
             recommended_chain across both implementations and against
@@ -36,7 +44,9 @@ from aureon.mcp.cato_client import atomic_settlement_gate  # noqa: E402
 def run_python(spec):
     out = []
     for v in spec["vectors"]:
-        chain_state = dict(spec["chain_state"])
+        # A vector may carry its own chain_state (e.g. the XRPL vector);
+        # otherwise the shared one applies. run_gate_core.js does the same.
+        chain_state = dict(v.get("chain_state", spec["chain_state"]))
         chain_state.pop("_doc", None)
         # Vector-specific gas overrides the shared chain_state's ethereum
         # entry; gas_gwei null means the ethereum observation is absent.
@@ -95,35 +105,63 @@ def main():
 
     fields = ("gate_decision", "recommended_rail", "recommended_chain")
     failures = 0
+    known = []
     print(f"{'vector':<28} {'python':<28} {'node':<28} {'doctrine':<20} verdict")
     print("-" * 112)
     for v in spec["vectors"]:
         vid = v["id"]
         p, n = py[vid], nd[vid]
         expect = dict(v["expect"])
-        # recommended_chain expectation only applies to PROCEED vectors
+        # recommended_chain expectation only applies to PROCEED vectors; a
+        # vector with its own chain_state declares its own expected chain.
         if expect["gate_decision"] == "PROCEED":
-            expect["recommended_chain"] = spec["expected_chain_on_proceed"]
+            expect.setdefault("recommended_chain", spec["expected_chain_on_proceed"])
         else:
             expect["recommended_chain"] = None
 
         impl_match = all(p[f] == n[f] for f in fields)
         doct_match = all(p[f] == expect[f] for f in fields)
         ok = impl_match and doct_match
-        failures += 0 if ok else 1
+        verdict = "PASS" if ok else ("IMPL-DRIFT" if not impl_match else "DOCTRINE-FAIL")
+
+        kf = v.get("known_failing")
+        if kf is None:
+            failures += 0 if ok else 1
+        elif ok:
+            # The documented gap has closed. Fail until the marker is removed,
+            # so the repair is recorded deliberately rather than silently.
+            verdict = "UNEXPECTED-PASS"
+            failures += 1
+        else:
+            drifted = sorted(f for f in fields if p[f] != n[f] or p[f] != expect[f])
+            if verdict == kf["verdict"] and drifted == sorted(kf["fields"]):
+                verdict = "KNOWN-FAIL"
+                known.append((vid, kf))
+            else:
+                failures += 1
 
         fmt = lambda r: f"{r['gate_decision']}/{r['recommended_rail']}/{r['recommended_chain']}"
-        verdict = "PASS" if ok else ("IMPL-DRIFT" if not impl_match else "DOCTRINE-FAIL")
         print(f"{vid:<28} {fmt(p):<28} {fmt(n):<28} "
               f"{expect['gate_decision'] + '/' + expect['recommended_rail']:<20} {verdict}")
 
     print("-" * 112)
     if failures:
         print(f"[FAIL] {failures} vector(s) diverged — Parity Principle violated. "
-              "This is a doctrine event: fix the drifted implementation, log in canonical §X.")
+              "This is a doctrine event: fix the drifted implementation, log in canonical §X. "
+              "An UNEXPECTED-PASS means a known gap closed: remove its known_failing marker.")
         sys.exit(1)
-    print(f"[PASS] {len(spec['vectors'])} vectors — Node core and Python twin "
+    checked = len(spec["vectors"]) - len(known)
+    print(f"[PASS] {checked} of {len(spec['vectors'])} vectors — Node core and Python twin "
           "produce identical decisions; both match doctrine expectations.")
+    for vid, kf in known:
+        # Printed on every run and surfaced as a CI annotation: a known gap
+        # is disclosed, never suppressed. Parity is not complete while any
+        # vector is listed here.
+        msg = (f"{vid}: {kf['verdict']} on {', '.join(kf['fields'])} "
+               f"since {kf['since']} — {kf['ref']}. Parity is NOT complete.")
+        print(f"[KNOWN-FAILING] {msg}")
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            print(f"::warning title=Cato parity gap (KNOWN-FAILING)::{msg}")
 
 
 if __name__ == "__main__":

@@ -41,8 +41,11 @@ const results = spec.vectors.map((v) => {
     id: v.id,
     gate_decision: d.gate_decision,
     recommended_rail: d.recommended_rail,
+    // A vector may carry its own chain_state; run_parity.py does the same.
     recommended_chain:
-      d.gate_decision === "PROCEED" ? pickRecommendedChain(spec.chain_state) : null,
+      d.gate_decision === "PROCEED"
+        ? pickRecommendedChain(v.chain_state || spec.chain_state)
+        : null,
   };
 });
 
