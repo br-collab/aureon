@@ -28,8 +28,10 @@ Test posture: this repository carries a small number of root-level tests
 (`test_clearing_cockpit.py` — 12 tests, passing; `test_c2_persistence.py`;
 `test_dsor_bridge.py`, which imports a `py311_shim` module that is **not in the repository** and
 therefore cannot run on a fresh clone). Broad validation is still manual via Railway deployment.
-The custody domain layer is the tested half of the estate — `Project-Atreides` runs 1,259 tests at
-99% coverage in CI, and that is where custody logic should be added and tested.
+The custody domain layer is the tested half of the estate — `Project-Atreides` runs 1,265 tests
+(1,025 functions, 240 parametrized cases) with 34 Hypothesis property invariants and 99% line coverage
+(whole package, no branch coverage), measured at Atreides v0.3.3 on 13 Sep 2026 — and that is where
+custody logic should be added and tested.
 
 ## Architecture
 
@@ -77,7 +79,7 @@ The custody and settlement domain layer lives in a **separate repository**,
 here as a pinned dependency declared in `requirements.txt`:
 
 ```
-atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.3.1
+atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.3.2
 ```
 
 **Do not vendor custody modules into this repository.** `aureon/cockpit/`,
