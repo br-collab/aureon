@@ -154,7 +154,14 @@ Required in `.env` (local) or Railway service variables (production):
 
 ## Cato — Verana L0 Tokenized Settlement Doctrine Gate
 
-**Status:** v0.2.2 — paper trading, approaching institutional-testing readiness.
+**Status:** external MCP server **v0.3.1** · in-process Python twin **v0.2.3** — paper
+trading, approaching institutional-testing readiness. The two are *not* at the same version:
+v0.3.0 added the XRPL rail on the Node side only, and the twin has not taken it yet. That is a
+declared, dated divergence recorded in `PARITY_XRPL.md` in Cato-FICC-MCP, not an oversight — but it is
+also the one thing the Parity Principle below does not permit to stand indefinitely.
+`computeGateDecision` produces identical decisions on both sides for all 16 golden vectors; only
+the chain and rail pickers differ, and none of the 16 vectors exercises the XRPL branch — which
+is why `parity/run_parity.py` passes against the v0.3.1 Node core despite the divergence.
 **Reference:** Duffie (2025) *"The Case for PORTS"* — Brookings Institution.
 
 Cato is the Verana L0 pre-settlement doctrine gate. It takes live SOFR (FRED), OFR financial stress (FRED STLFSI4), multi-chain gas/fee state (Blockscout + Solana RPC), and live ETH/SOL prices (CoinGecko), and emits a deterministic `PROCEED / HOLD / ESCALATE` decision plus a `recommended_chain` for tokenized repo settlement.
@@ -163,7 +170,7 @@ Cato is the Verana L0 pre-settlement doctrine gate. It takes live SOFR (FRED), O
 
 Cato exists in **two forms** that must produce bit-for-bit identical decisions:
 
-1. **External MCP server** — https://github.com/br-collab/Cato---FICC-MCP
+1. **External MCP server** — https://github.com/br-collab/Cato-FICC-MCP
    Node.js, 23 tools, `@modelcontextprotocol/sdk ^1.0.0`. Exposes Cato to LLM callers (Claude Desktop, Agent SDK apps) over JSON-RPC stdio. GitHub Actions CI asserts exactly 23 tools on every push.
 
 2. **Aureon in-process Python twin** — `aureon/mcp/cato_client.py`
@@ -171,10 +178,11 @@ Cato exists in **two forms** that must produce bit-for-bit identical decisions:
 
 **The parity principle (hard rule):** any doctrine change — new threshold, new input, new decision branch — must land in **both** codebases in the same commit series. The deterministic identity is what lets regulators trust the gate regardless of caller. If you only update one side you break SR 11-7 model governance.
 
-### Doctrine thresholds (v0.2.2)
+### Doctrine thresholds (gate core v0.3.1)
 
 | Input | Threshold | Effect |
 |---|---|---|
+| OFR STLFSI4 | not a finite number | **HOLD** — a missing, NaN or infinite stress reading is named unusable and routed to FICC traditional. It must **never** produce PROCEED, and must never emit "all doctrine thresholds clear" |
 | OFR STLFSI4 | `> 1.0` | **ESCALATE** — systemic stress, route to human authority |
 | OFR STLFSI4 | `> 0.5` | **HOLD** — non-systemic broad stress, route to FICC traditional |
 | ETH gas | `> 50 gwei` | **HOLD** — L1 congestion, route to FICC traditional |
@@ -182,9 +190,11 @@ Cato exists in **two forms** that must produce bit-for-bit identical decisions:
 | everything below | — | **PROCEED** — atomic settlement viable |
 
 Chain selection (trade-size-agnostic) picks cheapest live rail:
-1. Solana if fee < $0.01
-2. Base if gas < 1 gwei
-3. Ethereum L1 otherwise
+1. XRPL if fee < $0.01 — **Node side only (v0.3.0)**; deterministic finality preferred over raw
+   speed. Not yet in the Python twin — see `PARITY_XRPL.md` in Cato-FICC-MCP
+2. Solana if fee < $0.01
+3. Base if gas < 1 gwei
+4. Ethereum L1 otherwise
 
 Rail routing (notional-aware, in `compare_settlement_rails`):
 1. If OFR > 0.5 → FICC (stress override, absolute)

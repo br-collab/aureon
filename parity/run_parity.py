@@ -71,7 +71,8 @@ def run_node():
     if not os.path.exists(core):
         raise ParityUnavailable(
             f"the Node decision core is absent ({core} does not exist). "
-            "cato-mcp is not vendored into this repository."
+            "cato-mcp is not vendored into this repository; clone "
+            "https://github.com/br-collab/Cato-FICC-MCP.git into cato-mcp/."
         )
     proc = subprocess.run(
         ["node", os.path.join(HERE, "run_gate_core.js")],
@@ -89,7 +90,7 @@ def main():
         nd = {r["id"]: r for r in run_node()}
     except ParityUnavailable as exc:
         print(f"PARITY NOT ASSESSED - {exc}")
-        print("The fifteen vectors were not compared. Do not record this as a pass.")
+        print("The golden vectors were not compared. Do not record this as a pass.")
         sys.exit(2)
 
     fields = ("gate_decision", "recommended_rail", "recommended_chain")

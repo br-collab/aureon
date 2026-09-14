@@ -35,3 +35,9 @@ Git Repository/
 *.PDF
 !Thought notes/
 !Thought notes/**
+
+# cato-mcp/ is where the parity harness expects a checkout of
+# br-collab/Cato-FICC-MCP. It is deliberately NOT a submodule: the dangling
+# gitlink was purged on 2026-08-21, and a nested clone here would be turned
+# back into one by `git add -A`. Clone it locally; CI checks it out itself.
+/cato-mcp

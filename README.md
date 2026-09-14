@@ -1,6 +1,6 @@
 # Project Aureon - The Grid 3
 
-**Doctrine Stack:** Aureon Consolidated Canonical Doctrine v1.6 · CAOM-001 · Cato (external MCP server v0.3.0 · in-process Python twin v0.2.3 — the twin has not yet taken the v0.3.0 XRPL rail; disclosed, dated divergence in `cato-mcp/PARITY_XRPL.md`) · AUR-CUSTODY-001 v1.0 · AUR-CUSTODY-CASH-001 v0.2
+**Doctrine Stack:** Aureon Consolidated Canonical Doctrine v1.6 · CAOM-001 · Cato (external MCP server v0.3.1 · in-process Python twin v0.2.3 — the twin has not yet taken the v0.3.0 XRPL rail; disclosed, dated divergence in `PARITY_XRPL.md` in Cato-FICC-MCP. The v0.3.1 stress guard *is* mirrored in the twin and pinned by golden vector V16 on both sides) · AUR-CUSTODY-001 v1.0 · AUR-CUSTODY-CASH-001 v0.2
 **Live Deployment:** [aureon-production.up.railway.app](https://aureon-production.up.railway.app) · Endowment Series I — Argus · $100M paper AUM
 **Settlement & Custody Console:** [/cockpit](https://aureon-production.up.railway.app/cockpit) — pipeline, breaks workbench, and cash leg
 **Status:** Paper trading · approaching institutional testing · no real capital at risk
