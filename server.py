@@ -5649,7 +5649,10 @@ def api_pretrade_check(decision_id):
             decision_id=decision_id,
             market_is_open=_market_is_open,
             macro_snapshot_fn=_get_fred_macro_snapshot,
-            ofr_snapshot_fn=_get_ofr_stress_snapshot,
+            # Cache-only: market_loop keeps _ofr_cache warm. Gate 6 must not
+            # fetch financialresearch.gov inside the request; an empty cache
+            # HOLDs the gate instead.
+            ofr_snapshot_fn=lambda _macro: _ofr_cache.get("data"),
             operating_cash_floor_pct=OPERATING_CASH_FLOOR_PCT,
             risk_policy=RISK_MANAGER_POLICY,
             symbol_to_isin=SYMBOL_TO_ISIN,

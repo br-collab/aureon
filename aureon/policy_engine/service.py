@@ -17,6 +17,8 @@ endpoint, or None if the decision_id is not found.
 
 from datetime import datetime, timezone
 
+from aureon.mcp.cato_client import _is_usable_stress_reading
+
 
 def evaluate_pretrade_decision(
     *,
@@ -196,19 +198,28 @@ def evaluate_pretrade_decision(
         })
 
     # ── Gate 6: Macro stress overlay ──────────────────────────────
+    # Fails closed, matching Cato v0.3.1 (golden vector V16): a stress
+    # reading that is missing, NaN or infinite — or a feed that cannot be
+    # read at all — HOLDs the gate. It must never read as PASS.
+    # ofr_snapshot_fn takes the macro snapshot, as evidence_service calls it.
     try:
         macro = macro_snapshot_fn() or {}
-        ofr   = ofr_snapshot_fn()   or {}
-        stress_score = ofr.get("stress_score", 0.0)
-        if stress_score > 0.7:
-            macro_status = "WARN"
-            macro_detail = f"OFR stress score {stress_score:.2f} — elevated systemic risk"
-        else:
-            macro_status = "PASS"
-            macro_detail = f"OFR stress score {stress_score:.2f} — normal"
-    except Exception:
+        ofr   = ofr_snapshot_fn(macro) or {}
+        stress_reading = ofr.get("fsi_value")
+        unusable = f"OFR stress reading is not a usable number (got {stress_reading!r})"
+    except Exception as exc:
+        ofr, stress_reading = {}, None
+        unusable = f"OFR stress feed unavailable ({type(exc).__name__}: {exc})"
+    source = ofr.get("source", "unknown")
+    if not _is_usable_stress_reading(stress_reading):
+        macro_status = "HOLD"
+        macro_detail = f"{unusable} — holding rather than assuming clear"
+    elif stress_reading > 0.7:
+        macro_status = "WARN"
+        macro_detail = f"OFR stress {stress_reading:.2f} ({source}) — elevated systemic risk"
+    else:
         macro_status = "PASS"
-        macro_detail = "Macro overlay unavailable — proceeding"
+        macro_detail = f"OFR stress {stress_reading:.2f} ({source}) — normal"
     gates.append({
         "gate":   "MACRO_STRESS_OVERLAY",
         "layer":  "Verana L0",
