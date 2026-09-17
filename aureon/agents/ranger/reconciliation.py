@@ -14,7 +14,7 @@
 ║  REGULATORY ADDRESS:                                                 ║
 ║    BCBS 239 P3 — accuracy, integrity, reconciliation lineage        ║
 ║    DORA — data integrity, ICT risk management                       ║
-║    SR 11-7 Tier 2 — deterministic, annual review                   ║
+║    NIST AI RMF 1.0 plus Aureon doctrine — Tier 2, annual review    ║
 ╚══════════════════════════════════════════════════════════════════════╝
 """
 

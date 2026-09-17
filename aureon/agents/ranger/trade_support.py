@@ -12,7 +12,7 @@
 ║    Escalate discrepancies — no autonomous resolution.                ║
 ║                                                                      ║
 ║  REGULATORY ADDRESS:                                                 ║
-║    SR 11-7 Tier 2 — deterministic, annual review                   ║
+║    NIST AI RMF 1.0 plus Aureon doctrine — Tier 2, annual review    ║
 ║    MiFID II RTS 6 — post-trade monitoring, FIX validation          ║
 ║    BCBS 239 P3 — automated accuracy, reconciliation lineage        ║
 ╚══════════════════════════════════════════════════════════════════════╝

@@ -29,7 +29,7 @@
 ║  REGULATORY ADDRESS:                                                 ║
 ║    OFAC 31 CFR 501–598 — SDN screening (counterparty axis)           ║
 ║    EU GDPR Art. 17 — data retention conflict (see known_conflicts)   ║
-║    SR 11-7 Tier 1 — independent validation declared                  ║
+║    NIST AI RMF 1.0 plus Aureon doctrine — Tier 1 validation declared ║
 ║    EU AI Act — high-risk, conformity assessment required             ║
 ╚══════════════════════════════════════════════════════════════════════╝
 """

@@ -34,7 +34,7 @@ THIFUR_H_ROUTES = '''
 
 # ══════════════════════════════════════════════════════════════════
 # THIFUR-H — ADAPTIVE EXECUTION INTELLIGENCE — PHASE 2 ACTIVATION
-# CAOM-001 · SR 11-7 Tier 1 · Kraken Live Account
+# CAOM-001 · NIST AI RMF 1.0 plus Aureon doctrine, Tier 1 · Kraken Live Account
 # ══════════════════════════════════════════════════════════════════
 
 import os
@@ -263,7 +263,7 @@ def thifur_h_session_status():
 
 @app.route("/api/thifur-h/dsor", methods=["GET"])
 def thifur_h_dsor_export():
-    """Full DSOR export — SR 11-7 evidence package."""
+    """Full DSOR export — evidence package under NIST AI RMF 1.0 plus Aureon doctrine."""
     if not _thifur_h_session:
         return jsonify({"status": "no_session"}), 404
     dsor_json = _thifur_h_session.export_dsor()
