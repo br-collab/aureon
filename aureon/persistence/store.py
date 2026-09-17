@@ -72,6 +72,19 @@ def save_state(*, state, lock, state_file, resolve_mmf_provider, log_error):
                 "c2_j_risk_log":     list(state.get("c2_j_risk_log", [])),
                 # ── WS-2.4 Trade Surveillance (AUR-J-SURV-001) ─────
                 "c2_j_surveillance_log": list(state.get("c2_j_surveillance_log", [])),
+                # W2B-4 / AUR-I-17: pending decisions were never saved, so every
+                # redeploy dropped them (17 Sep: 4 pending → 0 after the #15
+                # deploy). Approval-side events and execution facts survive too.
+                "pending_decisions":      list(state.get("pending_decisions", [])),
+                "release_events":         list(state.get("release_events", [])),
+                "approved_intents":       list(state.get("approved_intents", [])),
+                "venue_fills":            list(state.get("venue_fills", [])),
+                "booked_fill_ids":        list(state.get("booked_fill_ids", [])),
+                "booking_breaks":         list(state.get("booking_breaks", [])),
+                "c2_awaiting_execution":  dict(state.get("c2_awaiting_execution", {})),
+                # W2B-3: pre-trade policy evidence and HOLD exceptions (AUR-I-01).
+                "policy_evaluations":     list(state.get("policy_evaluations", [])),
+                "policy_hold_exceptions": list(state.get("policy_hold_exceptions", [])),
                 "saved_at":          datetime.now(timezone.utc).isoformat(),
             }
         # Atomic save: write to tmp in the same directory, then rename.

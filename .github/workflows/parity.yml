@@ -92,9 +92,8 @@ jobs:
         run: pytest -q
 
       # Script checks exit non-zero on failure. test_security_hardening.py is
-      # also collected by pytest above, but its check() helper records a
-      # failure without raising, so under pytest those six tests cannot fail.
-      # The script run is the step that actually gates them.
+      # also collected by pytest above, and since W2-ADD-01 a failed check
+      # fails there too; the script run reports every failed check at once.
       - name: C2 persistence
         run: python test_c2_persistence.py
 

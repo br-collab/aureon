@@ -1084,17 +1084,101 @@ class ThifurC2(Agent):
             result["status"] = "BLOCKED_BY_TRADESUPPORT"
             return result
 
-        # ── Step 5: Post-execution reconciliation ─────────────────────
-        # Build execution confirmation from the OMS release result.
-        # In production this comes from the OMS; here we derive it from
-        # the approved decision — the lifecycle is paper-trading.
+        # ── Step 5: Wait for an independent execution event ───────────
+        # The execution confirmation used to be built from the approved
+        # decision, so reconciliation compared the decision with itself
+        # (AUR-I-06). It now comes only from a venue fill. Until one exists
+        # the lifecycle waits; on_execution_event() resumes it.
+        execution_event = self._find_execution_event(decision.get("id"))
+        if execution_event is None:
+            self._await_execution(task_id, decision, agents, doctrine_version, result)
+            result["status"] = "AWAITING_EXECUTION"
+            return result
+        return self._complete_after_execution(
+            task_id=task_id,
+            decision=decision,
+            agents=agents,
+            doctrine_version=doctrine_version,
+            execution_event=execution_event,
+            result=result,
+        )
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # EXECUTION EVENTS (W2B-4, AUR-I-06)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _find_execution_event(self, decision_id: str | None) -> dict | None:
+        if not decision_id:
+            return None
+        with self._lock:
+            for fill in self._state.get("venue_fills", []):
+                if fill.get("decision_id") == decision_id:
+                    return dict(fill)
+        return None
+
+    def _await_execution(self, task_id: str, decision: dict, agents: list,
+                         doctrine_version: str | None, result: dict) -> None:
+        with self._lock:
+            waiting = self._state.setdefault("c2_awaiting_execution", {})
+            waiting[task_id] = {
+                "task_id":          task_id,
+                "decision":         dict(decision),
+                "agents":           list(agents),
+                "doctrine_version": doctrine_version,
+                "since":            datetime.now(timezone.utc).isoformat(),
+                "result":           {k: result.get(k) for k in (
+                    "convergence_scenario", "sequencing_rule", "agents_activated",
+                    "compliance_clearance", "resume_attribution")},
+            }
+        self._authority_log_entry(task_id, "C2_AWAITING_EXECUTION",
+                                  f"Lifecycle waits for an execution event for "
+                                  f"{decision.get('id')}; nothing is reconciled or reported until then")
+
+    def on_execution_event(self, fill: dict) -> list[dict]:
+        """Resume every lifecycle waiting on ``fill``'s decision. Returns their results."""
+        decision_id = fill.get("decision_id")
+        with self._lock:
+            waiting = self._state.get("c2_awaiting_execution", {})
+            ready = [dict(entry) for entry in waiting.values()
+                     if entry.get("decision", {}).get("id") == decision_id]
+            for entry in ready:
+                waiting.pop(entry["task_id"], None)
+        results = []
+        for entry in ready:
+            result = {**entry.get("result", {}), "task_id": entry["task_id"],
+                      "j_result": None, "r_result": None, "unified_lineage": None,
+                      "status": "IN_PROGRESS"}
+            results.append(self._complete_after_execution(
+                task_id=entry["task_id"],
+                decision=entry["decision"],
+                agents=entry["agents"],
+                doctrine_version=entry.get("doctrine_version"),
+                execution_event=fill,
+                result=result,
+            ))
+        return results
+
+    def _complete_after_execution(self, *, task_id: str, decision: dict, agents: list,
+                                  doctrine_version: str | None, execution_event: dict,
+                                  result: dict) -> dict:
+        """Steps 5–10, from an independent execution event."""
+        agent_settlement = RANGER_AGENTS["AUR-R-SETTLEMENT-001"](self._state, self._lock)
+        agent_ts = RANGER_AGENTS["AUR-R-TRADESUPPORT-001"](self._state, self._lock)
+        agent_recon = RANGER_AGENTS["AUR-R-RECON-001"](self._state, self._lock)
+        agent_regrep = RANGER_AGENTS["AUR-R-REGREP-001"](self._state, self._lock)
+        r_result = None
+
         execution_confirmation = ExecutionConfirmation(
             task_id=task_id,
-            decision_id=decision.get("id"),
-            symbol=decision.get("symbol"),
-            action=decision.get("action"),
-            shares=decision.get("shares", 0),
-            notional=decision.get("notional", 0),
+            decision_id=execution_event.get("decision_id"),
+            symbol=execution_event.get("symbol"),
+            action=execution_event.get("action"),
+            shares=float(execution_event.get("quantity")),
+            notional=float(execution_event.get("notional")),
+            price=float(execution_event.get("price")),
+            venue=execution_event.get("venue", ""),
+            execution_ts=execution_event.get("filled_at", ""),
+            fix_msg_ref=execution_event.get("fill_id"),
         )
         dsor_intent = DSORIntent(
             task_id=task_id,
@@ -1103,7 +1187,10 @@ class ThifurC2(Agent):
             action=decision.get("action"),
             shares=decision.get("shares", 0),
             notional=decision.get("notional", 0),
+            intended_price=decision.get("price") or 0.0,
         )
+        result["execution_event"] = {k: execution_event.get(k) for k in (
+            "fill_id", "venue", "provenance", "quantity", "price", "notional", "filled_at")}
 
         recon_result = agent_ts.reconcile_execution(execution_confirmation, dsor_intent)
         result["ts_recon_result"] = recon_result

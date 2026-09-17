@@ -20,6 +20,7 @@
 """
 
 import json
+import os
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, Response
 
@@ -43,17 +44,70 @@ mcp_bp = Blueprint("mcp", __name__)
 _state = None
 _lock  = None
 _ofac_blocked = None
+_resolve_decision = None
 
 
-def init_mcp(aureon_state: dict, state_lock, ofac_blocked_isins: dict):
+WRITE_ENABLED_ENV = "AUREON_MCP_WRITE_ENABLED"
+
+#: Registered only when AUREON_MCP_WRITE_ENABLED=true (fix F2). An MCP client is
+#: normally an AI agent, and agents never authorize (charter §7, JUM-D-07), so
+#: the approval tool is off unless a human turns it on for a session.
+RESOLVE_DECISION_TOOL = {
+        "name":        "aureon_resolve_decision",
+        "description": (
+            "Approve or reject a pending Aureon decision as the CAOM-001 operator. "
+            "An authority mutation: the HTTP request must carry X-Admin-Key and a "
+            "fresh X-Request-Nonce, exactly as the dashboard does. Runs the same "
+            "path as POST /api/decisions/<id>: policy binding, approval routing, "
+            "the sealed ApprovedIntentEnvelope, and release. Refused without a "
+            "current pre-trade check."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "decision_id":   {"type": "string"},
+                "resolution":    {"type": "string", "enum": ["APPROVED", "REJECTED"]},
+                "approval_role": {"type": "string", "description": "TRADER, RISK, COMPLIANCE, PM or CONTROL"},
+                "hold_exception": {
+                    "type": "object",
+                    "description": "For an overrideable HOLD: {reason, ttl_seconds}",
+                },
+            },
+            "required": ["decision_id", "resolution"],
+        },
+    }
+
+
+def _write_enabled() -> bool:
+    return os.environ.get(WRITE_ENABLED_ENV, "").strip().lower() == "true"
+
+
+def init_mcp(aureon_state: dict, state_lock, ofac_blocked_isins: dict, resolve_decision=None):
     """
     Inject Aureon runtime state into the MCP server.
     Called from server.py after aureon_state is initialized.
+
+    resolve_decision(arguments, headers) -> (payload, status) is the server's
+    single decision-resolution path. The approval tool is registered only when
+    it is supplied *and* AUREON_MCP_WRITE_ENABLED=true; otherwise the tool is
+    not listed and not callable (fix F2).
     """
-    global _state, _lock, _ofac_blocked
+    global _state, _lock, _ofac_blocked, _resolve_decision
     _state        = aureon_state
     _lock         = state_lock
     _ofac_blocked = ofac_blocked_isins
+    _resolve_decision = resolve_decision
+
+    registered = any(t["name"] == "aureon_resolve_decision" for t in TOOLS)
+    enabled = resolve_decision is not None and _write_enabled()
+    if enabled and not registered:
+        TOOLS.insert(0, RESOLVE_DECISION_TOOL)
+        TOOL_HANDLERS["aureon_resolve_decision"] = _tool_aureon_resolve_decision
+        print(f"[AUREON] MCP write tool enabled by {WRITE_ENABLED_ENV} — "
+              "aureon_resolve_decision is callable with the operator key")
+    elif not enabled and registered:
+        TOOLS[:] = [t for t in TOOLS if t["name"] != "aureon_resolve_decision"]
+        TOOL_HANDLERS.pop("aureon_resolve_decision", None)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -119,7 +173,7 @@ RESOURCES = [
         "name":        "Regulatory Frameworks Status",
         "description": (
             "Current compliance status for all regulatory frameworks "
-            "Verana L0 monitors: SR 11-7, OCC 2023-17, BCBS 239, "
+            "Verana L0 monitors: SR 26-2 / OCC 2026-13, OCC 2023-17, BCBS 239, "
             "MiFID II Art. 17 / RTS 6, DORA, EU AI Act. "
             "Each framework includes status and last-verified timestamp."
         ),
@@ -189,8 +243,9 @@ TOOLS = [
         "name":        "verana_framework_status",
         "description": (
             "Check the compliance status of a specific regulatory framework "
-            "monitored by Verana L0. Returns status (SATISFIED/BREACHED/MONITORING) "
-            "and detail. Valid frameworks: SR_11_7, OCC_2023_17, BCBS_239, "
+            "monitored by Verana L0. Returns status (SATISFIED/BREACHED/MONITORING, or "
+            "ALIGNMENT for SR 26-2, which is a statement of alignment, not compliance) "
+            "and detail. Valid frameworks: SR_26_2, OCC_2023_17, BCBS_239, "
             "MIFID_II, DORA, EU_AI_ACT."
         ),
         "inputSchema": {
@@ -198,8 +253,11 @@ TOOLS = [
             "properties": {
                 "framework": {
                     "type":        "string",
-                    "description": "Framework identifier. One of: SR_11_7, OCC_2023_17, BCBS_239, MIFID_II, DORA, EU_AI_ACT",
-                    "enum":        ["SR_11_7", "OCC_2023_17", "BCBS_239", "MIFID_II", "DORA", "EU_AI_ACT"],
+                    "description": ("Framework identifier. One of: SR_26_2, OCC_2023_17, BCBS_239, "
+                                    "MIFID_II, DORA, EU_AI_ACT. SR_11_7 is a deprecated alias of "
+                                    "SR_26_2 and returns its content with a deprecation note."),
+                    "enum":        ["SR_26_2", "OCC_2023_17", "BCBS_239", "MIFID_II", "DORA", "EU_AI_ACT",
+                                    "SR_11_7"],
                 },
             },
             "required": ["framework"],
@@ -281,12 +339,12 @@ def _read_regulatory_frameworks() -> dict:
         "ts":           datetime.now(timezone.utc).isoformat(),
         "frameworks": [
             {
-                "id":          "SR_11_7",
-                "name":        "SR 11-7 — Model Risk Management",
-                "status":      "SATISFIED",
-                "description": "Federal Reserve model risk management guidance. "
-                               "All Aureon signals and models documented, validated, and governed.",
-                "authority":   "Federal Reserve Board",
+                "id":          "SR_26_2",
+                "name":        SR_26_2_LABEL,
+                "status":      "ALIGNMENT",
+                "description": SR_26_2_DETAIL,
+                "authority":   "Federal Reserve Board · Office of the Comptroller of the Currency · FDIC",
+                "supersedes":  "SR 11-7 / OCC 2011-12 (superseded 17 April 2026)",
             },
             {
                 "id":          "OCC_2023_17",
@@ -436,8 +494,20 @@ RESOURCE_READERS = {
 # Tool Handlers
 # ─────────────────────────────────────────────────────────────────────────────
 
+SR_26_2_LABEL = "SR 26-2 / OCC 2026-13 — Model Risk Management (supersedes SR 11-7)"
+SR_26_2_DETAIL = (
+    "Alignment for quantitative models (the Cato gate, Atrox Live's fixed decision constants, the "
+    "backtest). A statement of alignment, not of compliance or completed validation. SR 26-2 "
+    "excludes generative and agentic AI; the Thifur agents align with NIST AI RMF 1.0 plus "
+    "Aureon doctrine instead."
+)
+SR_11_7_DEPRECATION = (
+    "SR_11_7 is deprecated: SR 11-7 was superseded by SR 26-2 / OCC 2026-13 on 17 April 2026. "
+    "This response is the SR_26_2 content. Use SR_26_2."
+)
+
 FRAMEWORK_LABELS = {
-    "SR_11_7":     "SR 11-7 — Model Risk Management",
+    "SR_26_2":     SR_26_2_LABEL,
     "OCC_2023_17": "OCC 2023-17 — Third-Party Risk",
     "BCBS_239":    "BCBS 239 — Risk Data Aggregation",
     "MIFID_II":    "MiFID II Art. 17 / RTS 6 — Algorithmic Trading",
@@ -496,6 +566,9 @@ def _tool_verana_screen_ofac(params: dict) -> dict:
 
 def _tool_verana_framework_status(params: dict) -> dict:
     fw_id = params.get("framework", "").strip().upper()
+    deprecated_alias = fw_id == "SR_11_7"
+    if deprecated_alias:
+        fw_id = "SR_26_2"
     if fw_id not in FRAMEWORK_LABELS:
         return {
             "isError": True,
@@ -509,7 +582,7 @@ def _tool_verana_framework_status(params: dict) -> dict:
         halt     = _state.get("halt_active", False)
 
     detail_map = {
-        "SR_11_7":     "All models documented and validated. Signal generation logic reviewed.",
+        "SR_26_2":     SR_26_2_DETAIL,
         "OCC_2023_17": "All third-party integrations assessed and governed.",
         "BCBS_239":    "Single aureon_state source of truth. Full lineage via authority_log.",
         "MIFID_II":    "Zero autonomous execution. All signals require HITL approval.",
@@ -523,10 +596,14 @@ def _tool_verana_framework_status(params: dict) -> dict:
             "text": json.dumps({
                 "framework":       fw_id,
                 "name":            FRAMEWORK_LABELS[fw_id],
-                "status":          "BREACHED" if halt else "SATISFIED",
+                # SR 26-2 is reported as alignment, never as satisfied (W2-ADD-02).
+                "status":          ("ALIGNMENT" if fw_id == "SR_26_2"
+                                    else "BREACHED" if halt else "SATISFIED"),
                 "detail":          detail_map[fw_id],
                 "doctrine_version": doctrine,
                 "halt_active":     halt,
+                **({"requested": "SR_11_7", "deprecation": SR_11_7_DEPRECATION}
+                   if deprecated_alias else {}),
                 "ts":              datetime.now(timezone.utc).isoformat(),
             }, indent=2),
         }],
@@ -598,7 +675,18 @@ def _tool_verana_compliance_snapshot(params: dict) -> dict:
     }
 
 
+def _tool_aureon_resolve_decision(params: dict) -> dict:
+    """Authority mutation: authenticated and executed by the server's single resolve path."""
+    if _resolve_decision is None or not _write_enabled():
+        raise RuntimeError(
+            f"decision resolution is disabled on this MCP server ({WRITE_ENABLED_ENV} is not true)"
+        )
+    payload, status = _resolve_decision(params, request.headers)
+    return {"http_status": status, **payload}
+
+
 TOOL_HANDLERS = {
+    # aureon_resolve_decision is added by init_mcp when writes are enabled.
     "verana_screen_ofac":          _tool_verana_screen_ofac,
     "verana_framework_status":     _tool_verana_framework_status,
     "verana_node_status":          _tool_verana_node_status,

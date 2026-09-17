@@ -26,10 +26,10 @@ AUREON_PORT=5001 python server.py
 
 Test posture: this repository carries a small number of root-level tests
 (`test_clearing_cockpit.py` — 12 tests; `test_security_hardening.py` — 6 checks;
-`test_c2_persistence.py`; `test_dsor_bridge.py`). CI's `core` job runs `pytest -q` and all three
-script checks on Python 3.11 after installing from `requirements.lock.txt`. Run
-`test_security_hardening.py` as a script: its `check()` helper does not raise, so under pytest
-those six checks cannot fail. Broad validation beyond these is still manual via Railway deployment.
+`test_c2_persistence.py`; `test_dsor_bridge.py`; strict-xfail probes). CI's `core` job runs
+`pytest -q` and all three script checks on Python 3.11 after installing from
+`requirements.lock.txt`. `test_security_hardening.py` gates under pytest too: a failed `check()`
+raises there. Broad validation beyond these is still manual via Railway deployment.
 The custody domain layer is the tested half of the estate — `Project-Atreides` runs 1,265 tests
 (1,025 functions, 240 parametrized cases) with 34 Hypothesis property invariants and 99% line coverage
 (whole package, no branch coverage), measured at Atreides v0.3.3 on 13 Sep 2026 — and that is where
@@ -86,7 +86,10 @@ atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.3.3
 
 **Do not vendor custody modules into this repository.** `aureon/cockpit/`,
 `aureon/agents/tier1/`, and `aureon/contracts/` existed as vendored copies until 31 July 2026
-and were deleted per `AUR-ADD-006`. The copy is what caused the Railway 502 on boot in
+and were deleted per `AUR-ADD-006`. `aureon/contracts/` exists again since W2B-5, but it is
+**not** that directory: it holds only Aureon's own intent contract
+(`approved_intent.py`, the `ApprovedIntentEnvelope`), which Aureon produces. Never put custody
+code in it. The copy is what caused the Railway 502 on boot in
 `1410e36` — it carried a transitive pydantic requirement this repo's dependency list did not
 declare. If you need a custody symbol, import it from `atreides.*` and bump the pin.
 
@@ -127,12 +130,15 @@ Required in `.env` (local) or Railway service variables (production):
 - `AUREON_EMAIL`, `AUREON_EMAIL_PW`, `AUREON_EMAIL_RECIPIENT` — Gmail SMTP reporting
 - `ALPACA_API_KEY`, `ALPACA_API_SECRET` — paper trading
 - `RAILWAY_VOLUME_MOUNT_PATH` — production state persistence directory
+- `AUREON_ADMIN_KEY` — the operator key. Every authority mutation requires it; unset, those routes all refuse (fails closed). See "Authority mutations" below
+- `AUREON_MCP_WRITE_ENABLED` — set to `true` to register the MCP approval tool. Unset (the default, including Railway) the tool is not listed and not callable
+- `FRED_API_KEY` is also load-bearing for approvals: unset, and with the OFR scrape failing, the stress reading is a fixed constant, the pre-trade gate is INDETERMINATE and every approval is refused (AUR-I-10)
 
 ## Key API Routes
 
 - `/api/snapshot` — Portfolio + compliance state (also health check)
 - `/api/decisions` — Pending decisions with pre-trade gates
-- `/api/decisions/<id>/pretrade` — Full gate evaluation
+- `/api/decisions/<id>/pretrade` — Full gate evaluation; persists the policy record that approval requires
 - `/api/compliance` — Alerts + compliance surfaces
 - `/api/authority` — Authority log + approval lineage
 - `/api/decision-journal` — HITL decisions + outcomes
@@ -155,6 +161,23 @@ Required in `.env` (local) or Railway service variables (production):
   disarms unattended exit handling for an already-approved position.
 - `/cockpit` — Settlement & Custody Console (pipeline · breaks workbench · cash leg)
 - `/mcp` — Model Context Protocol endpoint (JSON-RPC 2.0)
+
+### Authority mutations require the operator key (AUR-I-03)
+
+Every route that creates or resolves a decision, opens the session, proposes or approves
+doctrine, resumes a paused lifecycle, moves MMF positions, promotes or dismisses an Atrox
+recommendation, or runs a cockpit step is decorated with `@_authority_required("<ACTION>")`
+in `server.py`. The request must carry `X-Admin-Key` (the operator key, compared in constant
+time) and `X-Request-Nonce` (16–128 letters, digits, `-` or `_`; a UUID works; reuse within
+15 minutes is refused as a replay). Missing credentials return 401, wrong ones 403, and both
+happen before the handler runs. A success is written to `authority_log` with the kernel
+`ActorRef` of the CAOM-001 operator; the boot-time session auto-open is recorded as the
+deterministic boot service. Logic lives in `aureon/approval_service/operator_auth.py`.
+
+**Adding a POST route:** decorate it (below `@app.route`) or add it, with the reason, to
+`REVIEWED_UNGUARDED` in `test_authority_auth.py`. That test fails on any POST route in neither.
+The dashboards send both headers through `authorityFetch` (`index.html`) and `api()`
+(`atreides-settlement-dashboard.html`).
 
 ## Cato — Verana L0 Tokenized Settlement Doctrine Gate
 
@@ -264,6 +287,40 @@ See `TRACKERS.md` for tech debt, architectural findings, and operational concern
 
 These are non-negotiable design constraints:
 - No execution without governed approval through the approval service
+- Pre-trade gates bind approval (AUR-I-01; `aureon/policy_engine/binding.py`). Every evaluation is
+  persisted as a record bound to the decision's content digest and the rules digest, with a kernel
+  `Disposition` and a five-minute expiry. `resolve_pending_decision` approves only on a current
+  `PASS`, or a `HOLD` covered by a typed exception from the role `HOLD_OVERRIDE_POLICY` names.
+  `BLOCK` and `INDETERMINATE` are never approvable, and unavailable evidence (an unusable OFR
+  reading, a check that could not run) is `INDETERMINATE`, never `PASS` or an overrideable `HOLD`.
+  A new approval path must call `resolve_pending_decision` with `rules_digest`; do not call
+  `_apply_trade` from anywhere else (a test enforces both)
+- Market evidence carries provenance (`aureon/policy_engine/evidence.py`): `FACT_EXTERNAL` published,
+  `POLICY_RESULT` computed from live inputs, `FABRICATED_DEFAULT` when a fixed constant stood in.
+  A fabricated or unlabelled reading is `INDETERMINATE` at the gate and `null` with a reason in the
+  audit fields — never a number that looks measured (AUR-I-10)
+- Agents never authorize (charter §7, JUM-D-07). The MCP approval tool exists but is registered only
+  under `AUREON_MCP_WRITE_ENABLED=true`, and records that the caller's human status is asserted,
+  not proven
+- One operator key can act in every role (AUR-I-19): each authority record states
+  `role_source=request_body` and `independence_asserted=false`, and the dashboard says so. The actor
+  registry (JUM-D-18, Wave 4) is the fix
+- Approval has no economic side effect (AUR-I-02). A full approval emits `RELEASE_AUTHORIZED`
+  (`aureon/approval_service/release.py`) and nothing else. Cash, positions and trades change only in
+  `aureon/booking/consumer.py`, from a venue fill; a duplicate fill books once. Until L.C. exists
+  the venue is `aureon/integration_adapters/paper_venue.py`: it prices from the market-data cache at
+  its own observation time (never the decision's price) and labels fills `FACT_SYNTHETIC`. C2 waits
+  for that fill (`on_execution_event`) and reconciles against it; nothing may build an execution
+  confirmation from the approved decision
+- Pending decisions, release events, venue fills and booked fill ids are persisted (AUR-I-17)
+- One approval path, one sealed intent (W2B-5). The dashboard, `POST /api/decisions/<id>`, the MCP
+  tool `aureon_resolve_decision` (operator key and nonce required, as over HTTP) and
+  `aureon-agent resolve` (which calls that HTTP route) all reach `_resolve_decision_request` →
+  `resolve_pending_decision`. A full approval needs an authenticated actor and seals an
+  `ApprovedIntentEnvelope` (`0.1-draft`, `aureon/contracts/approved_intent.py`): one quantity model
+  (quantity + unit, or notional + currency, per asset class), policy and authority manifests,
+  evidence manifest, expiry, permitted and prohibited downstream actions, kernel digest. The OMS and
+  EMS packets carry it and its digest unchanged. A parity test pins the same digest across channels
 - Agents advise only — no autonomous execution
 - All decisions carry immutable audit lineage with hash
 - The 6-step session protocol must auto-complete at boot (CAOM-001)

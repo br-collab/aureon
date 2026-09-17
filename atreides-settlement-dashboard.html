@@ -508,8 +508,23 @@ const LIVE_TASKINGS = [
          intraday_credit_limit:'50000000',intraday_credit_current_usage:'50000000',ficc_clearing_fund_compliant:true}},
 ];
 
+// AUR-I-03 (Wave 2): cockpit POSTs are authority mutations and need the
+// operator key (X-Admin-Key) plus a one-time nonce. The key is held in memory
+// for this tab only and forgotten if the server refuses it.
+let _adminKey = null;
 async function api(path, opts){
-  const r = await fetch(API_BASE+path, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
+  const o = Object.assign({headers:{'Content-Type':'application/json'}}, opts||{});
+  if ((o.method||'GET').toUpperCase() === 'POST') {
+    if (!_adminKey) _adminKey = (window.prompt('Operator key (X-Admin-Key):') || '').trim();
+    if (!_adminKey) return {status:401, json:{error:'Operator key required'}};
+    o.headers = Object.assign({}, o.headers, {
+      'X-Admin-Key': _adminKey,
+      'X-Request-Nonce': (crypto.randomUUID ? crypto.randomUUID()
+                          : String(Date.now()) + Math.random().toString(16).slice(2)).replace(/\./g, ''),
+    });
+  }
+  const r = await fetch(API_BASE+path, o);
+  if (r.status === 401 || r.status === 403) _adminKey = null;
   let j={}; try{ j = await r.json(); }catch(e){}
   return {status:r.status, json:j};
 }

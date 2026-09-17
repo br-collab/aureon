@@ -14,6 +14,8 @@ confirms execution.  Tape fields follow institutional standards:
 
 from datetime import datetime, timezone
 
+from aureon.policy_engine.evidence import fabricated_reason, is_fabricated, provenance_of
+
 
 def build_trade_report(
     *,
@@ -132,7 +134,7 @@ def build_trade_report(
         "approved_by":       "br@ravelobizdev.com",
         "gate_results":      gate_results,
         "frameworks_active": [
-            "MiFID II Art.17/RTS6", "SR 11-7", "Basel III",
+            "MiFID II Art.17/RTS6", "SR 26-2 / OCC 2026-13", "Basel III",
             "DORA Art.28", "Dodd-Frank 4a(1)",
         ],
 
@@ -145,13 +147,26 @@ def build_trade_report(
         "position_conc_post":      round(conc_post, 2),
         "var_impact":              round(var_impact, 4),
         "positions_post":          n_positions_post,
-        "macro_regime_at_exec":    macro_snapshot.get("macro_regime"),
-        "ofr_fsi_at_exec":         ofr_snapshot.get("fsi_value"),
-        "ofr_band_at_exec":        ofr_snapshot.get("fsi_band"),
+        # A fabricated default is recorded as no reading, never as a number:
+        # this artifact is evidence, and 0.38 from fixed constants is not
+        # evidence of anything (AUR-I-10, fix F1).
+        "macro_regime_at_exec":    (None if is_fabricated(macro_snapshot)
+                                    else macro_snapshot.get("macro_regime")),
+        "ofr_fsi_at_exec":         (None if is_fabricated(ofr_snapshot)
+                                    else ofr_snapshot.get("fsi_value")),
+        "ofr_band_at_exec":        (None if is_fabricated(ofr_snapshot)
+                                    else ofr_snapshot.get("fsi_band")),
         "systemic_overlay_source": ofr_snapshot.get("source"),
+        "systemic_overlay_provenance": provenance_of(ofr_snapshot).value,
+        "macro_provenance":        provenance_of(macro_snapshot).value,
     }
+    if is_fabricated(ofr_snapshot) or is_fabricated(macro_snapshot):
+        report["market_evidence_unavailable_reason"] = fabricated_reason(
+            ofr_snapshot if is_fabricated(ofr_snapshot) else macro_snapshot
+        )
 
     # ── Optional PDF generation ────────────────────────────────────
+
     try:
         from server import _generate_compliance_pdf  # noqa: PLC0415
         report["pdf_bytes"] = _generate_compliance_pdf(report)

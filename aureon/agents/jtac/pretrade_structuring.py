@@ -117,7 +117,7 @@ class ThifurJ(JTACConcreteBase):
         super().__init__(aureon_state, state_lock)
         self._dispatch = None  # lazy-loaded asset-class dispatch fixture (P-1)
         print(f"[THIFUR-J] Initialized — v{AGENT_J_VERSION} | "
-              f"Algorithm ID: {ALGORITHM_ID} | SR 11-7 Tier 1 declared")
+              f"Algorithm ID: {ALGORITHM_ID} | Tier 1 declared (NIST AI RMF 1.0 plus Aureon doctrine)")
 
     # ── Asset-class dispatch (Workstream P-1, AUR-PRETRADE-REG-001) ───────────
     def _load_dispatch(self, source_path: str | None = None) -> dict:
@@ -459,7 +459,9 @@ class ThifurJ(JTACConcreteBase):
                 if gate_id in base_ids:
                     continue  # base gates are the live engine's responsibility
                 if status == "declared":
+                    # The check cannot run: evidence unavailable, not a policy HOLD.
                     out.append({"gate": gate_id, "layer": layer, "status": "HOLD",
+                                "disposition": "INDETERMINATE",
                                 "detail": f"{desc} — declared, not yet implemented. Held."})
                 else:
                     out.append(self._run_gate(gate_id, layer, desc, decision,
@@ -467,7 +469,7 @@ class ThifurJ(JTACConcreteBase):
             return out
         except Exception as exc:
             return [{"gate": "ASSET_CLASS_DISPATCH", "layer": "Thifur-J",
-                     "status": "HOLD",
+                     "status": "HOLD", "disposition": "INDETERMINATE",
                      "detail": f"Asset-class dispatch error ({exc}) — held, not passed."}]
 
     def _gate_mandate(self, gate_id, layer, description, decision) -> dict:
@@ -685,6 +687,7 @@ class ThifurJ(JTACConcreteBase):
             cfg = self._load_mifir()
         except Exception as exc:
             return {"gate": gate_id, "layer": layer, "status": "HOLD",
+                    "disposition": "INDETERMINATE",
                     "detail": f"MiFIR fixture unavailable ({exc}) — held, not passed."}
 
         subtype   = (decision.get("instrument_subtype") or "other").strip().lower()
@@ -749,6 +752,7 @@ class ThifurJ(JTACConcreteBase):
             cfg = self._load_token_elig()
         except Exception as exc:
             return {"gate": gate_id, "layer": layer, "status": "HOLD",
+                    "disposition": "INDETERMINATE",
                     "detail": f"Tokenized-eligibility fixture unavailable ({exc}) — held."}
 
         issuer_id = decision.get("token_issuer_id")

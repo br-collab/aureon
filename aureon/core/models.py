@@ -43,8 +43,10 @@ class GovernedDecision:
             action=raw["action"],
             symbol=raw["symbol"],
             asset_class=raw["asset_class"],
-            shares=raw["shares"],
-            price=raw["price"],
+            # Operator-originated decisions carry notional without shares, and may
+            # omit price, until the single quantity model lands (AUR-I-04).
+            shares=raw.get("shares") or 0,
+            price=raw.get("price") or 0.0,
             notional=raw["notional"],
             product_type=raw.get("product_type", "SINGLE_NAME_EQUITY"),
             rationale=raw.get("rationale", ""),

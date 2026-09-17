@@ -68,7 +68,7 @@ from email.mime.text import MIMEText
 from html import unescape
 from datetime import datetime, timedelta, timezone, time as dt_time
 import zoneinfo
-from flask import Flask, Response, jsonify, send_from_directory, request
+from flask import Flask, Response, g, jsonify, send_from_directory, request
 from aureon.config.settings import LOG_FILE, STATE_FILE
 from aureon.config.atrox import get_atrox_source_document_text, get_atrox_declaration
 from aureon.config.thifur_c2_doctrine import get_c2_source_document_text, get_c2_doctrine_declaration
@@ -87,9 +87,21 @@ from aureon.mcp.cato_client import (
 )
 from aureon.persistence.store import load_state as persistence_load_state, save_state as persistence_save_state
 from aureon.policy_engine.service import evaluate_pretrade_decision
+from aureon.policy_engine.evidence import EvidenceProvenance, is_fabricated as _is_fabricated
+from aureon.policy_engine.binding import (
+    PolicyBindingError,
+    grant_hold_exception,
+    latest_policy_record,
+    persist_hold_exception,
+    pretrade_rules_digest,
+    require_approvable,
+)
 from aureon.evidence_service.service import build_trade_report as evidence_build_trade_report
 from aureon.approval_service.release_control import OMSReleaseError, can_release, missing_roles, normalize_decision, release_to_oms
-from aureon.approval_service.service import resolve_pending_decision
+from aureon.approval_service.service import AuthorityError, resolve_pending_decision, routed_required_approvals
+from aureon.contracts.approved_intent import IntentShapeError, normalize_quantity
+from aureon.booking.consumer import book_fill
+from aureon.integration_adapters.paper_venue import PaperVenue, PriceObservation, VenueRejection
 from aureon.integration_adapters.oms_adapter import send as oms_send
 from aureon.integration_adapters.ems_adapter import build_execution_release
 from aureon.session.session_protocol import SessionProtocol
@@ -224,6 +236,91 @@ SYMBOL_TO_ISIN = {
 }
 
 app = Flask(__name__, static_folder=THIS_DIR)
+
+# ── Authority mutations require the operator key and a fresh nonce (AUR-I-03) ──
+# One mechanism for every route that changes authority, positions or doctrine:
+# the X-Admin-Key check the Tier 0 halt routes already used, plus replay
+# protection. See aureon/approval_service/operator_auth.py. The decorator runs
+# before the handler, so a refused request changes no state.
+import functools as _functools
+from aureon.approval_service.operator_auth import (
+    BOOT_SERVICE_ACTOR as _BOOT_SERVICE_ACTOR,
+    NonceCache as _NonceCache,
+    authenticate as _authenticate_operator,
+)
+
+_authority_nonces = _NonceCache()
+#: Endpoints guarded by _authority_required, for the route inventory test.
+AUTHORITY_ENDPOINTS: set[str] = set()
+
+
+#: Until the actor registry (JUM-D-18), an MCP caller's human status is asserted
+#: by whoever holds the operator key, not proven (fix F2).
+MCP_HUMAN_STATUS_NOTE = (
+    "the caller's human status is asserted by possession of the operator key, not proven; "
+    "to be closed by the actor registry (JUM-D-18)"
+)
+
+
+def _authenticate_authority_request(action: str, headers, *, channel: str, channel_kind: str = "HTTP"):
+    """Authenticate one authority mutation and record it. Returns (denied, actor).
+
+    ``denied`` is (payload, status) when refused, else None. Shared by the
+    HTTP decorator and the MCP tool, so both apply the same key, nonce and
+    audit entry.
+    """
+    outcome = _authenticate_operator(
+        headers,
+        admin_key=os.environ.get("AUREON_ADMIN_KEY", ""),
+        nonces=_authority_nonces,
+        now=time.time(),
+    )
+    if not outcome.ok:
+        return ({
+            "status": "error",
+            "message": "unauthorized" if outcome.status == 401 else "forbidden",
+            "detail": outcome.error,
+            "action": action,
+        }, outcome.status), None
+    ts = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        aureon_state.setdefault("authority_log", []).insert(0, {
+            "id":        f"AUTH-{outcome.nonce[:12]}",
+            "ts":        ts,
+            "tier":      "Tier 1 — Human Authority",
+            "type":      f"AUTHENTICATED {action}",
+            "authority": outcome.actor.role,
+            "outcome":   channel,
+            "actor":     outcome.actor.model_dump(mode="json"),
+            "nonce":     outcome.nonce,
+            "channel":   channel_kind,
+            **({"caller_human_status": MCP_HUMAN_STATUS_NOTE} if channel_kind == "MCP" else {}),
+            "hash":      hashlib.sha256(
+                f"AUTH-{action}-{outcome.nonce}-{ts}".encode()
+            ).hexdigest()[:16].upper(),
+        })
+    return None, outcome.actor
+
+
+def _authority_required(action: str):
+    def decorate(view):
+        AUTHORITY_ENDPOINTS.add(view.__name__)
+
+        @_functools.wraps(view)
+        def guarded(*args, **kwargs):
+            denied, actor = _authenticate_authority_request(
+                action, request.headers, channel=f"{request.method} {request.path}"
+            )
+            if denied is not None:
+                payload, status = denied
+                return jsonify(payload), status
+            g.authority_actor = actor
+            return view(*args, **kwargs)
+
+        guarded.__authority_action__ = action
+        return guarded
+
+    return decorate
 from flask_cors import CORS
 CORS(app, origins=[
     "http://localhost:3000",
@@ -714,7 +811,7 @@ def _generate_compliance_pdf(report: dict) -> bytes:
     story.append(Paragraph("COMPLIANCE FRAMEWORKS ACTIVE AT EXECUTION", ParagraphStyle(
         "AFH", fontName="Helvetica-Bold", fontSize=8, textColor=MUTED, spaceAfter=4)))
     fw_text = "  \u00b7  ".join(report.get("frameworks_active",
-        ["MiFID II Art.17/RTS6","SR 11-7","Basel III","DORA Art.28","Dodd-Frank 4a(1)"]))
+        ["MiFID II Art.17/RTS6","SR 26-2 / OCC 2026-13","Basel III","DORA Art.28","Dodd-Frank 4a(1)"]))
     story.append(Paragraph(fw_text, ParagraphStyle(
         "AFT", fontName="Helvetica", fontSize=7, textColor=MUTED, spaceAfter=8)))
 
@@ -789,55 +886,6 @@ _INSTRUMENT_REF = {
 }
 
 
-
-
-def _apply_approved_trade(decision: dict, exec_price: float):
-    """
-    Apply an approved trade to positions and cash.
-    BUY adds a new lot and deducts cash.
-    SELL reduces existing lots FIFO-style and adds cash.
-    Returns (ok: bool, error_message: str | None).
-    """
-    symbol = decision["symbol"]
-    shares = decision["shares"]
-    asset_class = decision["asset_class"]
-    notional = shares * exec_price
-
-    if decision["action"] == "BUY":
-        aureon_state["positions"].append({
-            "symbol":      symbol,
-            "asset_class": asset_class,
-            "shares":      shares,
-            "cost":        round(exec_price, 2),
-            "agent":       "THIFUR_H",
-        })
-        aureon_state["cash"] -= notional
-        return True, None
-
-    remaining = shares
-    matched_positions = [p for p in aureon_state["positions"] if p["symbol"] == symbol]
-    available = sum(p.get("shares", 0) for p in matched_positions)
-    if available < shares:
-        return False, f"SELL blocked — available {symbol} shares {available:,.0f} < requested {shares:,.0f}"
-
-    new_positions = []
-    for pos in aureon_state["positions"]:
-        if pos["symbol"] != symbol or remaining <= 0:
-            new_positions.append(pos)
-            continue
-
-        lot_shares = pos.get("shares", 0)
-        to_sell = min(lot_shares, remaining)
-        remaining -= to_sell
-        left = lot_shares - to_sell
-        if left > 0:
-            updated = dict(pos)
-            updated["shares"] = left
-            new_positions.append(updated)
-
-    aureon_state["positions"] = new_positions
-    aureon_state["cash"] += notional
-    return True, None
 
 
 def _is_instrument_tradeable(symbol: str, asset_class: str) -> tuple:
@@ -1416,7 +1464,7 @@ def _send_trade_confirmation_email(report: dict):
         '<hr style="border:none;border-top:1px solid rgba(0,212,255,0.1);margin:0 0 12px">'
         f'<div style="font-size:9px;color:#4A5578;text-align:center">'
         f'{report_id} &middot; Aureon Grid 3 &middot; Kaladan L2 Compliance Artifact &middot; '
-        f'MiFID II Art.17/RTS6 &middot; SR 11-7 &middot; Not for external distribution</div>'
+        f'MiFID II Art.17/RTS6 &middot; SR 26-2 / OCC 2026-13 &middot; Not for external distribution</div>'
         '</div></body></html>'
     )
 
@@ -1987,8 +2035,15 @@ def _fred_series_recent(series_id: str, count: int = 2):
 
 
 def _fallback_macro_snapshot():
+    """Fixed constants for display when FRED cannot be read.
+
+    They are not a reading. Labelled FABRICATED_DEFAULT so gate 6 refuses them
+    and the audit fields record no number (AUR-I-10, fix F1).
+    """
     return {
         "source": "fallback",
+        "provenance": EvidenceProvenance.FABRICATED_DEFAULT.value,
+        "fabricated_reason": "FRED is unreachable; these are fixed constants, not a reading",
         "as_of": datetime.now(timezone.utc).date().isoformat(),
         "fed_funds": 5.33,
         "ust_10y": 4.21,
@@ -2031,6 +2086,7 @@ def _get_fred_macro_snapshot():
 
         data = {
             "source": "fred",
+            "provenance": EvidenceProvenance.FACT_EXTERNAL.value,
             "as_of": max(item["date"] for item in series.values()),
             "fed_funds": round(fed_funds, 2),
             "ust_10y": round(series["ust_10y"]["value"], 2),
@@ -2051,6 +2107,13 @@ def _get_fred_macro_snapshot():
 
 
 def _fallback_ofr_snapshot(macro_snapshot: dict):
+    """The OFR proxy, computed from the macro snapshot.
+
+    It is only a computation over live inputs when the macro snapshot itself is
+    live. Built on fabricated constants it is a fabricated default, however
+    measured the result looks (AUR-I-10, fix F1).
+    """
+    macro_fabricated = _is_fabricated(macro_snapshot)
     proxy_value = round(
         (
             max(0.0, macro_snapshot.get("vix", 24.0) - 18.0) * 0.045
@@ -2067,14 +2130,28 @@ def _fallback_ofr_snapshot(macro_snapshot: dict):
         stress_band = "watch"
     else:
         stress_band = "calm"
-    return {
+    snapshot = {
         "source": "ofr_proxy",
+        "provenance": (EvidenceProvenance.FABRICATED_DEFAULT.value if macro_fabricated
+                       else EvidenceProvenance.POLICY_RESULT.value),
+        "derived_from": macro_snapshot.get("source"),
         "as_of": macro_snapshot.get("as_of"),
         "fsi_value": proxy_value,
         "fsi_band": stress_band,
         "publication_lag_days": 2,
-        "summary": "Proxy OFR systemic-stress overlay derived from FRED macro conditions while the official monitor feed is unavailable.",
+        "summary": ("Proxy OFR systemic-stress overlay derived from FRED macro conditions while "
+                    "the official monitor feed is unavailable."),
     }
+    if macro_fabricated:
+        snapshot["fabricated_reason"] = (
+            "the OFR feed is unavailable and the proxy was computed from fixed macro constants, "
+            "not from live FRED series"
+        )
+        snapshot["summary"] = (
+            "No systemic-stress reading: neither the OFR index nor the FRED series it would be "
+            "derived from could be read. The figure below is a fixed default, not a measurement."
+        )
+    return snapshot
 
 
 def _get_ofr_stress_snapshot(macro_snapshot: dict):
@@ -2116,6 +2193,7 @@ def _get_ofr_stress_snapshot(macro_snapshot: dict):
                 stress_band = "calm"
             data = {
                 "source": "ofr",
+                "provenance": EvidenceProvenance.FACT_EXTERNAL.value,
                 "as_of": macro_snapshot.get("as_of"),
                 "fsi_value": round(fsi_value, 2),
                 "fsi_band": stress_band,
@@ -2396,7 +2474,9 @@ def _cato_refresh_inputs():
     # OFR stress — read from the market_loop-maintained _ofr_cache.
     try:
         ofr_data = _ofr_cache.get("data")
-        if ofr_data and ofr_data.get("fsi_value") is not None:
+        # A fabricated default is not a reading: leave ofr_stress None so Cato's
+        # own fail-closed path holds rather than scoring a constant (fix F1).
+        if ofr_data and ofr_data.get("fsi_value") is not None and not _is_fabricated(ofr_data):
             ofr_stress = float(ofr_data["fsi_value"])
     except Exception as exc:
         _log_error("WARN", "cato_refresh:ofr", str(exc))
@@ -3447,11 +3527,14 @@ def _generate_signal():
         "signal_brief":       signal_brief,
     }
 
+    decision["required_approvals"] = routed_required_approvals(decision)
+
     with _lock:
         if aureon_state["halt_active"]:
             return
         if len(aureon_state["pending_decisions"]) < 4:
             aureon_state["pending_decisions"].append(decision)
+    threading.Thread(target=_save_state, daemon=True).start()  # AUR-I-17
 
     _journal("SIGNAL_GENERATED", "THIFUR-H", symbol,
              f"{signal_type} signal: {action} {symbol} ${notional:,}. {rationale}",
@@ -4331,6 +4414,17 @@ def run_doctrine_stack():
             aureon_state["c2_j_surveillance_log"] = saved.get("c2_j_surveillance_log", [])
             # ── WS-1 Clearing Cockpit DSOR bridge ────────────
             aureon_state["cockpit_dsor_log"] = saved.get("cockpit_dsor_log", [])
+            # ── W2B-3 policy evidence (AUR-I-01) ─────────────────
+            aureon_state["policy_evaluations"]     = saved.get("policy_evaluations",     [])
+            aureon_state["policy_hold_exceptions"] = saved.get("policy_hold_exceptions", [])
+            # ── W2B-4 / AUR-I-17: pending decisions and execution events ──
+            aureon_state["pending_decisions"]     = saved.get("pending_decisions",     [])
+            aureon_state["release_events"]        = saved.get("release_events",        [])
+            aureon_state["approved_intents"]      = saved.get("approved_intents",      [])
+            aureon_state["venue_fills"]           = saved.get("venue_fills",           [])
+            aureon_state["booked_fill_ids"]       = saved.get("booked_fill_ids",       [])
+            aureon_state["booking_breaks"]        = saved.get("booking_breaks",        [])
+            aureon_state["c2_awaiting_execution"] = saved.get("c2_awaiting_execution", {})
         else:
             # ── First-ever launch — seed from INITIAL_POSITIONS ───
             aureon_state["positions"] = [dict(p) for p in INITIAL_POSITIONS]
@@ -4338,7 +4432,10 @@ def run_doctrine_stack():
             aureon_state["mmf_provider"] = _resolve_mmf_provider()
 
         if not aureon_state["pending_decisions"]:
-            aureon_state["pending_decisions"] = [dict(d) for d in PENDING_DECISIONS_INIT]
+            aureon_state["pending_decisions"] = [
+                {**d, "required_approvals": routed_required_approvals(d)}
+                for d in PENDING_DECISIONS_INIT
+            ]
 
     # ── WS-0.1: restore the full C2 registers (outside _lock) ─────
     if saved:
@@ -4359,7 +4456,7 @@ def run_doctrine_stack():
     # ── Initialize MCP server with live state ─────────────────────
     # Inject aureon_state and OFAC list so MCP resources reflect
     # real-time system state from this point forward.
-    init_mcp(aureon_state, _lock, OFAC_BLOCKED_ISINS)
+    init_mcp(aureon_state, _lock, OFAC_BLOCKED_ISINS, resolve_decision=_mcp_resolve_decision)
     print("[AUREON] MCP server initialized — Phase 1 Verana L0 — POST /mcp")
 
     # ── Initialize Atrox data pipes ───────────────────────
@@ -4421,6 +4518,7 @@ def market_loop():
 
             with _lock:
                 aureon_state["prices"]          = prices
+                aureon_state["prices_observed_at"] = datetime.now(timezone.utc).isoformat()
                 aureon_state["portfolio_value"] = total
                 aureon_state["pnl"]             = pnl
                 aureon_state["pnl_pct"]         = pnl_pct
@@ -4701,7 +4799,10 @@ def api_compliance():
             "macro":         macro_snapshot,
             "ofr":           ofr_snapshot,
             "frameworks": [
-                {"name": "SR 11-7 — Model Risk Management",      "status": "SATISFIED"},
+                # Alignment, not compliance: SR 26-2 / OCC 2026-13 superseded SR 11-7 on
+                # 17 Apr 2026 and excludes agentic AI, which NIST AI RMF 1.0 covers (W2-ADD-02).
+                {"name": "SR 26-2 / OCC 2026-13 — alignment (quantitative models)", "status": "ALIGNMENT"},
+                {"name": "NIST AI RMF 1.0 — alignment (agentic components)",        "status": "ALIGNMENT"},
                 {"name": "OCC 2023-17 — Third-Party Risk",        "status": "SATISFIED"},
                 {"name": "BCBS 239 — Risk Data Aggregation",      "status": "SATISFIED"},
                 {"name": "MiFID II Art. 17 / RTS 6",              "status": "SATISFIED"},
@@ -4890,6 +4991,7 @@ def _mmf_dsor_to_dict(rec) -> dict:
 
 
 @app.route("/api/mmf/subscribe", methods=["POST"])
+@_authority_required("MMF_SUBSCRIBE")
 def api_mmf_subscribe():
     """Process a subscription into Lane F (FIAT) or Lane D (Digital).
     Body: {investor_id, lane: "F"|"D", amount_usd}.
@@ -4910,6 +5012,7 @@ def api_mmf_subscribe():
 
 
 @app.route("/api/mmf/redeem", methods=["POST"])
+@_authority_required("MMF_REDEEM")
 def api_mmf_redeem():
     """Process a redemption. Body: {investor_id, shares_to_redeem,
     currency?}. Lane and payout currency are derived from the
@@ -4958,6 +5061,7 @@ def api_mmf_redeem():
 
 
 @app.route("/api/mmf/digital/register_investor", methods=["POST"])
+@_authority_required("MMF_REGISTER_INVESTOR")
 def api_mmf_register_investor():
     """Register a new investor for Lane D XRPL atomic DvP. Sandbox
     custody model — the fund auto-generates the investor's XRPL
@@ -5014,6 +5118,7 @@ def api_mmf_digital_status():
 # env var. Production Railway env must leave this unset or set to 0.
 # Without the flag, this route returns 403 and no override takes effect.
 @app.route("/api/mmf/_test/cato_override", methods=["POST"])
+@_authority_required("MMF_TEST_CATO_OVERRIDE")
 def api_mmf_test_cato_override():
     if not subscription_engine._test_hooks_enabled():
         return jsonify({
@@ -5117,6 +5222,7 @@ def api_mmf_dsor():
 
 
 @app.route("/api/mmf/sweep/trigger", methods=["POST"])
+@_authority_required("MMF_SWEEP_TRIGGER")
 def api_mmf_sweep_trigger():
     """Operator-only manual NAV sweep override. Optional query param
     `?force_allow_stale=1` mirrors the CLI test hook and bypasses the
@@ -5132,6 +5238,7 @@ def api_mmf_sweep_trigger():
 
 
 @app.route("/api/mmf/circuit/reset", methods=["POST"])
+@_authority_required("MMF_CIRCUIT_RESET")
 def api_mmf_circuit_reset():
     """Operator reset of the NAV engine circuit breaker. Emits
     NAV_CIRCUIT_RESET in the MMF DSOR log. Body (optional):
@@ -5147,6 +5254,7 @@ def api_mmf_circuit_reset():
 
 
 @app.route("/api/mmf/hitl/resolve", methods=["POST"])
+@_authority_required("MMF_HITL_RESOLVE")
 def api_mmf_hitl_resolve():
     """Resolve a pending KYC exception or Cato HOLD. The originating
     event remains in the DSOR log (append-only); this endpoint stamps
@@ -5205,6 +5313,7 @@ def api_decisions():
 
 
 @app.route("/api/decisions/create", methods=["POST"])
+@_authority_required("DECISION_CREATE")
 def api_create_decision():
     """WS-P5 — operator order-entry front door (governed origination).
 
@@ -5227,10 +5336,6 @@ def api_create_decision():
     action      = (data.get("action") or "").strip().upper()
     asset_class = (data.get("asset_class") or "").strip().lower()
     try:
-        notional = float(data.get("notional", 0) or 0)
-    except (TypeError, ValueError):
-        notional = 0.0
-    try:
         price = float(data["price"]) if data.get("price") not in (None, "") else None
     except (TypeError, ValueError):
         price = None
@@ -5240,9 +5345,33 @@ def api_create_decision():
     if not symbol:                       errs.append("symbol required")
     if action not in ("BUY", "SELL"):    errs.append("action must be BUY or SELL")
     if not asset_class:                  errs.append("asset_class required")
-    if notional <= 0:                    errs.append("notional must be > 0")
     if errs:
         return jsonify({"error": "; ".join(errs)}), 400
+
+    # ── One quantity model (AUR-I-04) ─────────────────────────────
+    # Either quantity (with its unit) or notional (with its currency),
+    # validated for the asset class, so an operator order reaches the same
+    # valid intent shape as a signal decision.
+    quantity_in = data.get("quantity", data.get("shares"))
+    try:
+        terms = normalize_quantity(
+            asset_class,
+            quantity=quantity_in,
+            quantity_unit=data.get("quantity_unit"),
+            notional=data.get("notional"),
+            currency=data.get("currency"),
+        )
+    except IntentShapeError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if terms.basis == "QUANTITY":
+        with _lock:
+            estimate_price = price or (aureon_state.get("prices") or {}).get(symbol)
+        if not estimate_price:
+            return jsonify({"error": f"no price for {symbol} to estimate the notional of a "
+                                     "quantity order; give a price or a notional"}), 400
+        notional = float(terms.quantity) * float(estimate_price)
+    else:
+        notional = float(terms.notional)
 
     with _lock:
         if aureon_state.get("halt_active"):
@@ -5257,6 +5386,11 @@ def api_create_decision():
         "asset_class": asset_class,
         "price":       price,
         "notional":    notional,
+        "quantity_basis": terms.basis,
+        "quantity_unit":  terms.quantity_unit,
+        "currency":       terms.currency,
+        **({"shares": float(terms.quantity) if not terms.whole_units else int(terms.quantity)}
+           if terms.basis == "QUANTITY" else {}),
         "product_type": "SINGLE_NAME_EQUITY" if asset_class == "equities" else asset_class.upper(),
         "rationale":   (data.get("rationale") or "Operator-originated order").strip(),
         "signal_type": "OPERATOR_ORDER",
@@ -5279,6 +5413,7 @@ def api_create_decision():
               "waiver_claimed", "counterparty_name", "counterparty_jurisdiction"):
         if data.get(f) is not None:
             decision[f] = data[f]
+    decision["required_approvals"] = routed_required_approvals(decision)
 
     with _lock:
         aureon_state.setdefault("pending_decisions", []).append(decision)
@@ -5297,40 +5432,232 @@ def api_create_decision():
     })
 
 
+_PAPER_PRICE_MAX_AGE_SECONDS = 300
+
+
+def _market_cache_price(symbol: str):
+    """The paper venue's price source: the market-data cache, with its own observation time."""
+    observed_raw = aureon_state.get("prices_observed_at")
+    value = (aureon_state.get("prices") or {}).get(symbol)
+    if not observed_raw or value is None:
+        return None
+    observed_at = datetime.fromisoformat(observed_raw)
+    if (datetime.now(timezone.utc) - observed_at).total_seconds() > _PAPER_PRICE_MAX_AGE_SECONDS:
+        return None
+    return PriceObservation(price=str(value), observed_at=observed_at, source="aureon market-data cache")
+
+
+_paper_venue = PaperVenue(price_source=_market_cache_price, clock=lambda: _approval_clock())
+
+
+def _deliver_release_to_venue(release, decision) -> dict:
+    """Send an authorized release to the paper venue and book the fill, once.
+
+    Returns a summary of what happened: FILLED and BOOKED, REJECTED by the
+    venue, or a BOOKING_REFUSED break. A duplicate delivery returns the
+    original fill and books nothing.
+    """
+    with _lock:
+        outcome = _paper_venue.execute(aureon_state, release)
+        if isinstance(outcome, VenueRejection):
+            aureon_state.setdefault("booking_breaks", []).insert(0, {
+                "type": "VENUE_REJECTED", **outcome.model_dump(mode="json")})
+            booking = None
+        else:
+            booking = book_fill(aureon_state, outcome, release, decision=decision)
+    if isinstance(outcome, VenueRejection):
+        _journal("EXECUTION_REJECTED", outcome.venue, release.symbol,
+                 f"{release.action} {release.symbol} not executed: {outcome.reason}. Nothing booked.",
+                 outcome="VENUE_REJECTED", ref_id=release.release_id)
+        return {"status": "VENUE_REJECTED", "release_id": release.release_id,
+                "reason": outcome.reason}
+
+    summary = {
+        "status":         booking.status,
+        "release_id":     release.release_id,
+        "fill_id":        outcome.fill_id,
+        "venue":          outcome.venue,
+        "provenance":     outcome.provenance.value,
+        "exec_price":     float(outcome.price),
+        "quantity":       outcome.quantity,
+        "reconciliation": booking.reconciliation,
+    }
+    if booking.status == "REFUSED":
+        summary["error"] = booking.error
+        _journal("BOOKING_REFUSED", "BOOKING", release.symbol,
+                 f"Fill {outcome.fill_id} not booked: {booking.error}",
+                 outcome="BOOKING_REFUSED", ref_id=release.release_id)
+        return summary
+    if booking.status == "DUPLICATE":
+        return summary
+
+    _journal("EXECUTION_BOOKED", "BOOKING", release.symbol,
+             f"{outcome.action} {outcome.quantity} {outcome.symbol} @ {outcome.price} "
+             f"({outcome.venue}, {outcome.provenance.value}) booked from fill {outcome.fill_id}"
+             + (f"; reconciliation breaks: {booking.reconciliation}" if booking.reconciliation else ""),
+             outcome="BOOKED" if not booking.reconciliation else "BOOKED_WITH_DISCREPANCY",
+             ref_id=release.release_id)
+    try:
+        trade_report = _build_trade_report(
+            dict(decision, shares=float(outcome.quantity)),
+            float(outcome.price),
+            release.authority_hash,
+            [],
+            booking.portfolio_before,
+        )
+        with _lock:
+            aureon_state.setdefault("trade_reports", []).insert(0, trade_report)
+        summary["report_id"] = trade_report.get("report_id")
+        threading.Thread(target=_send_trade_confirmation_email, args=(trade_report,),
+                         daemon=True).start()
+    except Exception as exc:
+        print(f"[AUREON] Trade report build failed: {exc}")
+    try:
+        _thifur_c2.on_execution_event(outcome.model_dump(mode="json"))
+    except Exception as exc:
+        _log_error("WARN", "c2.on_execution_event", str(exc))
+    return summary
+
+
+def _approval_clock() -> datetime:
+    """Time for pre-trade records and approvals. One function, so a test can fix it and
+    compare envelope digests across channels."""
+    return datetime.now(timezone.utc)
+
+
+def _mcp_resolve_decision(arguments: dict, headers) -> tuple[dict, int]:
+    """MCP tool aureon_resolve_decision: the operator key, then the same path as the API."""
+    denied, actor = _authenticate_authority_request(
+        "DECISION_RESOLVE", headers, channel="MCP tools/call aureon_resolve_decision",
+        channel_kind="MCP")
+    if denied is not None:
+        return denied
+    return _resolve_decision_request(str(arguments.get("decision_id") or ""), dict(arguments),
+                                     actor=actor)
+
+
+def _pretrade_rules_digest() -> str:
+    """Digest of the pre-trade rules in force; a record for other rules is stale."""
+    return pretrade_rules_digest(
+        risk_policy=RISK_MANAGER_POLICY,
+        operating_cash_floor_pct=OPERATING_CASH_FLOOR_PCT,
+        ofac_blocked_isins=OFAC_BLOCKED_ISINS,
+    )
+
+
+def _hold_exception_from_request(decision_id: str, body: dict, approval_role: str, actor):
+    """A typed HOLD exception from the resolve request, granted by the authenticated operator."""
+    record = latest_policy_record(aureon_state, decision_id)
+    if record is None:
+        raise PolicyBindingError(
+            "NO_POLICY_EVIDENCE",
+            f"no pre-trade gate result for {decision_id}; run the pre-trade check first",
+        )
+    try:
+        ttl_seconds = int(body.get("ttl_seconds", 0))
+    except (TypeError, ValueError):
+        ttl_seconds = 0
+    return grant_hold_exception(
+        record=record,
+        actor=actor,
+        authority_role=approval_role,
+        reason=str(body.get("reason") or ""),
+        ttl_seconds=ttl_seconds,
+        now=_approval_clock(),
+    )
+
+
+def _policy_refusal(exc: PolicyBindingError, decision_id: str):
+    _journal("DECISION_POLICY_REFUSED", "POLICY-ENGINE", decision_id,
+             f"Approval of {decision_id} refused — {exc.message}",
+             outcome=exc.code, ref_id=decision_id)
+    return {
+        "status":      "refused",
+        "error":       exc.message,
+        "code":        exc.code,
+        "decision_id": decision_id,
+    }, 409
+
+
 @app.route("/api/decisions/<decision_id>", methods=["POST"])
+@_authority_required("DECISION_RESOLVE")
 def api_resolve_decision(decision_id):
     """
-    Approve or reject a pending trade decision.
-    Called when you click APPROVE or REJECT in the dashboard.
-    Expects JSON body: {"resolution": "APPROVED"} or {"resolution": "REJECTED"}
+    Approve or reject a pending trade decision (dashboard and API).
+    Expects JSON body: {"resolution": "APPROVED"} or {"resolution": "REJECTED"}.
+    The MCP tool aureon_resolve_decision and the CLI reach the same function.
+    """
+    payload, status = _resolve_decision_request(
+        decision_id, request.get_json() or {}, actor=g.authority_actor
+    )
+    return jsonify(payload), status
+
+
+def _resolve_decision_request(decision_id, data, *, actor):
+    """
+    The one application path for resolving a decision, whatever the channel.
 
     This is the core of the Human Authority Doctrine:
-      - APPROVED → trade is executed, logged with your hash
-      - REJECTED → trade is cancelled, still logged for audit
+      - APPROVED → the intent is sealed and release authorized; the book
+        changes only when the venue fills
+      - REJECTED → the decision is cancelled, still logged for audit
+
+    ``actor`` is the authenticated operator (W2B-2). Returns (payload, status).
     """
     # CAOM-001 session guard — operator must have opened a session
     from aureon.config.caom import is_caom_active
     if is_caom_active() and not _session_protocol.is_session_open():
-        return jsonify({
+        return ({
             "error": "Session not open. Complete the CAOM-001 session open "
                      "protocol before approving decisions.",
             "session_status": _session_protocol.get_status()["session_status"],
         }), 403
 
-    data       = request.get_json() or {}
+    data       = data or {}
     resolution = data.get("resolution", "").upper()
     approval_role = (data.get("approval_role") or "TRADER").upper()
 
     if resolution not in ("APPROVED", "REJECTED"):
-        return jsonify({"error": "resolution must be APPROVED or REJECTED"}), 400
+        return ({"error": "resolution must be APPROVED or REJECTED"}), 400
+
+    # ── Policy binding (AUR-I-01) ────────────────────────────────────────────
+    # An approval needs the persisted pre-trade result for this decision's
+    # current terms and rules: a PASS, or a HOLD with a typed exception. An
+    # exception may be granted in the same request:
+    #   "hold_exception": {"reason": "...", "ttl_seconds": 900}
+    rules_digest = _pretrade_rules_digest()
+    hold_exception = None
+    decision_obj = None
+    refusal = None
+    if resolution == "APPROVED":
+        with _lock:
+            pending = aureon_state["pending_decisions"]
+            decision_obj = next((d for d in pending if d.get("id") == decision_id), None)
+            if decision_obj is not None:
+                try:
+                    evidence = aureon_state
+                    if isinstance(data.get("hold_exception"), dict):
+                        hold_exception = _hold_exception_from_request(
+                            decision_id, data["hold_exception"], approval_role, actor
+                        )
+                        evidence = {
+                            **aureon_state,
+                            "policy_hold_exceptions": [
+                                hold_exception.model_dump(mode="json"),
+                                *aureon_state.get("policy_hold_exceptions", []),
+                            ],
+                        }
+                    require_approvable(evidence, decision_obj, rules_digest=rules_digest,
+                                       now=_approval_clock())
+                except PolicyBindingError as exc:
+                    refusal = exc
+        if refusal is not None:
+            return _policy_refusal(refusal, decision_id)
 
     # ── Session boundary check for APPROVED trades ────────────────────────────
     # Record the approval regardless of market hours; defer execution if the
     # instrument's session is closed. Approval is never lost.
     if resolution == "APPROVED":
-        with _lock:
-            pending = aureon_state["pending_decisions"]
-            decision_obj = next((d for d in pending if d.get("id") == decision_id), None)
         if decision_obj is not None:
             sym = decision_obj.get("symbol", "SPY")
             acls = decision_obj.get("asset_class", "equities")
@@ -5338,8 +5665,11 @@ def api_resolve_decision(decision_id):
             if not tradeable:
                 ts = datetime.now(timezone.utc).isoformat()
                 with _lock:
+                    if hold_exception is not None:
+                        persist_hold_exception(aureon_state, hold_exception)
                     decision_obj["status"]      = "APPROVED_PENDING_SESSION"
                     decision_obj["approved_at"] = ts
+                    decision_obj["approved_by"] = actor.model_dump(mode="json")
                     decision_obj["session_reason"] = session_reason
                 threading.Thread(target=_save_state, daemon=True).start()
                 _journal("DECISION_DEFERRED", "VERANA-L0", sym,
@@ -5349,7 +5679,7 @@ def api_resolve_decision(decision_id):
                          ref_id=decision_id)
                 print(f"[AUREON] APPROVED_PENDING_SESSION: {decision_obj.get('action')} "
                       f"{sym} — {session_reason}")
-                return jsonify({
+                return ({
                     "status":      "APPROVED_PENDING_SESSION",
                     "message":     "Approval recorded. Execution deferred to next session open.",
                     "reason":      session_reason,
@@ -5364,12 +5694,23 @@ def api_resolve_decision(decision_id):
             decision_id=decision_id,
             resolution=resolution,
             approval_role=approval_role,
-            build_trade_report=_build_trade_report,
+            actor=actor,
+            rules_digest=rules_digest,
+            hold_exception=hold_exception,
+            now=_approval_clock(),
         )
+    except PolicyBindingError as exc:
+        return _policy_refusal(exc, decision_id)
+    except AuthorityError as exc:
+        return {"status": "refused", "error": exc.message, "code": exc.code,
+                "decision_id": decision_id}, 403
+    except IntentShapeError as exc:
+        return {"status": "refused", "error": str(exc), "code": "INTENT_INVALID",
+                "decision_id": decision_id}, 422
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return ({"error": str(exc)}), 400
     except LookupError:
-        return jsonify({"error": "decision not found"}), 404
+        return ({"error": "decision not found"}), 404
     except RuntimeError as exc:
         message = str(exc)
         status = 423 if "SYSTEM HALTED" in message else 409
@@ -5378,21 +5719,23 @@ def api_resolve_decision(decision_id):
             if status == 423:
                 payload["halt_reason"] = aureon_state["halt_reason"]
                 payload["halt_ts"] = aureon_state["halt_ts"]
-        return jsonify(payload), status
+        return payload, status
 
     authority_hash = result["hash"]
     decision = result["decision"]
     release_failure = None
+    execution = None
     if resolution == "APPROVED" and result["status"] == "ok":
-        print(f"[AUREON] APPROVED: {decision['action']} {decision['symbol']} "
-              f"${decision['notional']:,} — hash {authority_hash}")
+        print(f"[AUREON] RELEASE AUTHORIZED: {decision['action']} {decision['symbol']} "
+              f"${float(decision['notional']):,.0f} — {result['release'].release_id}")
 
         # EMS-targeted decisions go straight to the EMS release package and
         # never touch the OMS. Everything else is sent to the OMS, and a send
         # that fails or is not ACCEPTED raises — it cannot read as released.
         if decision.get("release_target") == "EMS":
             release_mode = "EMS"
-            release_packet = build_execution_release(decision, authority_hash)
+            release_packet = build_execution_release(
+                decision, authority_hash, approved_intent=result["envelope"].model_dump(mode="json"))
         else:
             release_mode = "OMS"
             try:
@@ -5400,38 +5743,35 @@ def api_resolve_decision(decision_id):
                     decision,
                     authority_hash=authority_hash,
                     oms_send=oms_send,
+                    approved_intent=result["envelope"].model_dump(mode="json"),
                 )
             except OMSReleaseError as exc:
                 release_packet = exc.package
                 release_failure = exc
+        release_packet["release_id"] = result["release"].release_id
         with _lock:
             aureon_state.setdefault("integration_handoffs", []).insert(0, release_packet)
 
     if release_failure is not None:
-        # The approval is recorded and resolve_pending_decision has already
-        # booked the trade; the OMS never received it. Record the break and
-        # skip the post-release steps that would assert a release happened.
+        # Release was authorized but the OMS never received it. Nothing was
+        # booked (approval books nothing), and nothing goes to the venue.
         print(f"[AUREON] RELEASE FAILED: {decision['symbol']} — {release_failure.reason}")
         _journal("DECISION_RELEASE_FAILED", "OPERATOR", decision["symbol"],
                  f"{decision['action']} {decision['symbol']} "
-                 f"${decision.get('notional',0):,.0f} approved and booked, but the OMS "
-                 f"did not receive it: {release_failure.reason}",
+                 f"${float(decision.get('notional',0)):,.0f} release authorized, but the OMS "
+                 f"did not receive it: {release_failure.reason}. Nothing was booked.",
                  authority=approval_role, outcome=release_packet.get("status", "SEND_FAILED"),
                  ref_id=authority_hash)
     elif resolution == "APPROVED" and result["status"] == "ok":
         _journal("DECISION_APPROVED", "OPERATOR", decision["symbol"],
                  f"{decision['action']} {decision['symbol']} "
-                 f"${decision.get('notional',0):,.0f} — {decision.get('rationale','')}",
-                 authority=approval_role, outcome="RELEASED", ref_id=authority_hash)
+                 f"${float(decision.get('notional',0)):,.0f} — {decision.get('rationale','')}",
+                 authority=approval_role, outcome="RELEASE_AUTHORIZED", ref_id=authority_hash)
+        print(f"[AUREON] RELEASED TO {release_mode}: {decision['symbol']} — awaiting execution")
 
-        trade_report = result["trade_report"]
-        if trade_report:
-            threading.Thread(
-                target=_send_trade_confirmation_email,
-                args=(trade_report,),
-                daemon=True,
-            ).start()
-        print(f"[AUREON] RELEASED TO {release_mode}: {decision['symbol']} — governed release complete")
+        # The venue is a separate step: it fills from its own price
+        # observation, and booking consumes the fill (AUR-I-02).
+        execution = _deliver_release_to_venue(result["release"], decision)
 
         # WS-2.6: guarded Tier 2 post-release screening. Each agent runs
         # ONLY when the decision carries the fields it requires — otherwise
@@ -5473,7 +5813,7 @@ def api_resolve_decision(decision_id):
     except Exception:
         _latency = None
 
-    _exec_price   = result.get("trade_report", {}).get("exec_price") if result.get("trade_report") else None
+    _exec_price   = (execution or {}).get("exec_price")
     _signal_price = _dec_obj.get("price")
     _slippage     = round(_exec_price - _signal_price, 4) if (_exec_price and _signal_price and resolution == "APPROVED") else None
 
@@ -5496,8 +5836,18 @@ def api_resolve_decision(decision_id):
         "approval_ts":            _now_ts,
         "approval_latency_sec":   _latency,
         "signal_brief":           _dec_obj.get("signal_brief"),
-        "pretrade_gates":         _build_pretrade_checks_from_cache(result["decision_id"]),
+        "pretrade_gates":         (
+            [g_.model_dump(mode="json") for g_ in result["policy_record"].gates]
+            if result.get("policy_record") is not None else []
+        ),
+        "policy_record_id":       (
+            result["policy_record"].record_id if result.get("policy_record") is not None else None
+        ),
     }
+    if result.get("release") is not None:
+        _jrn_entry["release_id"] = result["release"].release_id
+    if execution is not None:
+        _jrn_entry["execution"] = execution
     if release_failure is not None:
         _jrn_entry["release_status"] = release_packet.get("status")
         _jrn_entry["release_error"]  = release_failure.reason
@@ -5510,200 +5860,115 @@ def api_resolve_decision(decision_id):
     threading.Thread(target=_save_state, daemon=True).start()
 
     if release_failure is not None:
-        return jsonify({
+        return ({
             "status":         "release_failed",
-            "error":          "The approval is recorded and the trade is booked, but the OMS "
-                              "did not receive it. Reconcile before any re-release.",
+            "error":          "Release is authorized, but the OMS did not receive it. Nothing "
+                              "was booked. Reconcile before any re-release.",
             "reason":         release_failure.reason,
             "release_status": release_packet.get("status"),
             "decision_id":    result["decision_id"],
+            "release_id":     result["release"].release_id,
             "hash":           authority_hash,
-            "report_id":      result["report_id"],
         }), 502
 
-    return jsonify({
+    return ({
         "status": result["status"],
         "resolution": result["resolution"],
         "decision_id": result["decision_id"],
         "hash": authority_hash,
-        "report_id": result["report_id"],
+        "release_id": result["release"].release_id if result.get("release") else None,
+        "envelope_id": str(result["envelope"].envelope_id) if result.get("envelope") else None,
+        "envelope_digest": result["envelope"].digest if result.get("envelope") else None,
+        "execution": execution,
+        "report_id": (execution or {}).get("report_id"),
         "approval_role": approval_role,
         "current_approvals": decision.get("current_approvals", []),
         "required_approvals": decision.get("required_approvals", []),
-    })
-
-
-def _build_pretrade_checks_from_cache(decision_id: str) -> list:
-    """
-    Build pretrade gate results purely from cached aureon_state.
-    No external API calls — guaranteed to return instantly.
-    Used as the fallback when the full pretrade check times out.
-    """
-    with _lock:
-        decision = next(
-            (d for d in aureon_state.get("pending_decisions", []) if d["id"] == decision_id),
-            None,
-        )
-        if decision is None:
-            return []
-        portfolio_value = aureon_state.get("portfolio_value", 0.0)
-        cash            = aureon_state.get("cash", 0.0)
-        drawdown        = aureon_state.get("drawdown", 0.0)
-        positions       = list(aureon_state.get("positions", []))
-        prices          = dict(aureon_state.get("prices", {}))
-
-    symbol      = decision.get("symbol", "")
-    notional    = float(decision.get("notional", 0))
-    asset_class = decision.get("asset_class", "")
-    is_crypto   = symbol in {"BTC", "ETH", "SOL"}
-
-    # Gate 1 — market status (use cached _market_is_open)
-    market_open = _market_is_open()
-    gates = [{
-        "gate":   "MARKET_STATUS",
-        "layer":  "Verana L0",
-        "status": "PASS",
-        "detail": "24/7 crypto market" if is_crypto else (
-                  "US equity session open" if market_open else
-                  "US equity/FX market closed — execution will queue for next session"),
-    }]
-    if not is_crypto and not market_open:
-        gates[0]["status"] = "WARN"
-
-    # Gate 2 — cash sufficiency
-    cash_floor = portfolio_value * OPERATING_CASH_FLOOR_PCT
-    cash_avail = max(0.0, cash - cash_floor)
-    gates.append({
-        "gate":   "CASH_SUFFICIENCY",
-        "layer":  "Kaladan L2",
-        "status": "PASS" if cash_avail >= notional else "FAIL",
-        "detail": (f"Available: ${cash_avail:,.0f} ≥ Notional: ${notional:,.0f}"
-                   if cash_avail >= notional
-                   else f"Available: ${cash_avail:,.0f} < Notional: ${notional:,.0f} — insufficient cash"),
-    })
-
-    # Gate 3 — position concentration
-    class_value = sum(
-        pos["shares"] * prices.get(pos["symbol"], pos.get("cost", 0))
-        for pos in positions if pos.get("asset_class") == asset_class
-    )
-    class_pct = (class_value / portfolio_value * 100) if portfolio_value > 0 else 0.0
-    warn_pct  = RISK_MANAGER_POLICY.get("position_warn_pct", 10.0)
-    fail_pct  = RISK_MANAGER_POLICY.get("position_fail_pct", 15.0)
-    pos_status = "FAIL" if class_pct >= fail_pct else "WARN" if class_pct >= warn_pct else "PASS"
-    gates.append({
-        "gate":   "POSITION_CONCENTRATION",
-        "layer":  "Mentat L1",
-        "status": pos_status,
-        "detail": f"{asset_class} at {class_pct:.1f}% — {'exceeds hard limit' if pos_status == 'FAIL' else 'approaching limit' if pos_status == 'WARN' else 'within limits'} {fail_pct:.0f}%",
-    })
-
-    # Gate 4 — drawdown limit
-    dd_warn = RISK_MANAGER_POLICY.get("drawdown_warn_pct", 5.0)
-    dd_fail = RISK_MANAGER_POLICY.get("drawdown_fail_pct", 8.0)
-    dd_status = "FAIL" if drawdown >= dd_fail else "WARN" if drawdown >= dd_warn else "PASS"
-    gates.append({
-        "gate":   "DRAWDOWN_LIMIT",
-        "layer":  "Mentat L1",
-        "status": dd_status,
-        "detail": f"Drawdown {drawdown:.2f}% — {'exceeds hard limit' if dd_status == 'FAIL' else 'approaching limit' if dd_status == 'WARN' else 'within policy'} {dd_fail:.0f}%",
-    })
-
-    # Gate 5 — OFAC screening
-    isin = SYMBOL_TO_ISIN.get(symbol)
-    gates.append({
-        "gate":   "OFAC_SDN_SCREEN",
-        "layer":  "Verana L0",
-        "status": "FAIL" if (isin and isin in OFAC_BLOCKED_ISINS) else "PASS",
-        "detail": f"BLOCKED — {OFAC_BLOCKED_ISINS[isin]}" if (isin and isin in OFAC_BLOCKED_ISINS) else "No SDN / sanctions match",
-    })
-
-    # Gate 6 — macro stress (cached values only)
-    ofr_stress = aureon_state.get("ofr_stress_index", 0.0)
-    macro_status = "WARN" if ofr_stress > 0.7 else "PASS"
-    gates.append({
-        "gate":   "MACRO_STRESS_OVERLAY",
-        "layer":  "Verana L0",
-        "status": macro_status,
-        "detail": f"OFR stress score {ofr_stress:.2f} — {'elevated systemic risk' if macro_status == 'WARN' else 'normal'} (cached)",
-    })
-
-    return gates
+    }), 200
 
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+
+
+def _evaluate_pretrade(decision_id, *, macro_snapshot_fn):
+    """The one pre-trade evaluation. Every call persists a bound policy record."""
+    return evaluate_pretrade_decision(
+        state=aureon_state,
+        lock=_lock,
+        decision_id=decision_id,
+        market_is_open=_market_is_open,
+        macro_snapshot_fn=macro_snapshot_fn,
+        # Cache-only: market_loop keeps _ofr_cache warm. Gate 6 must not
+        # fetch financialresearch.gov inside the request; an empty cache
+        # makes the gate INDETERMINATE instead.
+        ofr_snapshot_fn=lambda _macro: _ofr_cache.get("data"),
+        operating_cash_floor_pct=OPERATING_CASH_FLOOR_PCT,
+        risk_policy=RISK_MANAGER_POLICY,
+        symbol_to_isin=SYMBOL_TO_ISIN,
+        ofac_blocked_isins=OFAC_BLOCKED_ISINS,
+        # WS-P4: append the ThifurJ asset-class gates (MiFIR / tokenized
+        # eligibility) so the live modal is asset-class-aware. Equities
+        # get no extra gates — identical behavior to before.
+        asset_class_gate_fn=_agent_j.asset_class_gates,
+        now=_approval_clock(),
+    )
 
 
 @app.route("/api/decisions/<decision_id>/pretrade", methods=["GET"])
 def api_pretrade_check(decision_id):
     """
     Pre-trade compliance check for a pending decision.
-    Called before the human clicks final APPROVE to ensure all
-    pre-trade gates pass (market status, cash, position limits, drawdown).
+    Called before the human clicks final APPROVE. The result is persisted as a
+    policy record bound to the decision's digest; approval consumes it.
     Hard ceiling: 8 seconds via ThreadPoolExecutor — never hangs, never crashes.
-    """
-    def _run_pretrade_checks():
-        payload = evaluate_pretrade_decision(
-            state=aureon_state,
-            lock=_lock,
-            decision_id=decision_id,
-            market_is_open=_market_is_open,
-            macro_snapshot_fn=_get_fred_macro_snapshot,
-            # Cache-only: market_loop keeps _ofr_cache warm. Gate 6 must not
-            # fetch financialresearch.gov inside the request; an empty cache
-            # HOLDs the gate instead.
-            ofr_snapshot_fn=lambda _macro: _ofr_cache.get("data"),
-            operating_cash_floor_pct=OPERATING_CASH_FLOOR_PCT,
-            risk_policy=RISK_MANAGER_POLICY,
-            symbol_to_isin=SYMBOL_TO_ISIN,
-            ofac_blocked_isins=OFAC_BLOCKED_ISINS,
-            # WS-P4: append the ThifurJ asset-class gates (MiFIR / tokenized
-            # eligibility) so the live modal is asset-class-aware. Equities
-            # get no extra gates — identical behavior to before.
-            asset_class_gate_fn=_agent_j.asset_class_gates,
-        )
-        return payload
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_run_pretrade_checks)
+    On timeout the same engine runs again without the FRED macro fetch (the
+    only network call; gate 6 reads the OFR cache either way), so the fallback
+    returns exactly what the primary path would (AUR-I-09). If evaluation
+    itself fails, the result is INDETERMINATE and approval is refused.
+    """
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(
+        _evaluate_pretrade, decision_id, macro_snapshot_fn=_get_fred_macro_snapshot
+    )
+    try:
+        payload = future.result(timeout=8)
+        message = None
+    except FuturesTimeout:
+        print(f"[AUREON] Pretrade check timed out for {decision_id} — evaluating without the macro fetch")
+        payload = None
+        message = "Pretrade check timed out — evaluated without the FRED macro fetch"
+    except Exception as exc:
+        print(f"[AUREON] Pretrade check error for {decision_id}: {exc}")
+        executor.shutdown(wait=False)
+        return jsonify({
+            "status":      "error",
+            "message":     f"Pretrade check error: {exc}",
+            "decision_id": decision_id,
+            "overall":     "INDETERMINATE",
+            "disposition": "INDETERMINATE",
+            "gates":       [],
+        }), 200
+    executor.shutdown(wait=False)
+
+    if message is not None:
         try:
-            payload = future.result(timeout=8)
-            if payload is None:
-                return jsonify({"error": "decision not found"}), 404
-            return jsonify(payload)
-        except FuturesTimeout:
-            print(f"[AUREON] Pretrade check timed out for {decision_id} — returning cached data")
-            checks = _build_pretrade_checks_from_cache(decision_id)
-            if not checks:
-                return jsonify({"error": "decision not found"}), 404
-            statuses = [g["status"] for g in checks]
-            overall = ("FAIL" if ("FAIL" in statuses or "BLOCKED" in statuses)
-                       else "HOLD" if "HOLD" in statuses
-                       else "WARN" if "WARN" in statuses else "PASS")
-            with _lock:
-                decision = next(
-                    (d for d in aureon_state.get("pending_decisions", []) if d["id"] == decision_id),
-                    {},
-                )
-            return jsonify({
-                "status":      "WARN",
-                "message":     "Pretrade check timed out — using cached data",
-                "decision_id": decision_id,
-                "symbol":      decision.get("symbol", ""),
-                "action":      decision.get("action", ""),
-                "notional":    decision.get("notional", 0),
-                "overall":     overall,
-                "gates":       checks,
-                "ts":          datetime.now(timezone.utc).isoformat(),
-            }), 200
+            payload = _evaluate_pretrade(decision_id, macro_snapshot_fn=dict)
         except Exception as exc:
-            print(f"[AUREON] Pretrade check error for {decision_id}: {exc}")
-            checks = _build_pretrade_checks_from_cache(decision_id)
+            print(f"[AUREON] Pretrade fallback error for {decision_id}: {exc}")
             return jsonify({
-                "status":  "WARN",
-                "message": f"Pretrade check error: {exc}",
-                "checks":  checks,
+                "status":      "error",
+                "message":     f"Pretrade check error: {exc}",
+                "decision_id": decision_id,
+                "overall":     "INDETERMINATE",
+                "disposition": "INDETERMINATE",
+                "gates":       [],
             }), 200
+    if payload is None:
+        return jsonify({"error": "decision not found"}), 404
+    if message is not None:
+        payload["message"] = message
+    return jsonify(payload)
 
 
 # ── Operational Journal (DA-1594) ────────────────────────────────────────────
@@ -5868,6 +6133,7 @@ def api_session_status():
 
 
 @app.route("/api/session/step/1", methods=["POST"])
+@_authority_required("SESSION_STEP_1")
 def api_session_step1():
     """Run Step 1 — Verana session boundary check (automated)."""
     result = _session_protocol.run_step_1_verana_check()
@@ -5875,6 +6141,7 @@ def api_session_step1():
 
 
 @app.route("/api/session/step/2", methods=["POST"])
+@_authority_required("SESSION_STEP_2")
 def api_session_step2():
     """Run Step 2 — CAOM-001 mode declaration. Operator confirms."""
     result = _session_protocol.run_step_2_caom_declaration()
@@ -5882,6 +6149,7 @@ def api_session_step2():
 
 
 @app.route("/api/session/step/3", methods=["POST"])
+@_authority_required("SESSION_STEP_3")
 def api_session_step3():
     """
     Run Step 3 — Role consolidation acknowledgment.
@@ -5895,6 +6163,7 @@ def api_session_step3():
 
 
 @app.route("/api/session/open", methods=["POST"])
+@_authority_required("SESSION_OPEN")
 def api_session_open():
     """
     Run Steps 5 and 6 — stress review then session open.
@@ -6064,6 +6333,7 @@ def api_halt_resume():
 
 
 @app.route("/api/doctrine/propose", methods=["POST"])
+@_authority_required("DOCTRINE_PROPOSE")
 def api_doctrine_propose():
     """
     Propose a doctrine version update. Creates a pending update requiring Tier 1 approval.
@@ -6114,6 +6384,7 @@ def api_doctrine_propose():
 
 
 @app.route("/api/doctrine/approve/<update_id>", methods=["POST"])
+@_authority_required("DOCTRINE_APPROVE")
 def api_doctrine_approve(update_id):
     """
     Tier 1 human approval of a pending doctrine update.
@@ -6467,6 +6738,7 @@ def api_risk_latest():
 
 
 @app.route("/api/c2/algo-inventory-check", methods=["POST"])
+@_authority_required("C2_ALGO_INVENTORY_CHECK")
 def api_c2_algo_inventory_check():
     """Phase 4.5 — MiFID II RTS 6 algorithmic trading inventory compliance check.
     Session-level (not per-trade).
@@ -6548,6 +6820,7 @@ def api_c2_algo_inventory_check():
 
 
 @app.route("/api/c2/resume/<task_id>", methods=["POST"])
+@_authority_required("C2_RESUME")
 def api_c2_resume(task_id):
     """Resume a paused lifecycle with operator approval payload.
 
@@ -7403,6 +7676,7 @@ def api_atrox_scan():
 
 
 @app.route("/api/atrox/recommendations/<rec_id>/promote", methods=["POST"])
+@_authority_required("ATROX_PROMOTE")
 def api_atrox_promote(rec_id):
     """
     Promote a Atrox recommendation to a governed decision.
@@ -7451,11 +7725,13 @@ def api_atrox_promote(rec_id):
             "financing_relevant":  False,
             "signal_brief":        rec.get("signal_brief", {}),
         }
+        decision["required_approvals"] = routed_required_approvals(decision)
 
         aureon_state["pending_decisions"].append(decision)
         rec["status"] = "PROMOTED"
         rec["promoted_to"] = decision["id"]
         rec["promoted_at"] = datetime.now(timezone.utc).isoformat()
+    threading.Thread(target=_save_state, daemon=True).start()  # AUR-I-17
 
     _journal("ATROX_PROMOTED", "ATROX-001", rec["symbol"],
              f"Atrox rec {rec_id} promoted to governed decision {decision['id']}. "
@@ -7475,6 +7751,7 @@ def api_atrox_promote(rec_id):
 
 
 @app.route("/api/atrox/recommendations/<rec_id>/dismiss", methods=["POST"])
+@_authority_required("ATROX_DISMISS")
 def api_atrox_dismiss(rec_id):
     """Dismiss a Atrox recommendation (operator reviewed, chose not to act)."""
     with _lock:
@@ -8493,7 +8770,7 @@ def framework_brief():
         </div>
         <div class="role-card">
           <div class="role-title">Compliance</div>
-          <div class="role-desc">The SR 11-7 model risk framework applied to AI-assisted systems before regulators require it.</div>
+          <div class="role-desc">Model risk discipline aligned with SR 26-2 / OCC 2026-13 for quantitative models, and NIST AI RMF 1.0 for agentic components, applied before regulators require it.</div>
         </div>
         <div class="role-card">
           <div class="role-title">Investors</div>
@@ -8580,6 +8857,25 @@ def catch_all(path):
 # 9. START
 # ─────────────────────────────────────────────────────────────────
 
+def _record_boot_session_actor() -> None:
+    """Record who opened the session at boot: the deterministic boot service.
+
+    In-process, not HTTP, so no operator key is involved; it is recorded as
+    DETERMINISTIC_SERVICE rather than as the human operator (AUR-I-03).
+    """
+    with _lock:
+        aureon_state.setdefault("authority_log", []).insert(0, {
+            "id":        "BOOT-SESSION-AUTO-OPEN",
+            "ts":        datetime.now(timezone.utc).isoformat(),
+            "tier":      "Tier 1 — Human Authority",
+            "type":      "SESSION AUTO-OPEN AT BOOT",
+            "authority": _BOOT_SERVICE_ACTOR.role,
+            "outcome":   "All six CAOM-001 session steps completed in-process",
+            "actor":     _BOOT_SERVICE_ACTOR.model_dump(mode="json"),
+            "hash":      "BOOT",
+        })
+
+
 def _start_background_threads():
     # ── Volume and state file diagnostics ────────────────────────────────────
     data_dir = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH", "")
@@ -8612,6 +8908,7 @@ def _start_background_threads():
     )
     _session_protocol.run_step_5_stress_review()
     _session_protocol.run_step_6_open_session()
+    _record_boot_session_actor()
     _journal("SESSION_OPEN", "CAOM-001", "SYSTEM",
              "CAOM-001 session opened at startup. All six protocol steps completed. "
              "Operator GR-001 holds Tier 1/2/3. Execution gates active.",
@@ -9134,6 +9431,7 @@ def _ck_error(exc):
 
 
 @app.route("/api/cockpit/capture", methods=["POST"])
+@_authority_required("COCKPIT_CAPTURE")
 def cockpit_capture():
     """Beat 1 — capture the transaction picture (operator readback)."""
     d = request.get_json(silent=True) or {}
@@ -9164,6 +9462,7 @@ def cockpit_capture():
 
 
 @app.route("/api/cockpit/validate", methods=["POST"])
+@_authority_required("COCKPIT_VALIDATE")
 def cockpit_validate():
     """Beat 2 — run the Settlement Operations Analyst gate set."""
     d = request.get_json(silent=True) or {}
@@ -9179,6 +9478,7 @@ def cockpit_validate():
 
 
 @app.route("/api/cockpit/prepare", methods=["POST"])
+@_authority_required("COCKPIT_PREPARE")
 def cockpit_prepare():
     """Beat 3 — emit a governed instruction package (or HOLD). Never a submission."""
     d = request.get_json(silent=True) or {}
@@ -9194,6 +9494,7 @@ def cockpit_prepare():
 
 
 @app.route("/api/cockpit/readback", methods=["POST"])
+@_authority_required("COCKPIT_READBACK")
 def cockpit_readback():
     """Beat 5 inbound — accept operator-entered post-submission portal state."""
     d = request.get_json(silent=True) or {}
@@ -9217,6 +9518,7 @@ def cockpit_readback():
 
 
 @app.route("/api/cockpit/reconcile", methods=["POST"])
+@_authority_required("COCKPIT_RECONCILE")
 def cockpit_reconcile():
     """Beat 5 — diff expected vs actual; classify breaks by leg."""
     d = request.get_json(silent=True) or {}
@@ -9232,6 +9534,7 @@ def cockpit_reconcile():
 
 
 @app.route("/api/cockpit/break", methods=["POST"])
+@_authority_required("COCKPIT_BREAK")
 def cockpit_break():
     """Route reconciliation breaks to the workbench with full lineage."""
     d = request.get_json(silent=True) or {}

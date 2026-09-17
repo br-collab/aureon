@@ -12,7 +12,7 @@ and returns it for storage in integration_handoffs.
 from datetime import datetime, timezone
 
 
-def build_execution_release(decision, authority_hash: str) -> dict:
+def build_execution_release(decision, authority_hash: str, approved_intent: dict | None = None) -> dict:
     """
     Build a governed execution release packet for the EMS.
 
@@ -22,6 +22,9 @@ def build_execution_release(decision, authority_hash: str) -> dict:
         The approved pending decision.
     authority_hash : str
         SHA-256 authority hash stamped at approval.
+    approved_intent : dict, optional
+        The sealed ApprovedIntentEnvelope (JSON form), carried unchanged with
+        its digest (W2B-5).
 
     Returns
     -------
@@ -47,6 +50,9 @@ def build_execution_release(decision, authority_hash: str) -> dict:
         "ts":             ts,
         "status":         "SENT",
     }
+    if approved_intent is not None:
+        packet["approved_intent"]        = approved_intent
+        packet["approved_intent_digest"] = approved_intent["digest"]
 
     print(
         f"[EMS] Execution release — {packet['action']} {packet['symbol']} "

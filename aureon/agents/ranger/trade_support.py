@@ -62,7 +62,7 @@ class TradeSupport(RangerConcreteBase):
     role_name = "Trade Support Analyst"
 
     regulatory_frameworks = [
-        "SR 11-7 Tier 2",
+        "Tier 2 (NIST AI RMF 1.0 plus Aureon doctrine)",
         "MiFID II RTS6",
         "BCBS 239 P3",
     ]
@@ -76,7 +76,7 @@ class TradeSupport(RangerConcreteBase):
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
         super().__init__(aureon_state, state_lock)
         print(f"[TRADE-SUPPORT] Initialized — v{TRADE_SUPPORT_VERSION} | "
-              f"Zero variance — deterministic only | SR 11-7 Tier 2")
+              f"Zero variance — deterministic only | Tier 2 (NIST AI RMF 1.0 plus Aureon doctrine)")
 
     # ─────────────────────────────────────────────────────────────────────────
     # TASK 1 — OMS RELEASE PACKAGE ASSEMBLY
@@ -200,22 +200,18 @@ class TradeSupport(RangerConcreteBase):
         """Match execution confirmation against DSOR intent record.
 
         Returns reconciliation result with discrepancy flag if mismatch.
-        Compares symbol, action, shares, and notional across the two records.
+        Symbol, action and shares must match exactly; price and notional
+        within aureon.booking.reconcile.PRICE_TOLERANCE_BPS. The execution
+        side must come from a venue fill, never from the decision (AUR-I-06).
         """
+        from aureon.booking.reconcile import (
+            EXACT_FIELDS, TOLERANCE_FIELDS, compare_intent_with_execution,
+        )
+
         ts = datetime.now(timezone.utc).isoformat()
 
-        fields_to_match = ["symbol", "action", "shares"]
-        mismatches = []
-
-        for field in fields_to_match:
-            exec_val = execution_confirmation.get(field)
-            intent_val = dsor_intent.get(field)
-            if exec_val != intent_val:
-                mismatches.append({
-                    "field":      field,
-                    "expected":   intent_val,
-                    "actual":     exec_val,
-                })
+        fields_to_match = list(EXACT_FIELDS) + [f for f, _ in TOLERANCE_FIELDS]
+        mismatches = compare_intent_with_execution(dsor_intent, execution_confirmation)
 
         matched = len(mismatches) == 0
         status  = "MATCHED" if matched else "DISCREPANCY"

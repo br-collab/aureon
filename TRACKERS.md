@@ -618,15 +618,15 @@ an undelivered message into a normal-looking success value.
 | Instance | Where | Reads as | Status |
 |---|---|---|---|
 | Missing OFR stress reading | Cato `gate_core.js` / `cato_client.py` | PROCEED, "all doctrine thresholds clear" | Fixed — Cato f34d375 (v0.3.1), aureon mirror c2bfd9d, golden vector V16 |
-| Macro stress feed unavailable | `policy_engine` gate 6 | PASS | Fixed on `governance-core-fail-closed` — see the gate 6 entry under Tech Debt |
+| Macro stress feed unavailable | `policy_engine` gate 6 | PASS | Fixed on `governance-core-fail-closed`, completed by W2B-3/F1 (a fabricated reading is INDETERMINATE) — see the gate 6 entry under Tech Debt |
 | Failed or rejected OMS send | `release_control.release_to_oms` | RELEASED / RELEASED_SEND_FAILED on a normal return | Fixed — 79d48f6 (raises `OMSReleaseError`, 502) |
 | Alpaca upstream failure | `server.py` Alpaca endpoints (three instances of "Alpaca API request failed") | HTTP 200 with `status: error` | Open — on `main` since 28f39e3 (Railway agent, 2026-04-13) |
 | Missing pipe `status` key | `server.py` doctrine-stack pipe log line | `UNKNOWN`, masking a missing key | Open — on `main` since 7edf26d (Railway agent, 2026-04-10) |
-| Timeout-fallback gate 6 | `server._build_pretrade_checks_from_cache` | PASS from a state key nothing writes | Open — found 2026-09-14 |
+| Timeout-fallback gate 6 | `server._build_pretrade_checks_from_cache` | PASS from a state key nothing writes | **Closed by W2B-3** — the function is deleted; the timeout path reruns the same engine without the FRED fetch |
 | Session-open OFR warning | `session_protocol` | no warning, from the same unwritten key | Open — found 2026-09-14 |
 | EMS "release" | `ems_adapter.build_execution_release` | `status: SENT` on a packet that is only built, never transmitted | Open — found 2026-09-14 |
 | FRED STLFSI4 fetch fails | Cato `index.js` gate handler, `value ?? "0"` | PROCEED, "All doctrine thresholds clear" | Fix open — Cato-FICC-MCP#2; tracked in #12 |
-| FRED outage feeds a fabricated stress reading | `_fallback_macro_snapshot` → `_fallback_ofr_snapshot` → twin, gate 6, `ofr_fsi_at_exec` | a measured-looking 0.38 | Open — see the entry below; #11, #12 |
+| FRED outage feeds a fabricated stress reading | `_fallback_macro_snapshot` → `_fallback_ofr_snapshot` → twin, gate 6, `ofr_fsi_at_exec` | a measured-looking 0.38 | **Closed by W2B-3/F1** — see the entry below; #11, #12 |
 
 **How to apply:** when a check's input is absent, malformed or
 unreachable, the result is HOLD (or an exception the caller must handle),
@@ -669,6 +669,77 @@ different mechanism: a code fallback there is a written summary here.
 proxy or fallback constants were in effect. Removed at the source by the
 STLFSI4 ingest contract (#11): no proxy, no constants, an unreadable feed
 holds.
+
+**Closed by W2B-3/F1 (2026-09-17).** Every macro and OFR snapshot now
+carries provenance (`aureon/policy_engine/evidence.py`): `FACT_EXTERNAL`
+for a published reading, `POLICY_RESULT` for the proxy computed from live
+FRED series, `FABRICATED_DEFAULT` whenever a fixed constant entered the
+chain. An unlabelled snapshot counts as fabricated.
+
+- **Gate 6:** fabricated → `INDETERMINATE`, so approval is refused through
+  every path. A proxy over live FRED is evaluated, states
+  `source=ofr_proxy`, and HOLDs at or above the 0.70 warning threshold.
+- **Cato:** `_cato_refresh_inputs` passes no reading at all when the value
+  is fabricated, so the twin's own fail-closed guard holds.
+- **Audit:** `ofr_fsi_at_exec`, `ofr_band_at_exec` and
+  `macro_regime_at_exec` are `null` when the reading is fabricated, with
+  `market_evidence_unavailable_reason` saying why, plus
+  `systemic_overlay_provenance`. Reports stored before this change still
+  hold 0.38; the errata above remains the way to read them.
+- **Dashboard:** the OFR tile reads "NO READING · feed unavailable", and a
+  proxy reading is marked PROXY.
+- Tests: `test_stress_evidence_provenance.py` (13).
+
+---
+
+### AUR-I-18 (P1): Thifur-H books its ledger from the Kraken acknowledgement, not from the fill (finding, 2026-09-17)
+
+Found while verifying W2B-4. `thifur_h.py` writes `ledger.open_positions[order_id]`
+as soon as Kraken returns a transaction id for a maker-or-cancel limit order,
+and records the **signal's** suggested price and quantity. A placement is not an
+execution: the order can rest unfilled, be cancelled, or fill later, partially,
+at another price. The exit path then estimates profit and loss "assuming
+immediate-fill semantics", and nothing reconciles it against Kraken.
+
+This is the AUR-I-02 / AUR-I-06 defect class — booking from intent, and an
+execution record derived from the intent it should be checked against — on the
+**live-money** path. Wave 2 fixed it for the paper path only
+(`aureon/booking/consumer.py` books from a fill; `aureon/booking/reconcile.py`
+compares intent with execution).
+
+It does **not** touch `aureon_state` cash, positions or trades, so the paper
+book is unaffected. What is affected is Thifur-H's own ledger and the DSOR
+entries and profit-and-loss figures derived from it — the evidence for the live
+account.
+
+**Not fixed in Wave 2, by instruction:** it touches the live Kraken account, so
+Bill decides when it is built. Design note:
+[`aureon/thifur/NOTE-AUR-I-18.md`](thifur/NOTE-AUR-I-18.md) — book from
+`TradesHistory` fill events, reuse the Wave 2 fill shape with
+`provenance: FACT_EXTERNAL`, accumulate partial fills with idempotency by trade
+id, and backfill or relabel positions opened before the fix.
+
+---
+
+### AUR-I-19 (P2): one operator key can act in every role (finding, 2026-09-17)
+
+`approval_role` is chosen in the request body and checked against nothing. The
+same key can approve as TRADER, then as RISK, then as COMPLIANCE, so the
+routing quorum (AUR-I-08) and the HOLD-exception authority (W2B-3) record roles
+that are not independent people.
+
+Accepted for now under CAOM-001, which is explicitly a single operator
+(JUM-D-15). What Wave 2 does about it (fix F4) is disclose it rather than imply
+independence:
+
+- every authority record states `role_source: "request_body"` and
+  `independence_asserted: false`;
+- the ApprovedIntentEnvelope's authority manifest carries the same, plus
+  `operating_mode: "CAOM-001 single operator"`;
+- the dashboard shows a single-operator note beside multi-role approvals.
+
+**The real fix is the actor registry (JUM-D-18), in Wave 4:** per-role
+entitlements, and an approval refused when the actor does not hold the role.
 
 ---
 

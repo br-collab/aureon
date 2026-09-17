@@ -12,7 +12,7 @@ const GRAY = "#A0A0A0";
 const BORDER = "#2A2A2A";
 const TEXT = "#F0F0F0";
 
-const buildSystemPrompt = (sessionId, nowISO) => `You are AUREON-KYC, an institutional compliance agent executing Know Your Customer (KYC) verification workflows under SR 11-7 governance doctrine.
+const buildSystemPrompt = (sessionId, nowISO) => `You are AUREON-KYC, an institutional compliance agent executing Know Your Customer (KYC) verification workflows under NIST AI RMF 1.0 plus Aureon governance doctrine.
 
 Session context (authoritative — do not invent alternatives):
 - System-assigned Session ID: ${sessionId}
@@ -230,7 +230,7 @@ export default function App() {
           {[
             ["Session ID", sessionId],
             ["Initiated", sessionStart.toLocaleString()],
-            ["Doctrine", "SR 11-7 / FinCEN / BSA"],
+            ["Doctrine", "NIST AI RMF 1.0 / FinCEN / BSA"],
             ["HITL Gates", "Active"],
             ["Voice", !voice.supported ? "Unsupported" : !voice.enabled ? "Muted" : (voice.voice?.name || "en-US")],
           ].map(([k, v]) => (
@@ -256,7 +256,7 @@ export default function App() {
 
             <div style={{ borderTop: `1px solid ${BORDER}`, marginBottom: 28 }}>
               {[
-                ["Compliance framework", "SR 11-7 / FinCEN / BSA"],
+                ["Compliance framework", "NIST AI RMF 1.0 / FinCEN / BSA"],
                 ["Risk screening", "PEP · Sanctions · Jurisdiction"],
                 ["HITL gates", "Active"],
                 ["Audit trail", "Enabled — session-locked"],

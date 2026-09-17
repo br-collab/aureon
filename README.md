@@ -435,7 +435,7 @@ repository root/
     persistence/  core/  data/  cli/  session/  mmf/
 ```
 
-**What is deliberately absent.** There is no `aureon/cockpit/`, no `aureon/agents/tier1/`, and no `aureon/contracts/`. Those directories existed until 31 July 2026 as vendored copies of the Atreides custody domain layer, and were retired in favour of the declared dependency in `requirements.txt` per `AUR-ADD-006`. Do not reintroduce them — a copy of a module that has an authoritative home elsewhere is the failure mode that produced a Railway 502 on boot when it carried a transitive dependency this repository did not declare.
+**What is deliberately absent.** There is no `aureon/cockpit/` and no `aureon/agents/tier1/`. Those directories, and an earlier `aureon/contracts/`, existed until 31 July 2026 as vendored copies of the Atreides custody domain layer, and were retired in favour of the declared dependency in `requirements.txt` per `AUR-ADD-006`. The `aureon/contracts/` present today (since W2B-5) is unrelated: it holds only Aureon's own `ApprovedIntentEnvelope`. Do not reintroduce them — a copy of a module that has an authoritative home elsewhere is the failure mode that produced a Railway 502 on boot when it carried a transitive dependency this repository did not declare.
 
 Current file roles:
 
@@ -502,7 +502,7 @@ Aureon MCP Server (aureon/mcp/server.py)
 
 ```
 aureon://verana/network-registry        — node counts, agent roster, doctrine version
-aureon://verana/regulatory-frameworks   — SR 11-7, OCC 2023-17, BCBS 239, MiFID II, DORA, EU AI Act
+aureon://verana/regulatory-frameworks   — SR 26-2 / OCC 2026-13, OCC 2023-17, BCBS 239, MiFID II, DORA, EU AI Act
 aureon://verana/ofac-screening-list     — OFAC SDN blocked identifiers with sanction basis
 aureon://verana/compliance-alerts       — live alert feed, drawdown state, halt status
 aureon://verana/doctrine-status         — doctrine version, audit hash, version log
@@ -515,7 +515,15 @@ verana_screen_ofac(identifier)          — Gate 5 OFAC SDN screen — returns P
 verana_framework_status(framework)      — query specific regulatory framework status
 verana_node_status()                    — network operational posture
 verana_compliance_snapshot()            — full Verana governance picture in one call
+aureon_resolve_decision(decision_id, resolution, approval_role?, hold_exception?)
+                                        — approve or reject a decision; an authority mutation
 ```
+
+**`aureon_resolve_decision` is off by default.** It is the only tool that changes anything, and it is registered only when `AUREON_MCP_WRITE_ENABLED=true`. An MCP client is normally an AI agent, and agents never authorize (charter §7, JUM-D-07), so a human turns it on deliberately; Railway leaves it unset, and the tool is then neither listed nor callable. When it is on, the authority record states `channel: MCP` and that the caller's human status is asserted by possession of the operator key, not proven — the actor registry (JUM-D-18) closes that.
+
+When enabled, the HTTP request to `/mcp` must carry `X-Admin-Key` and a fresh `X-Request-Nonce`, exactly as the dashboard does, and the tool runs the same path as `POST /api/decisions/<id>` (policy binding, routing, the sealed `ApprovedIntentEnvelope`, release). The command line reaches the same route with `aureon-agent resolve <decision_id> APPROVED --role TRADER --server <url>`, reading the key from `AUREON_ADMIN_KEY`.
+
+**`SR_11_7` is deprecated.** `verana_framework_status` accepts `SR_26_2` for SR 26-2 / OCC 2026-13, which superseded SR 11-7 on 17 April 2026. Its status is `ALIGNMENT` (quantitative models), never `SATISFIED`. `SR_11_7` still works as an alias: it returns the `SR_26_2` content with `"requested": "SR_11_7"` and a `deprecation` note. It will be removed in a later version, so switch callers to `SR_26_2`.
 
 **Example — initialize:**
 ```json
@@ -650,7 +658,10 @@ AUREON_EMAIL            — Gmail SMTP sender
 AUREON_EMAIL_PW         — Gmail app password (not account password)
 AUREON_EMAIL_RECIPIENT  — report delivery address
 RAILWAY_VOLUME_MOUNT_PATH — persistent state path (/data)
+AUREON_ADMIN_KEY        — operator key; required by every authority mutation (unset: all refused)
 ```
+
+Authority mutations (decisions, session steps, doctrine, MMF, cockpit steps, Atrox promote/dismiss, C2 resume) need the headers `X-Admin-Key` and `X-Request-Nonce`. The dashboard asks for the key once per page load.
 
 Market data: Twelve Data primary, yfinance fallback, 60-second price cache.
 

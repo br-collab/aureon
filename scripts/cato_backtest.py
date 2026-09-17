@@ -510,7 +510,7 @@ def write_report(path: Path, results: list[EventResult]) -> None:
         "simulation. It answers the narrow question: *does the current "
         "Cato doctrine correctly flag known historical stress events?* "
         "That is the exact question institutional model validators "
-        "(SR 11-7 Tier 1) will ask during review. Any gap identified "
+        "(SR 26-2 / OCC 2026-13 Tier 1) will ask during review. Any gap identified "
         "above should be closed before institutional pilot deployment."
     )
     lines.append("")

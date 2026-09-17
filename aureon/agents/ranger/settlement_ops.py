@@ -60,7 +60,7 @@ class SettlementOps(RangerConcreteBase):
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
         super().__init__(aureon_state, state_lock)
         print(f"[SETTLEMENT-OPS] Initialized — v{AGENT_R_VERSION} | "
-              f"Zero variance — deterministic only | SR 11-7 Tier 2")
+              f"Zero variance — deterministic only | Tier 2 (NIST AI RMF 1.0 plus Aureon doctrine)")
 
     # ─────────────────────────────────────────────────────────────────────────
     # ROLE-SPECIFIC PACKAGE ASSEMBLY
@@ -72,10 +72,9 @@ class SettlementOps(RangerConcreteBase):
                                   c2: "ThifurC2") -> dict:
         """Prepare the deterministic settlement package for OMS handoff.
 
-        Does NOT execute the trade — that is performed by
-        server.py::_apply_approved_trade() under _lock, which remains
-        the authoritative execution function. This prepares the governed
-        package that server.py hands to OMS.
+        Does NOT execute or book the trade. Execution is a venue fill, and
+        booking happens only in aureon.booking.consumer.book_fill from that
+        fill (W2B-4). This prepares the governed package handed to the OMS.
         """
         blocked = self._check_handoff_and_halt(task_id)
         if blocked:
