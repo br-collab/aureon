@@ -485,6 +485,54 @@ downstream consumer reads rejection counts as a risk signal. Until then
 the existing Reject button is the discard path. Low priority; single
 operator holds both seats today, so the split buys nothing now.
 
+### Gate 6 (macro stress overlay) has never evaluated since 9cfbb9e (finding, 2026-09-14)
+`policy_engine.evaluate_pretrade_decision` gate 6 has not evaluated since
+it landed in 9cfbb9e (2026-04-04). Two independent defects:
+
+- **Wrong arity.** It called `ofr_snapshot_fn()`; the function passed in,
+  `_get_ofr_stress_snapshot(macro_snapshot)`, requires an argument
+  (`evidence_service` calls it correctly). Every call raised `TypeError`.
+- **Wrong key.** It read `stress_score`; the snapshot carries `fsi_value`.
+
+The bare `except Exception` turned the `TypeError` into
+`PASS — "Macro overlay unavailable — proceeding"`. Verified: with a severe
+reading of 2.50 the gate returned PASS.
+
+**Fixed on `governance-core-fail-closed`:** correct arity and key; an
+unusable reading (missing, NaN, ±inf, non-numeric) or an unreadable feed
+HOLDs, matching Cato v0.3.1 / golden vector V16; the pre-trade route reads
+`_ofr_cache` only, so the gate never fetches inside the request. The 0.7
+WARN threshold is unchanged pending the STLFSI4 index decision below.
+
+**What the evidence record actually says** (checked, not assumed):
+
+- Operator-facing: the pre-trade modal showed `MACRO_STRESS_OVERLAY: PASS`
+  for every decision in the window. That result was never persisted.
+- `trade_reports[].gate_results` is `[]` for every report —
+  `resolve_pending_decision` passes an empty list ("populated by pre-trade
+  check" is not true). No trade report records a gate-6 PASS; none records
+  any pre-trade gate.
+- `decision_journal[].pretrade_gates` is `[]` after approval: the entry is
+  built after the decision leaves `pending_decisions`.
+- Trade reports DO carry `ofr_fsi_at_exec` / `ofr_band_at_exec`, captured
+  through the correct call — the OFR FSI (or its FRED proxy) at execution,
+  not STLFSI4, with no field saying which source produced it.
+- A second gate-6 copy, `server._build_pretrade_checks_from_cache` (the
+  8-second timeout fallback), reads `aureon_state["ofr_stress_index"]`,
+  which nothing ever writes — it can only return PASS. `session_protocol`
+  reads the same never-written key, so its OFR stress warning never fires.
+
+**Trigger:** before any trade report from 2026-04-04 onward is used as
+pre-trade evidence (audit sample, SR 11-7 validation, a regulator request).
+Disclosure proposal, not yet implemented: an append-only errata collection
+keyed by defect and date range, rendered with each affected report and in
+compliance PDFs, never rewriting a hashed report; persist the pre-trade
+payload actually shown to the operator into the trade report at approval;
+add `ofr_source_at_exec`. Fix the cache-fallback gate 6 and the
+`session_protocol` key in the same changeset.
+
+---
+
 ## Active — Architectural Findings
 [Observations about the system that shape future decisions but aren't prescriptive.]
 
@@ -559,6 +607,104 @@ remained `"THIFUR_H"` (unchanged) — rekeying into `AUR-H-*` role_ids
 is not meaningful until the reconciliation above decides what the
 Tier-3 roles actually are.
 
+---
+
+### Class: a failure that reads as success (finding, 2026-09-14)
+One defect class, not a list of unrelated bugs: a code path that cannot
+tell "checked and clear" from "could not check", and reports the second as
+the first. Each instance below turns a missing input, a raised exception or
+an undelivered message into a normal-looking success value.
+
+| Instance | Where | Reads as | Status |
+|---|---|---|---|
+| Missing OFR stress reading | Cato `gate_core.js` / `cato_client.py` | PROCEED, "all doctrine thresholds clear" | Fixed — Cato f34d375 (v0.3.1), aureon mirror c2bfd9d, golden vector V16 |
+| Macro stress feed unavailable | `policy_engine` gate 6 | PASS | Fixed on `governance-core-fail-closed` — see the gate 6 entry under Tech Debt |
+| Failed or rejected OMS send | `release_control.release_to_oms` | RELEASED / RELEASED_SEND_FAILED on a normal return | Fixed — 79d48f6 (raises `OMSReleaseError`, 502) |
+| Alpaca upstream failure | `server.py` Alpaca endpoints (three instances of "Alpaca API request failed") | HTTP 200 with `status: error` | Open — on `main` since 28f39e3 (Railway agent, 2026-04-13) |
+| Missing pipe `status` key | `server.py` doctrine-stack pipe log line | `UNKNOWN`, masking a missing key | Open — on `main` since 7edf26d (Railway agent, 2026-04-10) |
+| Timeout-fallback gate 6 | `server._build_pretrade_checks_from_cache` | PASS from a state key nothing writes | Open — found 2026-09-14 |
+| Session-open OFR warning | `session_protocol` | no warning, from the same unwritten key | Open — found 2026-09-14 |
+| EMS "release" | `ems_adapter.build_execution_release` | `status: SENT` on a packet that is only built, never transmitted | Open — found 2026-09-14 |
+| FRED STLFSI4 fetch fails | Cato `index.js` gate handler, `value ?? "0"` | PROCEED, "All doctrine thresholds clear" | Fix open — Cato-FICC-MCP#2; tracked in #12 |
+| FRED outage feeds a fabricated stress reading | `_fallback_macro_snapshot` → `_fallback_ofr_snapshot` → twin, gate 6, `ofr_fsi_at_exec` | a measured-looking 0.38 | Open — see the entry below; #11, #12 |
+
+**How to apply:** when a check's input is absent, malformed or
+unreachable, the result is HOLD (or an exception the caller must handle),
+never the value that means "clear". Treat `except Exception: <success>`,
+`.get(key, <clear value>)` and "return 200 on error" as review flags.
+
+---
+
+### A fabricated number in an audit artifact: `ofr_fsi_at_exec` during a FRED outage (finding, 2026-09-14)
+Instance of "a failure that reads as success", logged on its own because
+the output is not a status flag but a number stored as evidence.
+
+When FRED is unreachable, `_get_fred_macro_snapshot` falls back to
+`_fallback_macro_snapshot`, which returns fixed constants (VIX 24.0, HY
+OAS 4.25, curve −47 bps). When the OFR scrape also fails,
+`_fallback_ofr_snapshot` turns those constants into `fsi_value = 0.38`,
+band "watch", `source: "ofr_proxy"`. That 0.38 is then:
+
+- handed to the Python twin by `_cato_refresh_inputs` as a usable reading
+  (the twin PROCEEDs; its v0.3.1 guard never sees an unusable value);
+- read by gate 6 as a usable reading;
+- written into trade reports by `evidence_service` as
+  `ofr_fsi_at_exec = 0.38`, `ofr_band_at_exec = "watch"`, with **no field
+  recording that it was not measured** (the `source` is dropped).
+
+Reproduced offline on 2026-09-14: an approval with every feed down stored
+`ofr_fsi_at_exec: 0.38` in the trade report.
+
+**Parallel:** br-collab/cepti branch `quarantine/phase2-overnight`. There,
+`docs/sma/PHASE2_E2E_IMPLEMENTATION_SUMMARY.md` presents an E2E results
+block ("7 passed, 0 failed … All tests PASSED!", with per-test durations)
+for a suite whose own tip commit (a20541e) says the scripts could not be
+executed directly, and `scripts/sma/e2e-test-performance.ts` derives
+per-platform publish time by assuming "~3 platforms". Same output class — a
+plausible, specific number standing in for one that was never observed —
+different mechanism: a code fallback there is a written summary here.
+
+**Trigger:** the evidence errata work (approved 2026-09-14) —
+`ofr_source_at_exec` plus an erratum covering reports stored while the
+proxy or fallback constants were in effect. Removed at the source by the
+STLFSI4 ingest contract (#11): no proxy, no constants, an unreadable feed
+holds.
+
+---
+
+### Commit record correction: 9cfbb9e understates the governance core (2026-09-14)
+9cfbb9e (railway-app[bot], 2026-04-04) is titled "fix: create aureon
+subpackage stubs to unblock gunicorn import of server:app". History is not
+rewritten; this is the accurate description of what it added:
+
+```
+feat(governance): extract the governance core into aureon/ — approval,
+pre-trade policy, evidence, persistence, OMS/EMS/FIX adapters
+
+1,143 lines across 15 files. Seven are empty __init__.py package markers
+that make aureon.* importable so gunicorn can load server:app. The other
+eight are the domain layer server.py now delegates to:
+
+- approval_service/service.py (268): resolve_pending_decision, HITL
+  approve/reject lifecycle, _apply_trade books positions and cash
+- approval_service/release_control.py (190): Decision model, role gating
+  (missing_roles, can_release), release_to_oms packet
+- policy_engine/service.py (221): evaluate_pretrade_decision — market
+  status, cash, concentration, drawdown, OFAC/SDN, macro stress
+- evidence_service/service.py (162): build_trade_report compliance record
+- persistence/store.py (133): save_state / load_state with corrupted-JSON
+  salvage
+- integration_adapters/oms_adapter.py (44), ems_adapter.py (56),
+  fix_adapter.py (69): simulated OMS ack, EMS release packet, FIX 4.4
+  NewOrderSingle builder and send stub
+
+Authored by the Railway agent to clear a boot failure; recorded as a stub
+fix, it is the first commit of the extracted governance core.
+```
+
+The same content, at pre-purge hash 3a9a1d5, was the tip of
+`railway/code-change-NHS_v0`.
+
 
 ## Active — Operational Findings
 [Deployment, infrastructure, and production-observability concerns.]
@@ -581,6 +727,91 @@ serving traffic (see "Deployment SHA not exposed" under Tech Debt).
 Current practice: wait, probe health endpoints, trust 200 responses.
 
 **Trigger:** see the Tech Debt entry. Same fix addresses both.
+
+---
+
+### Railway branch fhvO9j: a second approval route without the CAOM-001 session guard (2026-09-14)
+`railway/code-change-fhvO9j` tip d2f8d27 (railway-app[bot], 2026-04-05)
+adds `POST /api/decisions/<decision_id>/approve`, a copy of the approval
+handler under a second URL. Unlike `api_resolve_decision` on `main` it:
+
+- has **no CAOM-001 session guard** (main returns 403 when no session is
+  open), so it would approve and release outside an open session;
+- takes `approval_role` from the request body, defaulting to `TRADER`;
+- calls `release_to_oms` and ignores a failed release.
+
+Never merged. It was the only commit on the seven `railway/*` branches not
+already on `main`; the other six branches carried only commits already on
+`main` (by patch identity). All seven branches still carried pre-purge
+commit hashes; their unique objects were scanned and contain no purged
+paths, gitlinks, or key-shaped strings.
+
+**Trigger:** any Railway-originated PR or branch that adds a route touching
+approval, release or execution. Check it against `api_resolve_decision`'s
+guards (session, halt, role) before merging; a second path to the same
+action must carry every guard the first one does.
+
+---
+
+### Stale Cato copies on this public repository (logged 2026-09-14, not fixed)
+`CATO DEMO/` and `eFICC - MCP/` are tracked on `main` and referenced by
+nothing else in the repository.
+
+- `CATO DEMO/index.js` and `CATO DEMO/cato_client.py` are a **v0.2.2** copy
+  of the Cato server and twin, and carry the defects since fixed upstream:
+  the gate handler's `ofr_stress_index?.value ?? "0"` (a FRED outage reads
+  as PROCEED; Cato-FICC-MCP#2), and the twin's
+  `ofr_stress if ofr_stress is not None else 0.0` with no v0.3.1
+  usable-reading guard at all (Cato f34d375 / aureon c2bfd9d). It also
+  carries the hardcoded 0.5 bps / 40% cost literals.
+- `eFICC - MCP/eficc-mcp-index.js` is an older read-only FICC data server
+  with no gate logic; it reads STLFSI4 for display. Stale, but it does not
+  carry the gate defects.
+
+**Trigger:** before anyone points a reader at this repository as a
+reference for Cato — a public copy of the gate with the pre-fix defects
+reads as current code. Remove, or replace with a pointer to
+br-collab/Cato-FICC-MCP.
+
+---
+
+### Boot warning misstates what FRED_API_KEY controls (logged 2026-09-14, not fixed)
+`server._atrox_refresh_loop` warns at boot that without `FRED_API_KEY` "the
+SOFR and OFR fetches 400" and that CATO-F "reuses the same OFR STLFSI4
+band". The OFR reading does not come from FRED at all — it is a scrape of
+financialresearch.gov with a FRED-derived proxy fallback — and CATO-F in
+aureon is fed only from request bodies and demo constants. The warning
+points an operator at the wrong cause.
+
+**Trigger:** fix with the STLFSI4 ingest contract (#11), when the stress
+reading does come from FRED and the warning becomes true.
+
+---
+
+### CLAUDE.md says the twin reads OFR STLFSI4 (logged 2026-09-14, not fixed)
+CLAUDE.md's Cato section ("Live market data flow") says
+`_cato_refresh_inputs` reads "OFR STLFSI4 from the existing `_ofr_cache`".
+`_ofr_cache.fsi_value` is the OFR Financial Stress Index (or its proxy),
+not FRED STLFSI4 — the divergence tracked in #11.
+
+**Trigger:** correct in the same change set as #11, so the document never
+describes the twin's input as something it is not.
+
+---
+
+### A live-execution loop starts at import (logged 2026-09-14, not fixed)
+CLAUDE.md says background threads start from `_start_background_threads()`
+via gunicorn's `post_fork`, "not at import time". `server.py:8761` calls
+`_atrox_live.start()` at module top level, so importing `server` — a worker,
+a test (`test_c2_persistence.py` imports it), a script — starts the Atrox
+Live loop, which is wired to `execute_close_signal`. Observed 2026-09-14:
+importing `server` in a test harness logged "Atrox Live loop started
+(interval=300s)".
+
+**Trigger:** before any test or tool imports `server` in an environment
+holding Kraken credentials. Move the start into
+`_start_background_threads()`, or correct CLAUDE.md if import-time start is
+intended.
 
 
 ## Closed
