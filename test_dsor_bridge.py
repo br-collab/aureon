@@ -63,11 +63,15 @@ def cockpit_integration():
         net_delivery_quantity=Decimal("1000000"), net_payment_amount=Decimal("1000000"),
         ficc_published_net_delivery=Decimal("1000000"),
         intraday_credit_limit=Decimal("100000000"), intraday_credit_current_usage=Decimal("1000000"))
+    # Atreides v0.4.0 (ATR-I-02): validation is pure. Emission is the only
+    # cockpit step that writes to the DSOR, so the bridge is exercised there.
     g = cp.run_validation_gates(t)
-    ck("clean pass recorded to state log", state.get("cockpit_dsor_log") and
+    ck("validation writes nothing", not state.get("cockpit_dsor_log"))
+    pkg = cp.emit_instruction_package(t, g)
+    ck("clean pass recorded to state log at emission", state.get("cockpit_dsor_log") and
        state["cockpit_dsor_log"][0]["kind"] == "settlement_telemetry")
     ck("record_id in package matches bridged log", any(
-        e["record_id"] == str(g.dsor_pre_trade_record_id) for e in state["cockpit_dsor_log"]))
+        e["record_id"] == str(pkg.dsor_record_id) for e in state["cockpit_dsor_log"]))
 
     t2 = cp.capture_tasking(regime=PortalRegime.CCP, rail=SettlementRail.FICC_GSD_DVP,
         settlement_kind=SettlementKind.DVP, counterparty_id="CP-B", settlement_date=SD,
@@ -76,7 +80,9 @@ def cockpit_integration():
         ficc_published_net_delivery=Decimal("1000000"),
         intraday_credit_limit=Decimal("100000000"), intraday_credit_current_usage=Decimal("1000000"),
         ficc_clearing_fund_compliant=False)
-    cp.run_validation_gates(t2)
+    g2 = cp.run_validation_gates(t2)
+    ck("held gate does not pass", g2.passed is False)
+    cp.emit_instruction_package(t2, g2)
     top = state["cockpit_dsor_log"][0]
     ck("hold recorded as escalation", top["kind"] == "settlement_escalation")
     ck("discrepancy code in payload", top["payload"].get("discrepancy_code") == "clearing_fund_deficiency")
