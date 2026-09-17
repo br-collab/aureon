@@ -626,7 +626,7 @@ an undelivered message into a normal-looking success value.
 | Session-open OFR warning | `session_protocol` | no warning, from the same unwritten key | Open — found 2026-09-14 |
 | EMS "release" | `ems_adapter.build_execution_release` | `status: SENT` on a packet that is only built, never transmitted | Open — found 2026-09-14 |
 | FRED STLFSI4 fetch fails | Cato `index.js` gate handler, `value ?? "0"` | PROCEED, "All doctrine thresholds clear" | Fix open — Cato-FICC-MCP#2; tracked in #12 |
-| FRED outage feeds a fabricated stress reading | `_fallback_macro_snapshot` → `_fallback_ofr_snapshot` → twin, gate 6, `ofr_fsi_at_exec` | a measured-looking 0.38 | Open — see the entry below; #11, #12 |
+| FRED outage feeds a fabricated stress reading | `_fallback_macro_snapshot` → `_fallback_ofr_snapshot` → twin, gate 6, `ofr_fsi_at_exec` | a measured-looking 0.38 | **Closed by W2B-3/F1** — see the entry below; #11, #12 |
 
 **How to apply:** when a check's input is absent, malformed or
 unreachable, the result is HOLD (or an exception the caller must handle),
@@ -669,6 +669,26 @@ different mechanism: a code fallback there is a written summary here.
 proxy or fallback constants were in effect. Removed at the source by the
 STLFSI4 ingest contract (#11): no proxy, no constants, an unreadable feed
 holds.
+
+**Closed by W2B-3/F1 (2026-09-17).** Every macro and OFR snapshot now
+carries provenance (`aureon/policy_engine/evidence.py`): `FACT_EXTERNAL`
+for a published reading, `POLICY_RESULT` for the proxy computed from live
+FRED series, `FABRICATED_DEFAULT` whenever a fixed constant entered the
+chain. An unlabelled snapshot counts as fabricated.
+
+- **Gate 6:** fabricated → `INDETERMINATE`, so approval is refused through
+  every path. A proxy over live FRED is evaluated, states
+  `source=ofr_proxy`, and HOLDs at or above the 0.70 warning threshold.
+- **Cato:** `_cato_refresh_inputs` passes no reading at all when the value
+  is fabricated, so the twin's own fail-closed guard holds.
+- **Audit:** `ofr_fsi_at_exec`, `ofr_band_at_exec` and
+  `macro_regime_at_exec` are `null` when the reading is fabricated, with
+  `market_evidence_unavailable_reason` saying why, plus
+  `systemic_overlay_provenance`. Reports stored before this change still
+  hold 0.38; the errata above remains the way to read them.
+- **Dashboard:** the OFR tile reads "NO READING · feed unavailable", and a
+  proxy reading is marked PROXY.
+- Tests: `test_stress_evidence_provenance.py` (13).
 
 ---
 
