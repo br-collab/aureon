@@ -80,3 +80,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install --no-deps -r requirements.lock.txt
           pip check
+
+      # pytest is the one package not in the lock: requirements.lock.txt
+      # mirrors what Railway installs, and the test runner is not deployed.
+      - name: Install the test runner
+        run: pip install "pytest==9.1.1"
+
+      # Root-level suite: test_clearing_cockpit.py (12) and
+      # test_security_hardening.py (6).
+      - name: pytest
+        run: pytest -q
+
+      # Script checks exit non-zero on failure. test_security_hardening.py is
+      # also collected by pytest above, but its check() helper records a
+      # failure without raising, so under pytest those six tests cannot fail.
+      # The script run is the step that actually gates them.
+      - name: C2 persistence
+        run: python test_c2_persistence.py
+
+      - name: DSOR bridge
+        run: python test_dsor_bridge.py
+
+      - name: Security hardening
+        run: python test_security_hardening.py
