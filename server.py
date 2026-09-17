@@ -87,6 +87,7 @@ from aureon.mcp.cato_client import (
 )
 from aureon.persistence.store import load_state as persistence_load_state, save_state as persistence_save_state
 from aureon.policy_engine.service import evaluate_pretrade_decision
+from aureon.policy_engine.evidence import EvidenceProvenance, is_fabricated as _is_fabricated
 from aureon.policy_engine.binding import (
     PolicyBindingError,
     grant_hold_exception,
@@ -2007,8 +2008,15 @@ def _fred_series_recent(series_id: str, count: int = 2):
 
 
 def _fallback_macro_snapshot():
+    """Fixed constants for display when FRED cannot be read.
+
+    They are not a reading. Labelled FABRICATED_DEFAULT so gate 6 refuses them
+    and the audit fields record no number (AUR-I-10, fix F1).
+    """
     return {
         "source": "fallback",
+        "provenance": EvidenceProvenance.FABRICATED_DEFAULT.value,
+        "fabricated_reason": "FRED is unreachable; these are fixed constants, not a reading",
         "as_of": datetime.now(timezone.utc).date().isoformat(),
         "fed_funds": 5.33,
         "ust_10y": 4.21,
@@ -2051,6 +2059,7 @@ def _get_fred_macro_snapshot():
 
         data = {
             "source": "fred",
+            "provenance": EvidenceProvenance.FACT_EXTERNAL.value,
             "as_of": max(item["date"] for item in series.values()),
             "fed_funds": round(fed_funds, 2),
             "ust_10y": round(series["ust_10y"]["value"], 2),
@@ -2071,6 +2080,13 @@ def _get_fred_macro_snapshot():
 
 
 def _fallback_ofr_snapshot(macro_snapshot: dict):
+    """The OFR proxy, computed from the macro snapshot.
+
+    It is only a computation over live inputs when the macro snapshot itself is
+    live. Built on fabricated constants it is a fabricated default, however
+    measured the result looks (AUR-I-10, fix F1).
+    """
+    macro_fabricated = _is_fabricated(macro_snapshot)
     proxy_value = round(
         (
             max(0.0, macro_snapshot.get("vix", 24.0) - 18.0) * 0.045
@@ -2087,14 +2103,28 @@ def _fallback_ofr_snapshot(macro_snapshot: dict):
         stress_band = "watch"
     else:
         stress_band = "calm"
-    return {
+    snapshot = {
         "source": "ofr_proxy",
+        "provenance": (EvidenceProvenance.FABRICATED_DEFAULT.value if macro_fabricated
+                       else EvidenceProvenance.POLICY_RESULT.value),
+        "derived_from": macro_snapshot.get("source"),
         "as_of": macro_snapshot.get("as_of"),
         "fsi_value": proxy_value,
         "fsi_band": stress_band,
         "publication_lag_days": 2,
-        "summary": "Proxy OFR systemic-stress overlay derived from FRED macro conditions while the official monitor feed is unavailable.",
+        "summary": ("Proxy OFR systemic-stress overlay derived from FRED macro conditions while "
+                    "the official monitor feed is unavailable."),
     }
+    if macro_fabricated:
+        snapshot["fabricated_reason"] = (
+            "the OFR feed is unavailable and the proxy was computed from fixed macro constants, "
+            "not from live FRED series"
+        )
+        snapshot["summary"] = (
+            "No systemic-stress reading: neither the OFR index nor the FRED series it would be "
+            "derived from could be read. The figure below is a fixed default, not a measurement."
+        )
+    return snapshot
 
 
 def _get_ofr_stress_snapshot(macro_snapshot: dict):
@@ -2136,6 +2166,7 @@ def _get_ofr_stress_snapshot(macro_snapshot: dict):
                 stress_band = "calm"
             data = {
                 "source": "ofr",
+                "provenance": EvidenceProvenance.FACT_EXTERNAL.value,
                 "as_of": macro_snapshot.get("as_of"),
                 "fsi_value": round(fsi_value, 2),
                 "fsi_band": stress_band,
@@ -2416,7 +2447,9 @@ def _cato_refresh_inputs():
     # OFR stress — read from the market_loop-maintained _ofr_cache.
     try:
         ofr_data = _ofr_cache.get("data")
-        if ofr_data and ofr_data.get("fsi_value") is not None:
+        # A fabricated default is not a reading: leave ofr_stress None so Cato's
+        # own fail-closed path holds rather than scoring a constant (fix F1).
+        if ofr_data and ofr_data.get("fsi_value") is not None and not _is_fabricated(ofr_data):
             ofr_stress = float(ofr_data["fsi_value"])
     except Exception as exc:
         _log_error("WARN", "cato_refresh:ofr", str(exc))
