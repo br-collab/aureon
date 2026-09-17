@@ -10,7 +10,9 @@ Handles the core approve/reject lifecycle:
     covered by a typed exception (AUR-I-01; aureon.policy_engine.binding)
   - Recomputes the required roles from the decision's terms (AUR-I-08)
   - Records partial approvals (multi-role workflows)
-  - On full approval: applies the trade, builds the compliance report
+  - On full approval: emits a RELEASE_AUTHORIZED event and nothing else. No
+    trade record, cash movement or position change (AUR-I-02); those follow
+    from an execution fill, in aureon.booking
   - On rejection: marks the decision cancelled
   - Stamps every action with a deterministic authority hash
 """
@@ -18,6 +20,7 @@ Handles the core approve/reject lifecycle:
 import hashlib
 from datetime import datetime, timezone
 
+from aureon.approval_service.release import authorize_release, persist_release
 from aureon.approval_service.routing import apply_routing
 from aureon.policy_engine.binding import (
     PolicyBindingError,
@@ -46,7 +49,6 @@ def resolve_pending_decision(
     decision_id,
     resolution,
     approval_role,
-    build_trade_report,
     rules_digest=None,
     hold_exception=None,
     now=None,
@@ -66,9 +68,6 @@ def resolve_pending_decision(
         "APPROVED" or "REJECTED".
     approval_role : str
         The role of the approving/rejecting authority (e.g. "TRADER").
-    build_trade_report : callable
-        ``_build_trade_report(decision, exec_price, authority_hash,
-        gate_results, portfolio_before)`` — builds the compliance artifact.
     rules_digest : str
         ``pretrade_rules_digest(...)`` of the rules in force. Required to
         approve: without it the evidence cannot be shown to be current.
@@ -82,8 +81,9 @@ def resolve_pending_decision(
     Returns
     -------
     dict
-        Keys: status, resolution, decision_id, hash, report_id,
-              decision, trade_report.
+        Keys: status, resolution, decision_id, hash, decision,
+              policy_record, release. ``status`` is "ok" when release is
+              authorized, "pending" after a partial approval, "rejected".
 
     Raises
     ------
@@ -93,8 +93,7 @@ def resolve_pending_decision(
         (a RuntimeError) If the pre-trade policy record does not permit
         approval. Nothing is recorded or changed.
     RuntimeError
-        If the system halt is active (status 423) or the trade cannot
-        be applied (status 409).
+        If the system halt is active (status 423).
     ValueError
         If *resolution* is not "APPROVED" or "REJECTED".
     """
@@ -139,9 +138,9 @@ def resolve_pending_decision(
                 "resolution":  "REJECTED",
                 "decision_id": decision_id,
                 "hash":        authority_hash,
-                "report_id":   None,
                 "decision":    decision,
-                "trade_report": None,
+                "policy_record": None,
+                "release":     None,
             }
 
         # ── Approval path ─────────────────────────────────────────
@@ -204,165 +203,46 @@ def resolve_pending_decision(
                 "resolution":  "APPROVED",
                 "decision_id": decision_id,
                 "hash":        authority_hash,
-                "report_id":   None,
                 "decision":    decision,
-                "trade_report": None,
                 "policy_record": policy_record,
+                "release":     None,
             }
 
-        # ── Full approval — execute the trade ─────────────────────
-        exec_price = float(
-            state.get("prices", {}).get(decision["symbol"], decision.get("price", 0))
+        # ── Full approval — authorize release, nothing more ───────
+        release = authorize_release(
+            decision=decision,
+            policy_record=policy_record,
+            approvals=current,
+            authority_hash=authority_hash,
+            now=now,
         )
-        if exec_price <= 0:
-            exec_price = float(decision.get("price", 0))
-
-        portfolio_before = {
-            "portfolio_value": state.get("portfolio_value", 0.0),
-            "cash":            state.get("cash", 0.0),
-            "drawdown":        state.get("drawdown", 0.0),
-            "n_positions":     len(state.get("positions", [])),
-        }
-
-        # Apply the trade to positions and cash
-        ok, err = _apply_trade(state, decision, exec_price)
-        if not ok:
-            raise RuntimeError(err or "Trade application failed")
-
-        # Remove from pending queue
+        persist_release(state, release)
         pending[:] = [d for d in pending if d["id"] != decision_id]
-        decision["status"] = "APPROVED"
+        decision["status"] = "RELEASE_AUTHORIZED"
+        decision["release_id"] = release.release_id
 
-        notional = decision["shares"] * exec_price
-
-        # Record in trades log
-        trade_record = {
-            **decision,
-            "exec_price":        round(exec_price, 2),
-            "notional":          round(notional, 2),
-            "authority_hash":    authority_hash,
-            "final_approvals":   current,
-            "required_approvals": required,
-            "release_target":    decision.get("release_target", "OMS"),
-            "release_outcome":   "RELEASED",
-            "policy":            policy_ref,
-            "ts":                ts,
-        }
-        state.setdefault("trades", []).insert(0, trade_record)
-
-        # Authority log entry
         state["authority_log"].insert(0, {
             "id":        f"HAD-{decision_id[-8:]}",
             "ts":        ts,
             "tier":      "Tier 1 — Human Authority",
             "type":      f"APPROVE {decision['action']} {decision['symbol']}",
             "authority": approval_role,
-            "outcome":   f"APPROVED — ${notional:,.0f} @ ${exec_price:.2f}",
+            "outcome":   (f"RELEASE AUTHORIZED — ${float(decision.get('notional', 0)):,.0f} "
+                          f"({release.release_id}); books only on execution"),
             "policy":    policy_ref,
+            "release_id": release.release_id,
             "hash":      authority_hash,
         })
-
-    # ── Build compliance report (outside lock to avoid deadlock) ──
-    trade_report = None
-    try:
-        trade_report = build_trade_report(
-            decision,
-            exec_price,
-            authority_hash,
-            [g.model_dump(mode="json") for g in policy_record.gates],
-            portfolio_before,
-        )
-        with lock:
-            state.setdefault("trade_reports", []).insert(0, trade_report)
-    except Exception as exc:
-        print(f"[AUREON] Trade report build failed: {exc}")
-
-    report_id = trade_report["report_id"] if trade_report else None
 
     return {
         "status":      "ok",
         "resolution":  "APPROVED",
         "decision_id": decision_id,
         "hash":        authority_hash,
-        "report_id":   report_id,
         "decision":    decision,
-        "trade_report": trade_report,
         "policy_record": policy_record,
+        "release":     release,
     }
 
 
 __all__ = ["PolicyBindingError", "resolve_pending_decision", "routed_required_approvals"]
-
-
-def _apply_trade(state, decision, exec_price):
-    """
-    Mutate *state* to reflect an approved trade.
-
-    BUY  → append a new position lot, deduct cash.
-    SELL → reduce existing lots FIFO, add cash.
-
-    Returns (ok: bool, error_message: str | None).
-    Must be called while holding the state lock.
-    """
-    symbol     = decision["symbol"]
-    shares     = decision["shares"]
-    asset_class = decision["asset_class"]
-    notional   = shares * exec_price
-
-    if decision["action"] == "BUY":
-        # A cash floor, absent until now.
-        #
-        # The SELL branch below has always validated available shares. BUY
-        # validated nothing, so cash could go arbitrarily negative - and did.
-        # On 14 March 2026 a runaway loop of sixty GLD buys appended
-        # sixty-one position lots and took a $100M book to -$54,785,875.20.
-        # The three aureon_state_persist.*.json snapshots at the repo root are
-        # the forensic record of it, and the repair deleted the lots.
-        #
-        # Refusing here rather than clamping: a BUY that cannot be paid for
-        # did not happen, and recording a partial fill nobody instructed would
-        # invent an execution. The caller gets an error it can surface.
-        available_cash = state.get("cash", 0.0)
-        if notional > available_cash:
-            return False, (
-                f"BUY blocked - notional {notional:,.2f} exceeds available "
-                f"cash {available_cash:,.2f}. A purchase that cannot be "
-                f"funded is not executed and is not partially executed."
-            )
-        state.setdefault("positions", []).append({
-            "symbol":      symbol,
-            "asset_class": asset_class,
-            "shares":      shares,
-            "cost":        round(exec_price, 2),
-            "agent":       "THIFUR_H",
-        })
-        state["cash"] = available_cash - notional
-        return True, None
-
-    # SELL — FIFO lot reduction
-    remaining = shares
-    positions = state.get("positions", [])
-    available = sum(p.get("shares", 0) for p in positions if p["symbol"] == symbol)
-    if available < shares:
-        return False, (
-            f"SELL blocked — available {symbol} shares {available:,.0f} "
-            f"< requested {shares:,.0f}"
-        )
-
-    new_positions = []
-    for pos in positions:
-        if pos["symbol"] != symbol or remaining <= 0:
-            new_positions.append(pos)
-            continue
-        lot_shares = pos.get("shares", 0)
-        to_sell    = min(lot_shares, remaining)
-        remaining -= to_sell
-        left       = lot_shares - to_sell
-        if left > 0:
-            updated = dict(pos)
-            updated["shares"] = left
-            new_positions.append(updated)
-
-    state["positions"] = new_positions
-    state["cash"] = state.get("cash", 0.0) + notional
-    return True, None

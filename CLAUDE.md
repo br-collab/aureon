@@ -290,6 +290,14 @@ These are non-negotiable design constraints:
   reading, a check that could not run) is `INDETERMINATE`, never `PASS` or an overrideable `HOLD`.
   A new approval path must call `resolve_pending_decision` with `rules_digest`; do not call
   `_apply_trade` from anywhere else (a test enforces both)
+- Approval has no economic side effect (AUR-I-02). A full approval emits `RELEASE_AUTHORIZED`
+  (`aureon/approval_service/release.py`) and nothing else. Cash, positions and trades change only in
+  `aureon/booking/consumer.py`, from a venue fill; a duplicate fill books once. Until L.C. exists
+  the venue is `aureon/integration_adapters/paper_venue.py`: it prices from the market-data cache at
+  its own observation time (never the decision's price) and labels fills `FACT_SYNTHETIC`. C2 waits
+  for that fill (`on_execution_event`) and reconciles against it; nothing may build an execution
+  confirmation from the approved decision
+- Pending decisions, release events, venue fills and booked fill ids are persisted (AUR-I-17)
 - Agents advise only — no autonomous execution
 - All decisions carry immutable audit lineage with hash
 - The 6-step session protocol must auto-complete at boot (CAOM-001)

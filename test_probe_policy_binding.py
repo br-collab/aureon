@@ -93,7 +93,6 @@ def test_failed_pretrade_gate_blocks_approval():
             decision_id=DECISION_ID,
             resolution="APPROVED",
             approval_role="TRADER",
-            build_trade_report=lambda *args: {"report_id": "RPT-PROBE"},
             rules_digest=pretrade_rules_digest(
                 risk_policy=RISK_POLICY, operating_cash_floor_pct=0.03, ofac_blocked_isins={}
             ),

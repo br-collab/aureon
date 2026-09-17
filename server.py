@@ -98,6 +98,8 @@ from aureon.policy_engine.binding import (
 from aureon.evidence_service.service import build_trade_report as evidence_build_trade_report
 from aureon.approval_service.release_control import OMSReleaseError, can_release, missing_roles, normalize_decision, release_to_oms
 from aureon.approval_service.service import resolve_pending_decision, routed_required_approvals
+from aureon.booking.consumer import book_fill
+from aureon.integration_adapters.paper_venue import PaperVenue, PriceObservation, VenueRejection
 from aureon.integration_adapters.oms_adapter import send as oms_send
 from aureon.integration_adapters.ems_adapter import build_execution_release
 from aureon.session.session_protocol import SessionProtocol
@@ -856,55 +858,6 @@ _INSTRUMENT_REF = {
 }
 
 
-
-
-def _apply_approved_trade(decision: dict, exec_price: float):
-    """
-    Apply an approved trade to positions and cash.
-    BUY adds a new lot and deducts cash.
-    SELL reduces existing lots FIFO-style and adds cash.
-    Returns (ok: bool, error_message: str | None).
-    """
-    symbol = decision["symbol"]
-    shares = decision["shares"]
-    asset_class = decision["asset_class"]
-    notional = shares * exec_price
-
-    if decision["action"] == "BUY":
-        aureon_state["positions"].append({
-            "symbol":      symbol,
-            "asset_class": asset_class,
-            "shares":      shares,
-            "cost":        round(exec_price, 2),
-            "agent":       "THIFUR_H",
-        })
-        aureon_state["cash"] -= notional
-        return True, None
-
-    remaining = shares
-    matched_positions = [p for p in aureon_state["positions"] if p["symbol"] == symbol]
-    available = sum(p.get("shares", 0) for p in matched_positions)
-    if available < shares:
-        return False, f"SELL blocked — available {symbol} shares {available:,.0f} < requested {shares:,.0f}"
-
-    new_positions = []
-    for pos in aureon_state["positions"]:
-        if pos["symbol"] != symbol or remaining <= 0:
-            new_positions.append(pos)
-            continue
-
-        lot_shares = pos.get("shares", 0)
-        to_sell = min(lot_shares, remaining)
-        remaining -= to_sell
-        left = lot_shares - to_sell
-        if left > 0:
-            updated = dict(pos)
-            updated["shares"] = left
-            new_positions.append(updated)
-
-    aureon_state["positions"] = new_positions
-    aureon_state["cash"] += notional
-    return True, None
 
 
 def _is_instrument_tradeable(symbol: str, asset_class: str) -> tuple:
@@ -3521,6 +3474,7 @@ def _generate_signal():
             return
         if len(aureon_state["pending_decisions"]) < 4:
             aureon_state["pending_decisions"].append(decision)
+    threading.Thread(target=_save_state, daemon=True).start()  # AUR-I-17
 
     _journal("SIGNAL_GENERATED", "THIFUR-H", symbol,
              f"{signal_type} signal: {action} {symbol} ${notional:,}. {rationale}",
@@ -4403,6 +4357,13 @@ def run_doctrine_stack():
             # ── W2B-3 policy evidence (AUR-I-01) ─────────────────
             aureon_state["policy_evaluations"]     = saved.get("policy_evaluations",     [])
             aureon_state["policy_hold_exceptions"] = saved.get("policy_hold_exceptions", [])
+            # ── W2B-4 / AUR-I-17: pending decisions and execution events ──
+            aureon_state["pending_decisions"]     = saved.get("pending_decisions",     [])
+            aureon_state["release_events"]        = saved.get("release_events",        [])
+            aureon_state["venue_fills"]           = saved.get("venue_fills",           [])
+            aureon_state["booked_fill_ids"]       = saved.get("booked_fill_ids",       [])
+            aureon_state["booking_breaks"]        = saved.get("booking_breaks",        [])
+            aureon_state["c2_awaiting_execution"] = saved.get("c2_awaiting_execution", {})
         else:
             # ── First-ever launch — seed from INITIAL_POSITIONS ───
             aureon_state["positions"] = [dict(p) for p in INITIAL_POSITIONS]
@@ -4496,6 +4457,7 @@ def market_loop():
 
             with _lock:
                 aureon_state["prices"]          = prices
+                aureon_state["prices_observed_at"] = datetime.now(timezone.utc).isoformat()
                 aureon_state["portfolio_value"] = total
                 aureon_state["pnl"]             = pnl
                 aureon_state["pnl_pct"]         = pnl_pct
@@ -5381,6 +5343,93 @@ def api_create_decision():
     })
 
 
+_PAPER_PRICE_MAX_AGE_SECONDS = 300
+
+
+def _market_cache_price(symbol: str):
+    """The paper venue's price source: the market-data cache, with its own observation time."""
+    observed_raw = aureon_state.get("prices_observed_at")
+    value = (aureon_state.get("prices") or {}).get(symbol)
+    if not observed_raw or value is None:
+        return None
+    observed_at = datetime.fromisoformat(observed_raw)
+    if (datetime.now(timezone.utc) - observed_at).total_seconds() > _PAPER_PRICE_MAX_AGE_SECONDS:
+        return None
+    return PriceObservation(price=str(value), observed_at=observed_at, source="aureon market-data cache")
+
+
+_paper_venue = PaperVenue(price_source=_market_cache_price)
+
+
+def _deliver_release_to_venue(release, decision) -> dict:
+    """Send an authorized release to the paper venue and book the fill, once.
+
+    Returns a summary of what happened: FILLED and BOOKED, REJECTED by the
+    venue, or a BOOKING_REFUSED break. A duplicate delivery returns the
+    original fill and books nothing.
+    """
+    with _lock:
+        outcome = _paper_venue.execute(aureon_state, release)
+        if isinstance(outcome, VenueRejection):
+            aureon_state.setdefault("booking_breaks", []).insert(0, {
+                "type": "VENUE_REJECTED", **outcome.model_dump(mode="json")})
+            booking = None
+        else:
+            booking = book_fill(aureon_state, outcome, release, decision=decision)
+    if isinstance(outcome, VenueRejection):
+        _journal("EXECUTION_REJECTED", outcome.venue, release.symbol,
+                 f"{release.action} {release.symbol} not executed: {outcome.reason}. Nothing booked.",
+                 outcome="VENUE_REJECTED", ref_id=release.release_id)
+        return {"status": "VENUE_REJECTED", "release_id": release.release_id,
+                "reason": outcome.reason}
+
+    summary = {
+        "status":         booking.status,
+        "release_id":     release.release_id,
+        "fill_id":        outcome.fill_id,
+        "venue":          outcome.venue,
+        "provenance":     outcome.provenance.value,
+        "exec_price":     float(outcome.price),
+        "quantity":       outcome.quantity,
+        "reconciliation": booking.reconciliation,
+    }
+    if booking.status == "REFUSED":
+        summary["error"] = booking.error
+        _journal("BOOKING_REFUSED", "BOOKING", release.symbol,
+                 f"Fill {outcome.fill_id} not booked: {booking.error}",
+                 outcome="BOOKING_REFUSED", ref_id=release.release_id)
+        return summary
+    if booking.status == "DUPLICATE":
+        return summary
+
+    _journal("EXECUTION_BOOKED", "BOOKING", release.symbol,
+             f"{outcome.action} {outcome.quantity} {outcome.symbol} @ {outcome.price} "
+             f"({outcome.venue}, {outcome.provenance.value}) booked from fill {outcome.fill_id}"
+             + (f"; reconciliation breaks: {booking.reconciliation}" if booking.reconciliation else ""),
+             outcome="BOOKED" if not booking.reconciliation else "BOOKED_WITH_DISCREPANCY",
+             ref_id=release.release_id)
+    try:
+        trade_report = _build_trade_report(
+            dict(decision, shares=float(outcome.quantity)),
+            float(outcome.price),
+            release.authority_hash,
+            [],
+            booking.portfolio_before,
+        )
+        with _lock:
+            aureon_state.setdefault("trade_reports", []).insert(0, trade_report)
+        summary["report_id"] = trade_report.get("report_id")
+        threading.Thread(target=_send_trade_confirmation_email, args=(trade_report,),
+                         daemon=True).start()
+    except Exception as exc:
+        print(f"[AUREON] Trade report build failed: {exc}")
+    try:
+        _thifur_c2.on_execution_event(outcome.model_dump(mode="json"))
+    except Exception as exc:
+        _log_error("WARN", "c2.on_execution_event", str(exc))
+    return summary
+
+
 def _pretrade_rules_digest() -> str:
     """Digest of the pre-trade rules in force; a record for other rules is stale."""
     return pretrade_rules_digest(
@@ -5523,7 +5572,6 @@ def api_resolve_decision(decision_id):
             decision_id=decision_id,
             resolution=resolution,
             approval_role=approval_role,
-            build_trade_report=_build_trade_report,
             rules_digest=rules_digest,
             hold_exception=hold_exception,
         )
@@ -5546,9 +5594,10 @@ def api_resolve_decision(decision_id):
     authority_hash = result["hash"]
     decision = result["decision"]
     release_failure = None
+    execution = None
     if resolution == "APPROVED" and result["status"] == "ok":
-        print(f"[AUREON] APPROVED: {decision['action']} {decision['symbol']} "
-              f"${decision['notional']:,} — hash {authority_hash}")
+        print(f"[AUREON] RELEASE AUTHORIZED: {decision['action']} {decision['symbol']} "
+              f"${float(decision['notional']):,.0f} — {result['release'].release_id}")
 
         # EMS-targeted decisions go straight to the EMS release package and
         # never touch the OMS. Everything else is sent to the OMS, and a send
@@ -5567,34 +5616,30 @@ def api_resolve_decision(decision_id):
             except OMSReleaseError as exc:
                 release_packet = exc.package
                 release_failure = exc
+        release_packet["release_id"] = result["release"].release_id
         with _lock:
             aureon_state.setdefault("integration_handoffs", []).insert(0, release_packet)
 
     if release_failure is not None:
-        # The approval is recorded and resolve_pending_decision has already
-        # booked the trade; the OMS never received it. Record the break and
-        # skip the post-release steps that would assert a release happened.
+        # Release was authorized but the OMS never received it. Nothing was
+        # booked (approval books nothing), and nothing goes to the venue.
         print(f"[AUREON] RELEASE FAILED: {decision['symbol']} — {release_failure.reason}")
         _journal("DECISION_RELEASE_FAILED", "OPERATOR", decision["symbol"],
                  f"{decision['action']} {decision['symbol']} "
-                 f"${decision.get('notional',0):,.0f} approved and booked, but the OMS "
-                 f"did not receive it: {release_failure.reason}",
+                 f"${float(decision.get('notional',0)):,.0f} release authorized, but the OMS "
+                 f"did not receive it: {release_failure.reason}. Nothing was booked.",
                  authority=approval_role, outcome=release_packet.get("status", "SEND_FAILED"),
                  ref_id=authority_hash)
     elif resolution == "APPROVED" and result["status"] == "ok":
         _journal("DECISION_APPROVED", "OPERATOR", decision["symbol"],
                  f"{decision['action']} {decision['symbol']} "
-                 f"${decision.get('notional',0):,.0f} — {decision.get('rationale','')}",
-                 authority=approval_role, outcome="RELEASED", ref_id=authority_hash)
+                 f"${float(decision.get('notional',0)):,.0f} — {decision.get('rationale','')}",
+                 authority=approval_role, outcome="RELEASE_AUTHORIZED", ref_id=authority_hash)
+        print(f"[AUREON] RELEASED TO {release_mode}: {decision['symbol']} — awaiting execution")
 
-        trade_report = result["trade_report"]
-        if trade_report:
-            threading.Thread(
-                target=_send_trade_confirmation_email,
-                args=(trade_report,),
-                daemon=True,
-            ).start()
-        print(f"[AUREON] RELEASED TO {release_mode}: {decision['symbol']} — governed release complete")
+        # The venue is a separate step: it fills from its own price
+        # observation, and booking consumes the fill (AUR-I-02).
+        execution = _deliver_release_to_venue(result["release"], decision)
 
         # WS-2.6: guarded Tier 2 post-release screening. Each agent runs
         # ONLY when the decision carries the fields it requires — otherwise
@@ -5636,7 +5681,7 @@ def api_resolve_decision(decision_id):
     except Exception:
         _latency = None
 
-    _exec_price   = result.get("trade_report", {}).get("exec_price") if result.get("trade_report") else None
+    _exec_price   = (execution or {}).get("exec_price")
     _signal_price = _dec_obj.get("price")
     _slippage     = round(_exec_price - _signal_price, 4) if (_exec_price and _signal_price and resolution == "APPROVED") else None
 
@@ -5667,6 +5712,10 @@ def api_resolve_decision(decision_id):
             result["policy_record"].record_id if result.get("policy_record") is not None else None
         ),
     }
+    if result.get("release") is not None:
+        _jrn_entry["release_id"] = result["release"].release_id
+    if execution is not None:
+        _jrn_entry["execution"] = execution
     if release_failure is not None:
         _jrn_entry["release_status"] = release_packet.get("status")
         _jrn_entry["release_error"]  = release_failure.reason
@@ -5681,13 +5730,13 @@ def api_resolve_decision(decision_id):
     if release_failure is not None:
         return jsonify({
             "status":         "release_failed",
-            "error":          "The approval is recorded and the trade is booked, but the OMS "
-                              "did not receive it. Reconcile before any re-release.",
+            "error":          "Release is authorized, but the OMS did not receive it. Nothing "
+                              "was booked. Reconcile before any re-release.",
             "reason":         release_failure.reason,
             "release_status": release_packet.get("status"),
             "decision_id":    result["decision_id"],
+            "release_id":     result["release"].release_id,
             "hash":           authority_hash,
-            "report_id":      result["report_id"],
         }), 502
 
     return jsonify({
@@ -5695,7 +5744,9 @@ def api_resolve_decision(decision_id):
         "resolution": result["resolution"],
         "decision_id": result["decision_id"],
         "hash": authority_hash,
-        "report_id": result["report_id"],
+        "release_id": result["release"].release_id if result.get("release") else None,
+        "execution": execution,
+        "report_id": (execution or {}).get("report_id"),
         "approval_role": approval_role,
         "current_approvals": decision.get("current_approvals", []),
         "required_approvals": decision.get("required_approvals", []),
@@ -7545,6 +7596,7 @@ def api_atrox_promote(rec_id):
         rec["status"] = "PROMOTED"
         rec["promoted_to"] = decision["id"]
         rec["promoted_at"] = datetime.now(timezone.utc).isoformat()
+    threading.Thread(target=_save_state, daemon=True).start()  # AUR-I-17
 
     _journal("ATROX_PROMOTED", "ATROX-001", rec["symbol"],
              f"Atrox rec {rec_id} promoted to governed decision {decision['id']}. "

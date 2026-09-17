@@ -4074,7 +4074,16 @@ async function confirmExecute() {
       renderTrading();
       renderGovernance();
 
-      // Show post-trade confirmation
+      // Approval authorizes release only; the book changes when the paper
+      // venue fills (W2B-4). Say so when it did not fill or book.
+      const exec = d.execution || {};
+      if (exec.status !== 'BOOKED') {
+        toast(`✓ Release authorized — not booked: ${exec.status || 'awaiting execution'}${exec.reason || exec.error ? ' — ' + (exec.reason || exec.error) : ''}`);
+        _pendingDecisionId = null; _pendingResolution = null; _pendingApprovalRole = null;
+        return;
+      }
+
+      // Show post-trade confirmation (booked from the venue fill)
       const dec = state.decisions.find(x => x.id === id) ||
                   { action:'BUY', symbol:'—', shares:0, price:0, notional:0, asset_class:'—' };
       showPosttradeModal(dec, d, settlement);

@@ -176,19 +176,28 @@ def test_halt_blocks_a_signal_without_touching_an_exchange() -> None:
 
 
 def test_cash_floor() -> None:
+    # Booking moved from approval to the fill consumer in W2B-4 (AUR-I-02); the floor moved with it.
     print("\ncash floor")
-    from aureon.approval_service.service import _apply_trade
+    from datetime import datetime, timezone
+
+    from aureon.booking.consumer import _apply_fill
+    from aureon.integration_adapters.paper_venue import PaperFill
+
+    def buy(shares: str) -> PaperFill:
+        now = datetime(2026, 9, 17, tzinfo=timezone.utc)
+        return PaperFill(
+            fill_id="FILL-TEST", release_id="REL-TEST", decision_id="DEC-TEST", symbol="GLD",
+            action="BUY", asset_class="ETF", quantity=shares, price="100",
+            notional=str(float(shares) * 100), venue="TEST", price_source="test",
+            price_observed_at=now, filled_at=now,
+        )
 
     state = {"cash": 1000.0, "positions": []}
-    ok, err = _apply_trade(
-        state, {"symbol": "GLD", "shares": 1.0, "asset_class": "ETF", "action": "BUY"}, 100.0
-    )
+    ok, err = _apply_fill(state, buy("1"))
     check("an affordable buy still executes", ok is True, str(err))
     check("cash is reduced correctly", state["cash"] == 900.0, str(state["cash"]))
 
-    ok, err = _apply_trade(
-        state, {"symbol": "GLD", "shares": 100.0, "asset_class": "ETF", "action": "BUY"}, 100.0
-    )
+    ok, err = _apply_fill(state, buy("100"))
     check("an unaffordable buy is refused", ok is False)
     check("the refusal names both figures", err is not None and "900" in err, str(err))
     check("cash is untouched by the refusal", state["cash"] == 900.0)
@@ -198,9 +207,7 @@ def test_cash_floor() -> None:
     state = {"cash": 1000.0, "positions": []}
     executed = 0
     for _ in range(60):
-        ok, _err = _apply_trade(
-            state, {"symbol": "GLD", "shares": 1.0, "asset_class": "ETF", "action": "BUY"}, 100.0
-        )
+        ok, _err = _apply_fill(state, buy("1"))
         if ok:
             executed += 1
     check("a runaway loop stops at the floor", executed == 10, f"executed={executed}")

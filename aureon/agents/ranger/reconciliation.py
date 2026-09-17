@@ -259,20 +259,18 @@ class Reconciliation(RangerConcreteBase):
 
         Audit chain is complete only when both legs confirm.
         """
+        from aureon.booking.reconcile import (
+            EXACT_FIELDS, TOLERANCE_FIELDS, compare_intent_with_execution,
+        )
+
         ts = datetime.now(timezone.utc).isoformat()
 
-        fields_to_match = ["symbol", "action", "shares", "notional"]
-        unmatched = []
-
-        for field in fields_to_match:
-            intent_val = dsor_intent.get(field)
-            exec_val   = execution_record.get(field)
-            if intent_val != exec_val:
-                unmatched.append({
-                    "field":    field,
-                    "intent":   intent_val,
-                    "executed": exec_val,
-                })
+        fields_to_match = list(EXACT_FIELDS) + [f for f, _ in TOLERANCE_FIELDS]
+        unmatched = [
+            {"field": m["field"], "intent": m["expected"], "executed": m["actual"],
+             **({"deviation_bps": m["deviation_bps"]} if "deviation_bps" in m else {})}
+            for m in compare_intent_with_execution(dsor_intent, execution_record)
+        ]
 
         matched = len(unmatched) == 0
         status  = "MATCHED" if matched else "UNMATCHED"

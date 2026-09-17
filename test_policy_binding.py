@@ -94,7 +94,6 @@ def _resolve(state, *, role="TRADER", now=T0 + timedelta(seconds=30), rules=RULE
         state=state, lock=threading.RLock(),
         decision_id=decision_id or state["pending_decisions"][0]["id"],
         resolution="APPROVED", approval_role=role,
-        build_trade_report=lambda *a: {"report_id": "RPT-TEST"},
         rules_digest=rules, hold_exception=hold_exception, now=now,
     )
 
@@ -116,14 +115,14 @@ MIFIR_HOLD = {"gate": "MIFIR_PRETRADE_TRANSPARENCY", "layer": "Thifur-J", "statu
 # ── Refusals ────────────────────────────────────────────────────────────────────
 
 
-def test_pass_is_approved_and_the_trade_carries_the_policy_record() -> None:
+def test_pass_is_approved_and_the_release_carries_the_policy_record() -> None:
     state = _state()
     payload = _evaluate(state)
     assert payload["disposition"] == "PASS"
     result = _resolve(state)
     assert result["status"] == "ok"
-    assert state["cash"] == 49_000.0
-    assert state["trades"][0]["policy"]["record_id"] == payload["policy_record"]["record_id"]
+    assert result["release"].policy_record_id == payload["policy_record"]["record_id"]
+    assert state["release_events"][0]["policy_record_digest"] == payload["policy_record"]["record_digest"]
     assert state["authority_log"][0]["policy"]["disposition"] == "PASS"
 
 
@@ -318,7 +317,7 @@ def test_hold_with_a_valid_exception_proceeds_and_is_recorded() -> None:
     assert any(e["id"] == exception.exception_id for e in state["authority_log"])
     if partial["status"] == "pending":
         assert _resolve(state, role="TRADER")["status"] == "ok"
-    assert state["cash"] == 49_000.0
+    assert state["release_events"][0]["decision_id"] == "DEC-BIND-1"
 
 
 def test_an_expired_exception_no_longer_covers_the_hold() -> None:
@@ -574,9 +573,11 @@ def test_every_approval_goes_through_the_bound_service() -> None:
     sources = [p for p in root.rglob("*.py")
                if "__pycache__" not in p.parts and not p.name.startswith("test_")
                and ".venv" not in p.parts and "venv" not in p.parts]
-    apply_trade_callers = {p.relative_to(root).as_posix() for p in sources
-                           if "_apply_trade(" in p.read_text(encoding="utf-8", errors="ignore")}
-    assert apply_trade_callers == {"aureon/approval_service/service.py"}
+    # Cash and positions for governed decisions change only in the booking consumer (W2B-4).
+    booking_callers = {p.relative_to(root).as_posix() for p in sources
+                       if "_apply_fill(" in p.read_text(encoding="utf-8", errors="ignore")
+                       or "_apply_trade(" in p.read_text(encoding="utf-8", errors="ignore")}
+    assert booking_callers == {"aureon/booking/consumer.py"}
     for surface in ("aureon/cli", "aureon/mcp"):
         for p in (root / surface).rglob("*.py"):
             text = p.read_text(encoding="utf-8", errors="ignore")
