@@ -21,12 +21,19 @@ endpoint, or None if the decision_id is not found.
 
 from datetime import datetime, timezone
 
+from cannae_kernel.disposition import Disposition
+
 from aureon.mcp.cato_client import _is_usable_stress_reading
+from aureon.policy_engine.evidence import is_fabricated, provenance_of, stress_disposition
 from aureon.policy_engine.binding import (
     build_policy_record,
     persist_policy_record,
     pretrade_rules_digest,
 )
+
+
+#: Above this, an official reading warns and a proxy reading holds.
+MACRO_STRESS_WARN_THRESHOLD = 0.7
 
 
 def pro_forma_concentration_pct(*, positions, prices, symbol, action, notional, portfolio_value):
@@ -239,10 +246,16 @@ def evaluate_pretrade_decision(
         })
 
     # ── Gate 6: Macro stress overlay ──────────────────────────────
-    # Fails closed, matching Cato v0.3.1 (golden vector V16): a stress
-    # reading that is missing, NaN or infinite — or a feed that cannot be
-    # read at all — never reads as PASS. Required evidence is unavailable,
-    # so the disposition is INDETERMINATE (AUR-I-10), not an overrideable HOLD.
+    # Fails closed, matching Cato v0.3.1 (golden vector V16): a stress reading
+    # that is missing, NaN or infinite — or a feed that cannot be read at all —
+    # never reads as PASS. Required evidence is unavailable, so the disposition
+    # is INDETERMINATE (AUR-I-10), not an overrideable HOLD.
+    #
+    # Fix F1: the same applies to a reading that only looks measured. With FRED
+    # down, the OFR proxy is computed from fixed constants and returns about
+    # 0.38, which used to read as PASS. Provenance decides (policy_engine.evidence):
+    # official → evaluate; proxy from live FRED → evaluate, but HOLD at or above
+    # the warning threshold; any fixed constant in the chain → INDETERMINATE.
     # ofr_snapshot_fn takes the macro snapshot, as evidence_service calls it.
     try:
         macro = macro_snapshot_fn() or {}
@@ -252,21 +265,33 @@ def evaluate_pretrade_decision(
     except Exception as exc:
         ofr, stress_reading = {}, None
         unusable = f"OFR stress feed unavailable ({type(exc).__name__}: {exc})"
-    source = ofr.get("source", "unknown")
-    if not _is_usable_stress_reading(stress_reading):
+    source = (ofr or {}).get("source", "unknown")
+    usable = _is_usable_stress_reading(stress_reading)
+    disposition, basis = stress_disposition(
+        ofr, usable=usable, warn_threshold=MACRO_STRESS_WARN_THRESHOLD,
+        value=float(stress_reading) if usable else None,
+    )
+    if disposition is Disposition.INDETERMINATE:
         macro_status = "INDETERMINATE"
-        macro_detail = f"{unusable} — indeterminate, not assumed clear; approval refused"
-    elif stress_reading > 0.7:
+        macro_detail = (f"{basis if is_fabricated(ofr) else unusable} "
+                        f"(source={source}) — indeterminate, not assumed clear; approval refused")
+    elif disposition is Disposition.HOLD:
+        macro_status = "HOLD"
+        macro_detail = f"OFR stress {basis}"
+    elif usable and stress_reading > MACRO_STRESS_WARN_THRESHOLD:
         macro_status = "WARN"
-        macro_detail = f"OFR stress {stress_reading:.2f} ({source}) — elevated systemic risk"
+        macro_detail = f"OFR stress {basis} (source={source})"
     else:
         macro_status = "PASS"
-        macro_detail = f"OFR stress {stress_reading:.2f} ({source}) — normal"
+        macro_detail = f"OFR stress {basis} (source={source})"
     gates.append({
-        "gate":   "MACRO_STRESS_OVERLAY",
-        "layer":  "Verana L0",
-        "status": macro_status,
-        "detail": macro_detail,
+        "gate":        "MACRO_STRESS_OVERLAY",
+        "layer":       "Verana L0",
+        "status":      macro_status,
+        "detail":      macro_detail,
+        "disposition": disposition.value,
+        "source":      source,
+        "provenance":  provenance_of(ofr).value,
     })
 
     # ── Asset-class-specific gates (convergence) ──────────────────

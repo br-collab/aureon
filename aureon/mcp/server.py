@@ -20,6 +20,7 @@
 """
 
 import json
+import os
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, Response
 
@@ -46,19 +47,67 @@ _ofac_blocked = None
 _resolve_decision = None
 
 
+WRITE_ENABLED_ENV = "AUREON_MCP_WRITE_ENABLED"
+
+#: Registered only when AUREON_MCP_WRITE_ENABLED=true (fix F2). An MCP client is
+#: normally an AI agent, and agents never authorize (charter §7, JUM-D-07), so
+#: the approval tool is off unless a human turns it on for a session.
+RESOLVE_DECISION_TOOL = {
+        "name":        "aureon_resolve_decision",
+        "description": (
+            "Approve or reject a pending Aureon decision as the CAOM-001 operator. "
+            "An authority mutation: the HTTP request must carry X-Admin-Key and a "
+            "fresh X-Request-Nonce, exactly as the dashboard does. Runs the same "
+            "path as POST /api/decisions/<id>: policy binding, approval routing, "
+            "the sealed ApprovedIntentEnvelope, and release. Refused without a "
+            "current pre-trade check."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "decision_id":   {"type": "string"},
+                "resolution":    {"type": "string", "enum": ["APPROVED", "REJECTED"]},
+                "approval_role": {"type": "string", "description": "TRADER, RISK, COMPLIANCE, PM or CONTROL"},
+                "hold_exception": {
+                    "type": "object",
+                    "description": "For an overrideable HOLD: {reason, ttl_seconds}",
+                },
+            },
+            "required": ["decision_id", "resolution"],
+        },
+    }
+
+
+def _write_enabled() -> bool:
+    return os.environ.get(WRITE_ENABLED_ENV, "").strip().lower() == "true"
+
+
 def init_mcp(aureon_state: dict, state_lock, ofac_blocked_isins: dict, resolve_decision=None):
     """
     Inject Aureon runtime state into the MCP server.
     Called from server.py after aureon_state is initialized.
 
     resolve_decision(arguments, headers) -> (payload, status) is the server's
-    single decision-resolution path. Without it the approval tool refuses.
+    single decision-resolution path. The approval tool is registered only when
+    it is supplied *and* AUREON_MCP_WRITE_ENABLED=true; otherwise the tool is
+    not listed and not callable (fix F2).
     """
     global _state, _lock, _ofac_blocked, _resolve_decision
     _state        = aureon_state
     _lock         = state_lock
     _ofac_blocked = ofac_blocked_isins
     _resolve_decision = resolve_decision
+
+    registered = any(t["name"] == "aureon_resolve_decision" for t in TOOLS)
+    enabled = resolve_decision is not None and _write_enabled()
+    if enabled and not registered:
+        TOOLS.insert(0, RESOLVE_DECISION_TOOL)
+        TOOL_HANDLERS["aureon_resolve_decision"] = _tool_aureon_resolve_decision
+        print(f"[AUREON] MCP write tool enabled by {WRITE_ENABLED_ENV} — "
+              "aureon_resolve_decision is callable with the operator key")
+    elif not enabled and registered:
+        TOOLS[:] = [t for t in TOOLS if t["name"] != "aureon_resolve_decision"]
+        TOOL_HANDLERS.pop("aureon_resolve_decision", None)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -225,30 +274,6 @@ TOOLS = [
             "type":       "object",
             "properties": {},
             "required":   [],
-        },
-    },
-    {
-        "name":        "aureon_resolve_decision",
-        "description": (
-            "Approve or reject a pending Aureon decision as the CAOM-001 operator. "
-            "An authority mutation: the HTTP request must carry X-Admin-Key and a "
-            "fresh X-Request-Nonce, exactly as the dashboard does. Runs the same "
-            "path as POST /api/decisions/<id>: policy binding, approval routing, "
-            "the sealed ApprovedIntentEnvelope, and release. Refused without a "
-            "current pre-trade check."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "decision_id":   {"type": "string"},
-                "resolution":    {"type": "string", "enum": ["APPROVED", "REJECTED"]},
-                "approval_role": {"type": "string", "description": "TRADER, RISK, COMPLIANCE, PM or CONTROL"},
-                "hold_exception": {
-                    "type": "object",
-                    "description": "For an overrideable HOLD: {reason, ttl_seconds}",
-                },
-            },
-            "required": ["decision_id", "resolution"],
         },
     },
     {
@@ -652,14 +677,16 @@ def _tool_verana_compliance_snapshot(params: dict) -> dict:
 
 def _tool_aureon_resolve_decision(params: dict) -> dict:
     """Authority mutation: authenticated and executed by the server's single resolve path."""
-    if _resolve_decision is None:
-        raise RuntimeError("decision resolution is not available on this MCP server")
+    if _resolve_decision is None or not _write_enabled():
+        raise RuntimeError(
+            f"decision resolution is disabled on this MCP server ({WRITE_ENABLED_ENV} is not true)"
+        )
     payload, status = _resolve_decision(params, request.headers)
     return {"http_status": status, **payload}
 
 
 TOOL_HANDLERS = {
-    "aureon_resolve_decision":     _tool_aureon_resolve_decision,
+    # aureon_resolve_decision is added by init_mcp when writes are enabled.
     "verana_screen_ofac":          _tool_verana_screen_ofac,
     "verana_framework_status":     _tool_verana_framework_status,
     "verana_node_status":          _tool_verana_node_status,

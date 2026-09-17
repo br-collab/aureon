@@ -49,6 +49,10 @@ from aureon.policy_engine.service import evaluate_pretrade_decision  # noqa: E40
 RISK = {"drawdown_warn_pct": 5.0, "drawdown_fail_pct": 8.0}
 RULES = pretrade_rules_digest(risk_policy=RISK, operating_cash_floor_pct=0.03, ofac_blocked_isins={})
 T0 = datetime(2026, 9, 17, 14, 0, tzinfo=timezone.utc)
+# Fix F1: a stress reading must say where it came from, or it is fabricated.
+OFFICIAL_OFR = {"fsi_value": 0.1, "source": "ofr", "provenance": "FACT_EXTERNAL"}
+LIVE_MACRO = {"source": "fred", "provenance": "FACT_EXTERNAL", "macro_regime": "balanced",
+              "vix": 18.0, "hy_oas": 3.4, "curve_spread_bps": -10.0, "as_of": "2026-09-17"}
 OBSERVED = T0 + timedelta(seconds=40)
 
 
@@ -67,7 +71,7 @@ def _authorize(state):
     evaluate_pretrade_decision(
         state=state, lock=lock, decision_id=state["pending_decisions"][0]["id"],
         market_is_open=lambda: True, macro_snapshot_fn=dict,
-        ofr_snapshot_fn=lambda _m: {"fsi_value": 0.1, "source": "test"},
+        ofr_snapshot_fn=lambda _m: OFFICIAL_OFR,
         operating_cash_floor_pct=0.03, risk_policy=RISK, symbol_to_isin={},
         ofac_blocked_isins={}, now=T0,
     )
@@ -322,10 +326,13 @@ def server_client(monkeypatch):  # type: ignore[no-untyped-def]
     monkeypatch.setattr(server._session_protocol, "is_session_open", lambda: True)
     monkeypatch.setattr(server, "_is_instrument_tradeable", lambda *_a: (True, "open"))
     monkeypatch.setattr(server, "_market_is_open", lambda: True)
-    monkeypatch.setattr(server, "_get_fred_macro_snapshot", dict)
+    # Labelled, so the trade report's own refresh cannot write a fabricated
+    # snapshot into _ofr_cache and leak into later tests (fix F1).
+    monkeypatch.setattr(server, "_get_fred_macro_snapshot", lambda: dict(LIVE_MACRO))
+    monkeypatch.setattr(server, "_get_ofr_stress_snapshot", lambda _macro: dict(OFFICIAL_OFR))
     monkeypatch.setattr(server, "_send_trade_confirmation_email", lambda *_a: None)
     monkeypatch.setattr(server, "_save_state", lambda: None)
-    monkeypatch.setitem(server._ofr_cache, "data", {"fsi_value": 0.2, "source": "test"})
+    monkeypatch.setitem(server._ofr_cache, "data", dict(OFFICIAL_OFR))
     keys = ("pending_decisions", "positions", "cash", "portfolio_value", "drawdown", "prices",
             "prices_observed_at", "trades", "halt_active", "release_events", "venue_fills",
             "booked_fill_ids", "booking_breaks")

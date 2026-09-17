@@ -236,12 +236,22 @@ class PolicyManifest(BaseModel):
 
 
 class ApprovalRecord(BaseModel):
+    """One role's approval.
+
+    ``role_source`` and ``independence_asserted`` state the CAOM-001 limit
+    (AUR-I-19, fix F4): the role is taken from the request body, and one
+    operator key can approve as any role, so approvals by different roles are
+    not independent people. The actor registry (JUM-D-18) is the real fix.
+    """
+
     model_config = _Frozen
 
     role: str
     actor: ActorRef
     approved_at: datetime
     authority_hash: str
+    role_source: Literal["request_body"] = "request_body"
+    independence_asserted: Literal[False] = False
 
 
 class AuthorityManifest(BaseModel):
@@ -251,6 +261,9 @@ class AuthorityManifest(BaseModel):
     required_roles: tuple[str, ...]
     approvals: tuple[ApprovalRecord, ...]
     quorum_met: bool
+    #: False while one operator key can act in every role (AUR-I-19, fix F4).
+    independence_asserted: Literal[False] = False
+    operating_mode: Literal["CAOM-001 single operator"] = "CAOM-001 single operator"
 
 
 class DownstreamPermissions(BaseModel):

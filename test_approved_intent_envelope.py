@@ -46,6 +46,10 @@ from aureon.policy_engine.service import evaluate_pretrade_decision  # noqa: E40
 RISK = {"drawdown_warn_pct": 5.0, "drawdown_fail_pct": 8.0}
 RULES = pretrade_rules_digest(risk_policy=RISK, operating_cash_floor_pct=0.03, ofac_blocked_isins={})
 T0 = datetime(2026, 9, 17, 15, 0, tzinfo=timezone.utc)
+# Fix F1: a stress reading must say where it came from, or it is fabricated.
+OFFICIAL_OFR = {"fsi_value": 0.1, "source": "ofr", "provenance": "FACT_EXTERNAL"}
+LIVE_MACRO = {"source": "fred", "provenance": "FACT_EXTERNAL", "macro_regime": "balanced",
+              "vix": 18.0, "hy_oas": 3.4, "curve_spread_bps": -10.0, "as_of": "2026-09-17"}
 
 
 # ── One quantity model (AUR-I-04) ───────────────────────────────────────────────
@@ -101,7 +105,7 @@ def _approve(state, *, role="TRADER", actor=OPERATOR_ACTOR, at=T0 + timedelta(se
         evaluate_pretrade_decision(
             state=state, lock=lock, decision_id=state["pending_decisions"][0]["id"],
             market_is_open=lambda: True, macro_snapshot_fn=dict,
-            ofr_snapshot_fn=lambda _m: {"fsi_value": 0.1, "source": "test"},
+            ofr_snapshot_fn=lambda _m: OFFICIAL_OFR,
             operating_cash_floor_pct=0.03, risk_policy=RISK, symbol_to_isin={},
             ofac_blocked_isins={}, now=T0,
         )
@@ -163,7 +167,7 @@ def test_an_unauthenticated_actor_is_refused_before_any_change() -> None:
     evaluate_pretrade_decision(
         state=state, lock=threading.RLock(), decision_id="DEC-ENV-1",
         market_is_open=lambda: True, macro_snapshot_fn=dict,
-        ofr_snapshot_fn=lambda _m: {"fsi_value": 0.1, "source": "test"},
+        ofr_snapshot_fn=lambda _m: OFFICIAL_OFR,
         operating_cash_floor_pct=0.03, risk_policy=RISK, symbol_to_isin={},
         ofac_blocked_isins={}, now=T0,
     )
@@ -211,12 +215,17 @@ def server_client(monkeypatch):  # type: ignore[no-untyped-def]
     monkeypatch.setattr(server._session_protocol, "is_session_open", lambda: True)
     monkeypatch.setattr(server, "_is_instrument_tradeable", lambda *_a: (True, "open"))
     monkeypatch.setattr(server, "_market_is_open", lambda: True)
-    monkeypatch.setattr(server, "_get_fred_macro_snapshot", dict)
+    # Labelled, so the trade report's own refresh cannot write a fabricated
+    # snapshot into _ofr_cache and leak into later tests (fix F1).
+    monkeypatch.setattr(server, "_get_fred_macro_snapshot", lambda: dict(LIVE_MACRO))
+    monkeypatch.setattr(server, "_get_ofr_stress_snapshot", lambda _macro: dict(OFFICIAL_OFR))
     monkeypatch.setattr(server, "_send_trade_confirmation_email", lambda *_a: None)
     monkeypatch.setattr(server, "_save_state", lambda: None)
     monkeypatch.setattr(server, "_approval_clock", lambda: FIXED)
-    monkeypatch.setitem(server._ofr_cache, "data", {"fsi_value": 0.2, "source": "test"})
-    # Boot calls init_mcp; the test client has not booted.
+    monkeypatch.setitem(server._ofr_cache, "data", dict(OFFICIAL_OFR))
+    # Boot calls init_mcp; the test client has not booted. Writes stay off by
+    # default (fix F2); the tests that need the tool enable it themselves.
+    monkeypatch.delenv("AUREON_MCP_WRITE_ENABLED", raising=False)
     server.init_mcp(server.aureon_state, server._lock, server.OFAC_BLOCKED_ISINS,
                     resolve_decision=server._mcp_resolve_decision)
     keys = ("pending_decisions", "positions", "cash", "portfolio_value", "drawdown", "prices",
@@ -294,6 +303,14 @@ def _via_cli(server, client):
     return payload
 
 
+def _enable_mcp_writes(server, monkeypatch):
+    """Turn the MCP approval tool on for one test only (fix F2)."""
+    monkeypatch.setenv("AUREON_MCP_WRITE_ENABLED", "true")
+    server.init_mcp(server.aureon_state, server._lock, server.OFAC_BLOCKED_ISINS,
+                    resolve_decision=server._mcp_resolve_decision)
+    # The fixture re-initialises without the flag for the next test.
+
+
 def _via_mcp(server, client):
     response = client.post("/mcp", headers=_headers(), json={
         "jsonrpc": "2.0", "id": 1, "method": "tools/call",
@@ -303,8 +320,9 @@ def _via_mcp(server, client):
     return response.get_json()["result"]
 
 
-def test_every_channel_seals_the_same_envelope(server_client) -> None:
+def test_every_channel_seals_the_same_envelope(server_client, monkeypatch) -> None:
     server, client, keys = server_client
+    _enable_mcp_writes(server, monkeypatch)
     digests = {}
     for name, channel in (("dashboard", _via_dashboard), ("api", _via_api), ("cli", _via_cli),
                           ("mcp", _via_mcp)):
@@ -317,8 +335,9 @@ def test_every_channel_seals_the_same_envelope(server_client) -> None:
     assert len(set(digests.values())) == 1, digests
 
 
-def test_mcp_approval_requires_the_operator_key(server_client) -> None:
+def test_mcp_approval_requires_the_operator_key(server_client, monkeypatch) -> None:
     server, client, keys = server_client
+    _enable_mcp_writes(server, monkeypatch)
     _reset(server, keys)
     client.get("/api/decisions/DEC-PARITY/pretrade")
     before = copy.deepcopy(server.aureon_state["pending_decisions"])
@@ -330,6 +349,57 @@ def test_mcp_approval_requires_the_operator_key(server_client) -> None:
     assert result["http_status"] == 401
     assert server.aureon_state["pending_decisions"] == before
     assert "approved_intents" not in server.aureon_state
+
+
+def test_the_mcp_approval_tool_is_off_by_default(server_client) -> None:
+    """Fix F2: an MCP client is normally an AI agent, and agents never authorize."""
+    server, client, keys = server_client
+    _reset(server, keys)
+    client.get("/api/decisions/DEC-PARITY/pretrade")
+
+    listed = client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    names = {t["name"] for t in listed.get_json()["result"]["tools"]}
+    assert "aureon_resolve_decision" not in names
+    assert "verana_screen_ofac" in names
+
+    called = client.post("/mcp", headers=_headers(), json={
+        "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+        "params": {"name": "aureon_resolve_decision",
+                   "arguments": {"decision_id": "DEC-PARITY", "resolution": "APPROVED"}}})
+    body = called.get_json()
+    assert "result" not in body
+    assert "not found" in body["error"]["message"].lower()
+    assert server.aureon_state["pending_decisions"][0]["id"] == "DEC-PARITY"
+    assert "approved_intents" not in server.aureon_state
+
+
+def test_an_enabled_mcp_approval_is_recorded_as_an_asserted_human(server_client, monkeypatch) -> None:
+    server, client, keys = server_client
+    _enable_mcp_writes(server, monkeypatch)
+    _reset(server, keys)
+    client.get("/api/decisions/DEC-PARITY/pretrade")
+    assert _via_mcp(server, client)["status"] == "ok"
+    entry = next(e for e in server.aureon_state["authority_log"]
+                 if e.get("type") == "AUTHENTICATED DECISION_RESOLVE")
+    assert entry["channel"] == "MCP"
+    assert "not proven" in entry["caller_human_status"]
+
+
+def test_authority_records_state_the_single_operator_limit(server_client) -> None:
+    """Fix F4 (AUR-I-19): the role comes from the request body, not an entitlement."""
+    server, client, keys = server_client
+    _reset(server, keys)
+    client.get("/api/decisions/DEC-PARITY/pretrade")
+    body = client.post("/api/decisions/DEC-PARITY", headers=_headers(),
+                       json={"resolution": "APPROVED", "approval_role": "TRADER"}).get_json()
+    assert body["status"] == "ok"
+    approval = next(e for e in server.aureon_state["authority_log"] if e["type"].startswith("APPROVE"))
+    assert approval["role_source"] == "request_body"
+    assert approval["independence_asserted"] is False
+    envelope = server.aureon_state["approved_intents"][0]
+    assert envelope["authority_manifest"]["independence_asserted"] is False
+    assert envelope["authority_manifest"]["operating_mode"] == "CAOM-001 single operator"
+    assert envelope["authority_manifest"]["approvals"][0]["role_source"] == "request_body"
 
 
 def test_cli_without_a_key_does_not_call_the_server() -> None:

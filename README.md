@@ -519,9 +519,11 @@ aureon_resolve_decision(decision_id, resolution, approval_role?, hold_exception?
                                         — approve or reject a decision; an authority mutation
 ```
 
-**`SR_11_7` is deprecated.** `verana_framework_status` accepts `SR_26_2` for SR 26-2 / OCC 2026-13, which superseded SR 11-7 on 17 April 2026. Its status is `ALIGNMENT` (quantitative models), never `SATISFIED`. `SR_11_7` still works as an alias: it returns the `SR_26_2` content with `"requested": "SR_11_7"` and a `deprecation` note. It will be removed in a later version, so switch callers to `SR_26_2`.
+**`aureon_resolve_decision` is off by default.** It is the only tool that changes anything, and it is registered only when `AUREON_MCP_WRITE_ENABLED=true`. An MCP client is normally an AI agent, and agents never authorize (charter §7, JUM-D-07), so a human turns it on deliberately; Railway leaves it unset, and the tool is then neither listed nor callable. When it is on, the authority record states `channel: MCP` and that the caller's human status is asserted by possession of the operator key, not proven — the actor registry (JUM-D-18) closes that.
 
-`aureon_resolve_decision` is the only tool that changes anything. The HTTP request to `/mcp` must carry `X-Admin-Key` and a fresh `X-Request-Nonce`, exactly as the dashboard does, and the tool runs the same path as `POST /api/decisions/<id>` (policy binding, routing, the sealed `ApprovedIntentEnvelope`, release). The command line reaches the same route with `aureon-agent resolve <decision_id> APPROVED --role TRADER --server <url>`, reading the key from `AUREON_ADMIN_KEY`.
+When enabled, the HTTP request to `/mcp` must carry `X-Admin-Key` and a fresh `X-Request-Nonce`, exactly as the dashboard does, and the tool runs the same path as `POST /api/decisions/<id>` (policy binding, routing, the sealed `ApprovedIntentEnvelope`, release). The command line reaches the same route with `aureon-agent resolve <decision_id> APPROVED --role TRADER --server <url>`, reading the key from `AUREON_ADMIN_KEY`.
+
+**`SR_11_7` is deprecated.** `verana_framework_status` accepts `SR_26_2` for SR 26-2 / OCC 2026-13, which superseded SR 11-7 on 17 April 2026. Its status is `ALIGNMENT` (quantitative models), never `SATISFIED`. `SR_11_7` still works as an alias: it returns the `SR_26_2` content with `"requested": "SR_11_7"` and a `deprecation` note. It will be removed in a later version, so switch callers to `SR_26_2`.
 
 **Example — initialize:**
 ```json
