@@ -12,6 +12,8 @@ beautifulsoup4==4.15.0
     # via yfinance
 blinker==1.9.0
     # via flask
+cannae-kernel @ git+https://github.com/br-collab/cannae-kernel.git@42a0bfd07e6816d27c85211e24804233b064b8d5
+    # via -r requirements.txt
 certifi==2026.7.22
     # via
     #   curl-cffi
@@ -86,6 +88,7 @@ pydantic==2.13.5
     # via
     #   -r requirements.txt
     #   atreides
+    #   cannae-kernel
 pydantic-core==2.46.5
     # via pydantic
 python-dateutil==2.9.0.post0
