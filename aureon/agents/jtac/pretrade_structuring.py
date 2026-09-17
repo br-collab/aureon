@@ -19,7 +19,7 @@
 ║    - Jurisdictional attribution before execution                     ║
 ║                                                                      ║
 ║  REGULATORY ADDRESS:                                                 ║
-║    SR 11-7 Tier 1 — independent validation before deployment        ║
+║    NIST AI RMF 1.0 plus Aureon doctrine — Tier 1 validation first   ║
 ║    EU AI Act — high-risk, conformity assessment required            ║
 ║    MiFID II RTS 6 — AUR-J-TRADE-001 algorithm inventory            ║
 ║    DORA — ICT third-party registry for all lifecycle nodes          ║

@@ -29,7 +29,7 @@
 ║                                                                      ║
 ║  REGULATORY ADDRESS:                                               ║
 ║    BCBS 239 P3 accuracy / P5 timeliness — automated risk aggregation║
-║    SR 11-7 — risk monitoring; Tier 1 classification declared        ║
+║    NIST AI RMF 1.0 plus Aureon doctrine — risk monitoring; Tier 1   ║
 ║    DORA — liquidity resilience (cash-buffer metric)                 ║
 ╚══════════════════════════════════════════════════════════════════════╝
 """

@@ -53,7 +53,7 @@ action that opens a position requires explicit operator approval before it reach
 **Autonomous mode — DECLARED, NOT ACTIVATED.** The continuous optimization surface — VWAP,
 TWAP and POV strategy selection, autonomous collateral optimization, autonomous FX hedging
 within the risk envelope — is architecturally specified and not enabled. Activation *per
-domain* requires independent SR 11-7 Tier 1 validation, EU AI Act high-risk system EU database
+domain* requires independent Tier 1 validation under the National Institute of Standards and Technology AI Risk Management Framework (NIST AI RMF) 1.0 plus Aureon doctrine, EU AI Act high-risk system EU database
 registration, and a formal doctrine amendment recorded in the version log.
 
 Do **not** describe Thifur-H as "declared, not activated" without qualification. That was the
@@ -78,8 +78,8 @@ This is a property worth defending, not an omission.
 
 No module in this directory fits, trains, calibrates against outcomes, or feeds realised P&L
 back into a threshold. The decision function changes when a human edits a constant and records
-why. That is what keeps SR 11-7 ongoing-monitoring and independent-validation obligations
-tractable, and it is what makes any given session deterministically replayable from its DSOR
+why. That is what keeps ongoing monitoring and independent validation under
+SR 26-2 / OCC 2026-13 (supersedes SR 11-7) tractable, and it is what makes any given session deterministically replayable from its DSOR
 record. Introducing an outcome-driven parameter update here is a doctrine event, not a
 refactor.
 
@@ -90,7 +90,7 @@ refactor.
 | File | Role |
 | --- | --- |
 | `thifur_h.py` | Session engine, gates, ledger, doctrine bindings. The entry point. |
-| `agent_h.py` | Agent-level wrapper and SR 11-7 Tier 1 framing. |
+| `agent_h.py` | Agent-level wrapper and Tier 1 governance framing. |
 | `atrox_live.py` | Live signal generator — 5-minute XBTUSD loop on the Railway worker. Dormant unless a session is ACTIVE. |
 | `atrox_sandbox.py` | Sandbox signal generator for non-live sessions. |
 | `kraken_client.py` | Exchange client and the live doctrine variant (`ThifurHDoctrineLive`). |

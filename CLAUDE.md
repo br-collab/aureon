@@ -178,7 +178,7 @@ Cato exists in **two forms** that must produce bit-for-bit identical decisions:
 2. **Aureon in-process Python twin** — `aureon/mcp/cato_client.py`
    Pure Python, no I/O. Called directly from `server.py` for the `/api/cato/*` endpoints. Data fetching (FRED, Blockscout, Solana RPC, CoinGecko) happens in `server.py` inside `_cato_refresh_inputs()` and flows into the twin via scalar parameters.
 
-**The parity principle (hard rule):** any doctrine change — new threshold, new input, new decision branch — must land in **both** codebases in the same commit series. The deterministic identity is what lets regulators trust the gate regardless of caller. If you only update one side you break SR 11-7 model governance.
+**The parity principle (hard rule):** any doctrine change — new threshold, new input, new decision branch — must land in **both** codebases in the same commit series. The deterministic identity is what lets regulators trust the gate regardless of caller. If you only update one side you break model governance under Federal Reserve SR 26-2 / Office of the Comptroller of the Currency (OCC) Bulletin 2026-13 (supersedes SR 11-7).
 
 ### Doctrine thresholds (gate core v0.3.1)
 
@@ -270,13 +270,13 @@ These are non-negotiable design constraints:
   execution under explicit per-signal CAOM-001 approval, and DSOR write-through against the live
   Kraken account. **Autonomous mode is DECLARED, NOT ACTIVATED** — VWAP/TWAP/POV strategy
   selection, autonomous collateral optimization, and autonomous FX hedging are architecturally
-  specified but not enabled. Activation per domain requires independent SR 11-7 Tier 1
-  validation, EU AI Act high-risk EU database registration, and a formal doctrine amendment in
+  specified but not enabled. Activation per domain requires independent Tier 1 validation under
+  the National Institute of Standards and Technology AI Risk Management Framework (NIST AI RMF) 1.0 plus Aureon doctrine, EU AI Act high-risk EU database registration, and a formal doctrine amendment in
   the version log. Do not describe Thifur-H as simply "declared, not activated" — that is the
   v1.1 rendering, and v1.6 §II corrected it as inconsistent with the deployed Kraken integration.
 - Nothing in the deployed system updates its own decision function from accumulated outcomes.
   Atrox Live runs fixed, operator-specified constants (5-min cadence, 12-candle rolling high,
   0.3% drop / 0.5% gain / 0.3% stop). Behaviour changes when a human edits a constant and
-  records why — not by learning. This is the property that keeps SR 11-7 ongoing-monitoring
-  obligations tractable; do not compromise it casually.
+  records why — not by learning. This is the property that keeps ongoing monitoring under SR 26-2 / OCC 2026-13 (supersedes SR 11-7)
+  tractable; do not compromise it casually.
 - Operational journal entries use military DTG format (YYYYMMDDHHMM)
