@@ -117,7 +117,7 @@ class ThifurJ(JTACConcreteBase):
         super().__init__(aureon_state, state_lock)
         self._dispatch = None  # lazy-loaded asset-class dispatch fixture (P-1)
         print(f"[THIFUR-J] Initialized — v{AGENT_J_VERSION} | "
-              f"Algorithm ID: {ALGORITHM_ID} | SR 11-7 Tier 1 declared")
+              f"Algorithm ID: {ALGORITHM_ID} | Tier 1 declared (NIST AI RMF 1.0 plus Aureon doctrine)")
 
     # ── Asset-class dispatch (Workstream P-1, AUR-PRETRADE-REG-001) ───────────
     def _load_dispatch(self, source_path: str | None = None) -> dict:

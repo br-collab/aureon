@@ -132,7 +132,7 @@ def build_trade_report(
         "approved_by":       "br@ravelobizdev.com",
         "gate_results":      gate_results,
         "frameworks_active": [
-            "MiFID II Art.17/RTS6", "SR 11-7", "Basel III",
+            "MiFID II Art.17/RTS6", "SR 26-2 / OCC 2026-13", "Basel III",
             "DORA Art.28", "Dodd-Frank 4a(1)",
         ],
 

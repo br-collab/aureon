@@ -72,7 +72,7 @@ ALGORITHM_REGISTRY = {
             "and market-making spread. Advisory output only — no execution."
         ),
         "activation_requirements": [
-            "SR 11-7 Tier 1 independent validation",
+            "Tier 1 independent validation (NIST AI RMF 1.0 plus Aureon doctrine)",
             "MiFID II RTS 6 algorithm inventory registration",
             "Tier 2 human authority sign-off",
             "C2 sequencing protocol confirmed",
@@ -95,7 +95,7 @@ ALGORITHM_REGISTRY = {
         ),
         "activation_requirements": [
             "AUR-H-SIC-001 active and validated first",
-            "SR 11-7 Tier 1 independent validation for combined signal",
+            "Tier 1 independent validation for combined signal (NIST AI RMF 1.0 plus Aureon doctrine)",
             "Prediction market API connections established and tested",
             "Kalshi/Polymarket data classified under regulatory framework",
             "Tier 2 human authority sign-off",
@@ -115,7 +115,7 @@ ALGORITHM_REGISTRY = {
         ),
         "activation_requirements": [
             "AUR-H-SIC-001 and AUR-H-PRED-001 active and validated",
-            "SR 11-7 Tier 1 independent validation",
+            "Tier 1 independent validation (NIST AI RMF 1.0 plus Aureon doctrine)",
             "MiFID II RTS 6 kill switch, price collars, execution throttles",
             "EU AI Act conformity assessment",
             "Tier 2 human authority sign-off per domain",
@@ -461,7 +461,7 @@ class ThifurH:
             "regulatory_note": (
                 "Thifur-H is a declared capability. It is not activated. "
                 "No market data is consumed. No signals are generated. "
-                "Activation requires completed SR 11-7 Tier 1 validation, "
+                "Activation requires completed Tier 1 validation under NIST AI RMF 1.0 plus Aureon doctrine, "
                 "EU AI Act conformity assessment, MiFID II RTS 6 algorithm "
                 "registration, and Tier 2 human authority sign-off per domain. "
                 "The governance architecture precedes the capability. "

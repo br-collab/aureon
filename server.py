@@ -800,7 +800,7 @@ def _generate_compliance_pdf(report: dict) -> bytes:
     story.append(Paragraph("COMPLIANCE FRAMEWORKS ACTIVE AT EXECUTION", ParagraphStyle(
         "AFH", fontName="Helvetica-Bold", fontSize=8, textColor=MUTED, spaceAfter=4)))
     fw_text = "  \u00b7  ".join(report.get("frameworks_active",
-        ["MiFID II Art.17/RTS6","SR 11-7","Basel III","DORA Art.28","Dodd-Frank 4a(1)"]))
+        ["MiFID II Art.17/RTS6","SR 26-2 / OCC 2026-13","Basel III","DORA Art.28","Dodd-Frank 4a(1)"]))
     story.append(Paragraph(fw_text, ParagraphStyle(
         "AFT", fontName="Helvetica", fontSize=7, textColor=MUTED, spaceAfter=8)))
 
@@ -1453,7 +1453,7 @@ def _send_trade_confirmation_email(report: dict):
         '<hr style="border:none;border-top:1px solid rgba(0,212,255,0.1);margin:0 0 12px">'
         f'<div style="font-size:9px;color:#4A5578;text-align:center">'
         f'{report_id} &middot; Aureon Grid 3 &middot; Kaladan L2 Compliance Artifact &middot; '
-        f'MiFID II Art.17/RTS6 &middot; SR 11-7 &middot; Not for external distribution</div>'
+        f'MiFID II Art.17/RTS6 &middot; SR 26-2 / OCC 2026-13 &middot; Not for external distribution</div>'
         '</div></body></html>'
     )
 
@@ -4756,7 +4756,10 @@ def api_compliance():
             "macro":         macro_snapshot,
             "ofr":           ofr_snapshot,
             "frameworks": [
-                {"name": "SR 11-7 — Model Risk Management",      "status": "SATISFIED"},
+                # Alignment, not compliance: SR 26-2 / OCC 2026-13 superseded SR 11-7 on
+                # 17 Apr 2026 and excludes agentic AI, which NIST AI RMF 1.0 covers (W2-ADD-02).
+                {"name": "SR 26-2 / OCC 2026-13 — alignment (quantitative models)", "status": "ALIGNMENT"},
+                {"name": "NIST AI RMF 1.0 — alignment (agentic components)",        "status": "ALIGNMENT"},
                 {"name": "OCC 2023-17 — Third-Party Risk",        "status": "SATISFIED"},
                 {"name": "BCBS 239 — Risk Data Aggregation",      "status": "SATISFIED"},
                 {"name": "MiFID II Art. 17 / RTS 6",              "status": "SATISFIED"},
@@ -8723,7 +8726,7 @@ def framework_brief():
         </div>
         <div class="role-card">
           <div class="role-title">Compliance</div>
-          <div class="role-desc">The SR 11-7 model risk framework applied to AI-assisted systems before regulators require it.</div>
+          <div class="role-desc">Model risk discipline aligned with SR 26-2 / OCC 2026-13 for quantitative models, and NIST AI RMF 1.0 for agentic components, applied before regulators require it.</div>
         </div>
         <div class="role-card">
           <div class="role-title">Investors</div>

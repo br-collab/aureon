@@ -124,7 +124,7 @@ RESOURCES = [
         "name":        "Regulatory Frameworks Status",
         "description": (
             "Current compliance status for all regulatory frameworks "
-            "Verana L0 monitors: SR 11-7, OCC 2023-17, BCBS 239, "
+            "Verana L0 monitors: SR 26-2 / OCC 2026-13, OCC 2023-17, BCBS 239, "
             "MiFID II Art. 17 / RTS 6, DORA, EU AI Act. "
             "Each framework includes status and last-verified timestamp."
         ),
@@ -194,8 +194,9 @@ TOOLS = [
         "name":        "verana_framework_status",
         "description": (
             "Check the compliance status of a specific regulatory framework "
-            "monitored by Verana L0. Returns status (SATISFIED/BREACHED/MONITORING) "
-            "and detail. Valid frameworks: SR_11_7, OCC_2023_17, BCBS_239, "
+            "monitored by Verana L0. Returns status (SATISFIED/BREACHED/MONITORING, or "
+            "ALIGNMENT for SR 26-2, which is a statement of alignment, not compliance) "
+            "and detail. Valid frameworks: SR_26_2, OCC_2023_17, BCBS_239, "
             "MIFID_II, DORA, EU_AI_ACT."
         ),
         "inputSchema": {
@@ -203,8 +204,11 @@ TOOLS = [
             "properties": {
                 "framework": {
                     "type":        "string",
-                    "description": "Framework identifier. One of: SR_11_7, OCC_2023_17, BCBS_239, MIFID_II, DORA, EU_AI_ACT",
-                    "enum":        ["SR_11_7", "OCC_2023_17", "BCBS_239", "MIFID_II", "DORA", "EU_AI_ACT"],
+                    "description": ("Framework identifier. One of: SR_26_2, OCC_2023_17, BCBS_239, "
+                                    "MIFID_II, DORA, EU_AI_ACT. SR_11_7 is a deprecated alias of "
+                                    "SR_26_2 and returns its content with a deprecation note."),
+                    "enum":        ["SR_26_2", "OCC_2023_17", "BCBS_239", "MIFID_II", "DORA", "EU_AI_ACT",
+                                    "SR_11_7"],
                 },
             },
             "required": ["framework"],
@@ -310,12 +314,12 @@ def _read_regulatory_frameworks() -> dict:
         "ts":           datetime.now(timezone.utc).isoformat(),
         "frameworks": [
             {
-                "id":          "SR_11_7",
-                "name":        "SR 11-7 — Model Risk Management",
-                "status":      "SATISFIED",
-                "description": "Federal Reserve model risk management guidance. "
-                               "All Aureon signals and models documented, validated, and governed.",
-                "authority":   "Federal Reserve Board",
+                "id":          "SR_26_2",
+                "name":        SR_26_2_LABEL,
+                "status":      "ALIGNMENT",
+                "description": SR_26_2_DETAIL,
+                "authority":   "Federal Reserve Board · Office of the Comptroller of the Currency · FDIC",
+                "supersedes":  "SR 11-7 / OCC 2011-12 (superseded 17 April 2026)",
             },
             {
                 "id":          "OCC_2023_17",
@@ -465,8 +469,20 @@ RESOURCE_READERS = {
 # Tool Handlers
 # ─────────────────────────────────────────────────────────────────────────────
 
+SR_26_2_LABEL = "SR 26-2 / OCC 2026-13 — Model Risk Management (supersedes SR 11-7)"
+SR_26_2_DETAIL = (
+    "Alignment for quantitative models (the Cato gate, Atrox Live's fixed decision constants, the "
+    "backtest). A statement of alignment, not of compliance or completed validation. SR 26-2 "
+    "excludes generative and agentic AI; the Thifur agents align with NIST AI RMF 1.0 plus "
+    "Aureon doctrine instead."
+)
+SR_11_7_DEPRECATION = (
+    "SR_11_7 is deprecated: SR 11-7 was superseded by SR 26-2 / OCC 2026-13 on 17 April 2026. "
+    "This response is the SR_26_2 content. Use SR_26_2."
+)
+
 FRAMEWORK_LABELS = {
-    "SR_11_7":     "SR 11-7 — Model Risk Management",
+    "SR_26_2":     SR_26_2_LABEL,
     "OCC_2023_17": "OCC 2023-17 — Third-Party Risk",
     "BCBS_239":    "BCBS 239 — Risk Data Aggregation",
     "MIFID_II":    "MiFID II Art. 17 / RTS 6 — Algorithmic Trading",
@@ -525,6 +541,9 @@ def _tool_verana_screen_ofac(params: dict) -> dict:
 
 def _tool_verana_framework_status(params: dict) -> dict:
     fw_id = params.get("framework", "").strip().upper()
+    deprecated_alias = fw_id == "SR_11_7"
+    if deprecated_alias:
+        fw_id = "SR_26_2"
     if fw_id not in FRAMEWORK_LABELS:
         return {
             "isError": True,
@@ -538,7 +557,7 @@ def _tool_verana_framework_status(params: dict) -> dict:
         halt     = _state.get("halt_active", False)
 
     detail_map = {
-        "SR_11_7":     "All models documented and validated. Signal generation logic reviewed.",
+        "SR_26_2":     SR_26_2_DETAIL,
         "OCC_2023_17": "All third-party integrations assessed and governed.",
         "BCBS_239":    "Single aureon_state source of truth. Full lineage via authority_log.",
         "MIFID_II":    "Zero autonomous execution. All signals require HITL approval.",
@@ -552,10 +571,14 @@ def _tool_verana_framework_status(params: dict) -> dict:
             "text": json.dumps({
                 "framework":       fw_id,
                 "name":            FRAMEWORK_LABELS[fw_id],
-                "status":          "BREACHED" if halt else "SATISFIED",
+                # SR 26-2 is reported as alignment, never as satisfied (W2-ADD-02).
+                "status":          ("ALIGNMENT" if fw_id == "SR_26_2"
+                                    else "BREACHED" if halt else "SATISFIED"),
                 "detail":          detail_map[fw_id],
                 "doctrine_version": doctrine,
                 "halt_active":     halt,
+                **({"requested": "SR_11_7", "deprecation": SR_11_7_DEPRECATION}
+                   if deprecated_alias else {}),
                 "ts":              datetime.now(timezone.utc).isoformat(),
             }, indent=2),
         }],

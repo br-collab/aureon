@@ -191,5 +191,5 @@ class HunterKillerAgent(Agent):
         return GuardrailResult(
             passed=False,
             rule="activation-required",
-            reason="Hunter-Killer agent not activated — SR 11-7 Tier 1 validation pending",
+            reason="Hunter-Killer agent not activated — Tier 1 validation under NIST AI RMF 1.0 plus Aureon doctrine pending",
         )

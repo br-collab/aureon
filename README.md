@@ -502,7 +502,7 @@ Aureon MCP Server (aureon/mcp/server.py)
 
 ```
 aureon://verana/network-registry        — node counts, agent roster, doctrine version
-aureon://verana/regulatory-frameworks   — SR 11-7, OCC 2023-17, BCBS 239, MiFID II, DORA, EU AI Act
+aureon://verana/regulatory-frameworks   — SR 26-2 / OCC 2026-13, OCC 2023-17, BCBS 239, MiFID II, DORA, EU AI Act
 aureon://verana/ofac-screening-list     — OFAC SDN blocked identifiers with sanction basis
 aureon://verana/compliance-alerts       — live alert feed, drawdown state, halt status
 aureon://verana/doctrine-status         — doctrine version, audit hash, version log
@@ -518,6 +518,8 @@ verana_compliance_snapshot()            — full Verana governance picture in on
 aureon_resolve_decision(decision_id, resolution, approval_role?, hold_exception?)
                                         — approve or reject a decision; an authority mutation
 ```
+
+**`SR_11_7` is deprecated.** `verana_framework_status` accepts `SR_26_2` for SR 26-2 / OCC 2026-13, which superseded SR 11-7 on 17 April 2026. Its status is `ALIGNMENT` (quantitative models), never `SATISFIED`. `SR_11_7` still works as an alias: it returns the `SR_26_2` content with `"requested": "SR_11_7"` and a `deprecation` note. It will be removed in a later version, so switch callers to `SR_26_2`.
 
 `aureon_resolve_decision` is the only tool that changes anything. The HTTP request to `/mcp` must carry `X-Admin-Key` and a fresh `X-Request-Nonce`, exactly as the dashboard does, and the tool runs the same path as `POST /api/decisions/<id>` (policy binding, routing, the sealed `ApprovedIntentEnvelope`, release). The command line reaches the same route with `aureon-agent resolve <decision_id> APPROVED --role TRADER --server <url>`, reading the key from `AUREON_ADMIN_KEY`.
 

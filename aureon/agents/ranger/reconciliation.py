@@ -53,7 +53,7 @@ class Reconciliation(RangerConcreteBase):
     regulatory_frameworks = [
         "BCBS 239 P3",
         "DORA",
-        "SR 11-7 Tier 2",
+        "Tier 2 (NIST AI RMF 1.0 plus Aureon doctrine)",
     ]
 
     dsor_record_types = [

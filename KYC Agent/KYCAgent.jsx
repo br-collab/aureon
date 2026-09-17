@@ -9,7 +9,7 @@ const GRAY = "#A0A0A0";
 const BORDER = "#2A2A2A";
 const TEXT = "#F0F0F0";
 
-const SYSTEM_PROMPT = `You are AUREON-KYC, an institutional compliance agent executing Know Your Customer (KYC) verification workflows under SR 11-7 governance doctrine.
+const SYSTEM_PROMPT = `You are AUREON-KYC, an institutional compliance agent executing Know Your Customer (KYC) verification workflows under NIST AI RMF 1.0 plus Aureon governance doctrine.
 
 Your role:
 - Conduct structured KYC intake interviews for financial institution client onboarding
@@ -147,7 +147,7 @@ export default function KYCAgent() {
           {[
             ["Session ID", sessionId],
             ["Initiated", sessionStart.toLocaleString()],
-            ["Doctrine", "SR 11-7 / FinCEN / BSA"],
+            ["Doctrine", "NIST AI RMF 1.0 / FinCEN / BSA"],
             ["HITL Gates", "Active"],
             ["Voice", "Ready / Disabled"],
           ].map(([k, v]) => (
@@ -174,7 +174,7 @@ export default function KYCAgent() {
 
             <div style={{ borderTop: `1px solid ${BORDER}`, marginBottom: 28 }}>
               {[
-                ["Compliance framework", "SR 11-7 / FinCEN / BSA"],
+                ["Compliance framework", "NIST AI RMF 1.0 / FinCEN / BSA"],
                 ["Risk screening", "PEP · Sanctions · Jurisdiction"],
                 ["HITL gates", "Active"],
                 ["Audit trail", "Enabled — session-locked"],

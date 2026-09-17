@@ -46,7 +46,7 @@ def print_header():
 ╔══════════════════════════════════════════════════════════════╗
 ║           THIFUR-H SANDBOX VALIDATION PROTOCOL              ║
 ║           Project Aureon · CAOM-001 · Phase 2               ║
-║           SR 11-7 Tier 1 Independent Validation             ║
+║  Tier 1 Independent Validation (NIST AI RMF 1.0 + doctrine) ║
 ╚══════════════════════════════════════════════════════════════╝
 """)
 
@@ -251,8 +251,8 @@ def main():
             print(f"\n  {report['open_positions']} open position(s) detected — engaging kill switch")
             engine.kill_switch("Validation session end — clean shutdown")
 
-    sr117_verdict = "READY FOR SR 11-7 EVIDENCE REVIEW" if results["failed"] == 0 else "REMEDIATION REQUIRED BEFORE PRODUCTION"
-    print(f"\n  SR 11-7 Status: {sr117_verdict}\n")
+    validation_verdict = "READY FOR TIER 1 EVIDENCE REVIEW" if results["failed"] == 0 else "REMEDIATION REQUIRED BEFORE PRODUCTION"
+    print(f"\n  NIST AI RMF 1.0 + Aureon doctrine Tier 1 status: {validation_verdict}\n")
 
     sys.exit(0 if results["failed"] == 0 else 1)
 

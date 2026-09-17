@@ -62,7 +62,7 @@ class TradeSupport(RangerConcreteBase):
     role_name = "Trade Support Analyst"
 
     regulatory_frameworks = [
-        "SR 11-7 Tier 2",
+        "Tier 2 (NIST AI RMF 1.0 plus Aureon doctrine)",
         "MiFID II RTS6",
         "BCBS 239 P3",
     ]
@@ -76,7 +76,7 @@ class TradeSupport(RangerConcreteBase):
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
         super().__init__(aureon_state, state_lock)
         print(f"[TRADE-SUPPORT] Initialized — v{TRADE_SUPPORT_VERSION} | "
-              f"Zero variance — deterministic only | SR 11-7 Tier 2")
+              f"Zero variance — deterministic only | Tier 2 (NIST AI RMF 1.0 plus Aureon doctrine)")
 
     # ─────────────────────────────────────────────────────────────────────────
     # TASK 1 — OMS RELEASE PACKAGE ASSEMBLY

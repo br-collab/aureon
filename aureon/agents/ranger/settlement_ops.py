@@ -60,7 +60,7 @@ class SettlementOps(RangerConcreteBase):
     def __init__(self, aureon_state: dict, state_lock: threading.Lock):
         super().__init__(aureon_state, state_lock)
         print(f"[SETTLEMENT-OPS] Initialized — v{AGENT_R_VERSION} | "
-              f"Zero variance — deterministic only | SR 11-7 Tier 2")
+              f"Zero variance — deterministic only | Tier 2 (NIST AI RMF 1.0 plus Aureon doctrine)")
 
     # ─────────────────────────────────────────────────────────────────────────
     # ROLE-SPECIFIC PACKAGE ASSEMBLY
