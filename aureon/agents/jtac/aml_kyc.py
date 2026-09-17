@@ -30,7 +30,7 @@
 ║    FATF Rec. 10/12/19 — CDD, PEPs, high-risk jurisdictions           ║
 ║    EU AI Act — high-risk (access to financial services), conformity  ║
 ║    assessment required before EU deployment                          ║
-║    SR 11-7 Tier 1 — independent validation declared                  ║
+║    NIST AI RMF 1.0 plus Aureon doctrine — Tier 1 validation declared ║
 ╚══════════════════════════════════════════════════════════════════════╝
 """
 

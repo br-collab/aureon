@@ -9,7 +9,7 @@ It does NOT initiate, approve, or release trades.
 It advises on execution strategy and executes within pre-approved,
 hard-coded bounds after HITL gate clearance.
 
-SR 11-7 Tier 1 — Independent validation in progress via sandbox.
+Tier 1 under NIST AI RMF 1.0 plus Aureon doctrine — independent validation in progress via sandbox.
 MiFID II RTS 6 — Kill switch active. Algorithm inventory recorded.
 
 Architecture position:
@@ -58,7 +58,7 @@ class ThifurHDoctrine:
     """
     Hard-coded governance bounds for Thifur-H sandbox activation.
     These values are constants. The agent cannot read, modify,
-    or reason about them. SR 11-7 principle: model cannot validate itself.
+    or reason about them. Independent validation principle: model cannot validate itself.
     """
     MAX_POSITION_USD: float = 50.0          # Max single position value
     MAX_SESSION_LOSS_USD: float = 25.0      # Session drawdown kill threshold
@@ -153,7 +153,7 @@ class DSOREntry:
     """
     Decision System of Record entry.
     Every decision — approved or blocked — is logged.
-    This is the SR 11-7 evidence package.
+    This is the evidence package under NIST AI RMF 1.0 plus Aureon doctrine.
     """
     entry_id: str
     decision_type: str          # GATE_PASS | GATE_HOLD | GATE_BLOCK | ORDER_PLACED | FILL | CANCEL | ROLLBACK
@@ -386,7 +386,7 @@ class ThifurHGates:
     def run_all_gates(self, signal: AtroxSignal) -> tuple[GateResult, list[GateRecord]]:
         """
         Evaluate all five gates regardless of intermediate failures.
-        Every gate is recorded for SR 11-7 evidence completeness.
+        Every gate is recorded for evidence completeness under NIST AI RMF 1.0 plus Aureon doctrine.
         Final decision: first non-PASS result if any, else PASS.
         """
         gates = [
@@ -742,7 +742,7 @@ class ThifurH:
 
     def export_dsor(self, path: str = None, to_volume: bool = False) -> str:
         """
-        Export full DSOR as JSON for audit and SR 11-7 evidence packaging.
+        Export full DSOR as JSON for audit and evidence packaging under NIST AI RMF 1.0 plus Aureon doctrine.
 
         path: optional explicit file path to write the export to.
         to_volume: if True, also persists to the Railway volume at

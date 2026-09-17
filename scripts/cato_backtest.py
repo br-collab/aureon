@@ -28,8 +28,8 @@ What this does NOT do
 - This is NOT a live trading simulation. Cato is a gate, not a
   strategy. The backtest answers one question: "Does the current
   doctrine correctly flag known historical stress events?" That is
-  exactly the question institutional model validators (SR 11-7 Tier 1)
-  will ask during review.
+  exactly the question institutional model validators will ask during a
+  Tier 1 review under SR 26-2 / OCC 2026-13 (supersedes SR 11-7).
 
 Usage
 -----
