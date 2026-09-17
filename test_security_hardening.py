@@ -5,7 +5,11 @@ its own finding. These do not touch Kraken, do not start the server, and do
 not require credentials - they test the guard logic and the cash floor
 directly.
 
-Run: python3 test_security_hardening.py
+Run: python3 test_security_hardening.py   (or: pytest test_security_hardening.py)
+
+Under pytest a failed check raises immediately, so the test fails. As a
+script, failures are collected and the process exits 1 at the end, so one run
+reports every failed check.
 """
 
 from __future__ import annotations
@@ -19,9 +23,14 @@ FAILURES: list[str] = []
 def check(name: str, condition: bool, detail: str = "") -> None:
     if condition:
         print(f"  PASS  {name}")
-    else:
-        print(f"  FAIL  {name}   {detail}")
-        FAILURES.append(name)
+        return
+    print(f"  FAIL  {name}   {detail}")
+    FAILURES.append(name)
+    # pytest sets PYTEST_CURRENT_TEST while a test runs. Before W2-ADD-01 this
+    # function only recorded the failure, so under pytest every check passed
+    # whatever it found; only the script run was a real gate.
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        raise AssertionError(f"{name}: {detail}" if detail else name)
 
 
 # ---------------------------------------------------------------------------

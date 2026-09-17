@@ -26,10 +26,10 @@ AUREON_PORT=5001 python server.py
 
 Test posture: this repository carries a small number of root-level tests
 (`test_clearing_cockpit.py` — 12 tests; `test_security_hardening.py` — 6 checks;
-`test_c2_persistence.py`; `test_dsor_bridge.py`). CI's `core` job runs `pytest -q` and all three
-script checks on Python 3.11 after installing from `requirements.lock.txt`. Run
-`test_security_hardening.py` as a script: its `check()` helper does not raise, so under pytest
-those six checks cannot fail. Broad validation beyond these is still manual via Railway deployment.
+`test_c2_persistence.py`; `test_dsor_bridge.py`; strict-xfail probes). CI's `core` job runs
+`pytest -q` and all three script checks on Python 3.11 after installing from
+`requirements.lock.txt`. `test_security_hardening.py` gates under pytest too: a failed `check()`
+raises there. Broad validation beyond these is still manual via Railway deployment.
 The custody domain layer is the tested half of the estate — `Project-Atreides` runs 1,265 tests
 (1,025 functions, 240 parametrized cases) with 34 Hypothesis property invariants and 99% line coverage
 (whole package, no branch coverage), measured at Atreides v0.3.3 on 13 Sep 2026 — and that is where
