@@ -197,7 +197,7 @@ Strict determinism. Zero variance permitted. The same input always produces the 
 Governs the TradFi-DeFi convergence zone. Manages tokenized asset lifecycle and multi-constraint flows. Selects among approved paths — never generates new ones. Doctrine always overrides smart contract execution logic.
 
 **Thifur-H — Hunter-Killer — Adaptive Intelligence**
-Adaptive optimization for execution strategy, liquidity routing, collateral optimization, FX hedging, and repo. **Phase 2 first-light validation complete** — end-to-end signal cycle exercised against the live Kraken exchange under CAOM-001 sole-operator mode, with $10 position cap, $5 session-loss cap, XBTUSD-only whitelist, and post-only limit orders. Five-gate governance layer enforced and recorded (CAOM-001 authorization, symbol whitelist, position size, session drawdown, HITL); every gate evaluated for every signal regardless of upstream block, for SR 11-7 evidence completeness. Session ledger tracks orders by Kraken txid, supports per-order rollback, and exposes a MiFID II RTS 6 kill switch that cancels all open orders. The full Decision System of Record export from a 20-cycle validation protocol (5 clean execution, 15 intentional breach tests across symbol/size/authorization gates) is committed under `evidence/`. Exchange connectivity is direct Kraken REST with HMAC-SHA512 signing — no MCP intermediary on the live path.
+Adaptive optimization for execution strategy, liquidity routing, collateral optimization, FX hedging, and repo. **Phase 2 first-light validation complete** — end-to-end signal cycle exercised against the live Kraken exchange under CAOM-001 sole-operator mode, with $10 position cap, $5 session-loss cap, XBTUSD-only whitelist, and post-only limit orders. Five-gate governance layer enforced and recorded (CAOM-001 authorization, symbol whitelist, position size, session drawdown, HITL); every gate evaluated for every signal regardless of upstream block, for evidence completeness under the National Institute of Standards and Technology AI Risk Management Framework (NIST AI RMF) 1.0 plus Aureon doctrine. Session ledger tracks orders by Kraken txid, supports per-order rollback, and exposes a MiFID II RTS 6 kill switch that cancels all open orders. The full Decision System of Record export from a 20-cycle validation protocol (5 clean execution, 15 intentional breach tests across symbol/size/authorization gates) is committed under `evidence/`. Exchange connectivity is direct Kraken REST with HMAC-SHA512 signing — no MCP intermediary on the live path.
 
 ### Governance Boundary
 
@@ -217,7 +217,7 @@ Cato is the Verana L0 pre-settlement doctrine gate for tokenized institutional r
 
 Cato exists in two implementations that must produce bit-for-bit identical decisions for identical inputs: the external open-source MCP server (Node.js, MIT license, 23 tools at [github.com/br-collab/Cato-FICC-MCP](https://github.com/br-collab/Cato-FICC-MCP)) and the in-process Python twin inside Aureon. The deterministic parity is currently in a known mixed state and tracked in the open conflicts log.
 
-**SR 11-7 Tier 1 backtest verified:** March 2020 COVID repo freeze (100%), September 2019 repo spike (80% post-fix), March 2023 SVB collapse (45.5% — documented calibration limit; Cato is a market-regime gate, not a counterparty-credit gate).
+**Backtest verified (produced as an SR 11-7 Tier 1 artefact; SR 11-7 is now superseded by Federal Reserve SR 26-2 / Office of the Comptroller of the Currency (OCC) Bulletin 2026-13):** March 2020 COVID repo freeze (100%), September 2019 repo spike (80% post-fix), March 2023 SVB collapse (45.5% — documented calibration limit; Cato is a market-regime gate, not a counterparty-credit gate).
 
 **Supported settlement rails:** FICC traditional, Ethereum L1, Base, Arbitrum, Solana — with the `fed_l1` placeholder reserved for a sovereign tokenized reserve rail - documented, non-functional, and pending an issuance that does not yet exist. PORTS is deliberately not listed as a rail: Perpetual Overnight Rate Treasury Securities (Duffie & Wilson, Brookings, December 2025) is an instrument proposal that would settle on the rails above, and its relevance to a settlement gate is second-order - a perpetual near-cash Treasury shifts repo substitution and intraday collateral velocity, changing the load on these rails rather than adding one. The GENIUS Act governs privately issued payment stablecoins, not central-bank money.
 
@@ -360,7 +360,8 @@ Aureon's governance architecture is mapped against six regulatory frameworks:
 
 | Framework | Coverage |
 |-----------|----------|
-| SR 11-7 | Federal Reserve model risk management — Thifur-H and Thifur-J classified Tier 1 |
+| SR 26-2 / OCC 2026-13 (supersedes SR 11-7) | Model risk management for quantitative models — Cato and forecasting models. Excludes generative and agentic AI |
+| NIST AI RMF 1.0 plus Aureon doctrine | Agentic components — Thifur-H and Thifur-J classified Tier 1 under Aureon doctrine |
 | OCC 2023-17 | Third-party risk management — Verana Network Registry as critical activity classification framework |
 | BCBS 239 | Risk data aggregation — Kaladan data architecture standards across all four BCBS dimensions |
 | MiFID II RTS 6 | Algorithmic trading controls — kill switch, algorithm inventory, annual self-assessment |
@@ -379,9 +380,9 @@ Aureon's governance architecture is mapped against six regulatory frameworks:
 | Thifur-C2 | Declared — coordination architecture specified | Full multi-agent coordination live |
 | Thifur-R | Core settlement determinism active | Full clearing governance, cross-border rails |
 | Thifur-J | Pre-trade structuring, policy checks | Full tokenized asset lifecycle, DeFi convergence |
-| Thifur-H | **Phase 2 validated** — five-gate governance layer live on Kraken, 20-cycle protocol passed end-to-end (5 clean execution + 15 breach tests), DSOR evidence committed under `evidence/`, SR 11-7 Tier 1 | VWAP/TWAP/POV recommendations, multi-venue expansion, tokenized equity rails |
+| Thifur-H | **Phase 2 validated** — five-gate governance layer live on Kraken, 20-cycle protocol passed end-to-end (5 clean execution + 15 breach tests), DSOR evidence committed under `evidence/`, Tier 1 under NIST AI RMF 1.0 plus Aureon doctrine | VWAP/TWAP/POV recommendations, multi-venue expansion, tokenized equity rails |
 | AI usage | Controlled, role-bound workflow support with HITL | Expanded supervised agent coverage |
-| Regulatory | SR 11-7 Tier 2, OCC 2023-17, BCBS 239 P3/P5 | Full six-framework coverage |
+| Regulatory | NIST AI RMF 1.0 plus Aureon doctrine (Tier 2), SR 26-2 / OCC 2026-13 (supersedes SR 11-7), OCC 2023-17, BCBS 239 P3/P5 | Full six-framework coverage |
 
 ---
 
@@ -441,7 +442,7 @@ Current file roles:
 - `server.py`: backend orchestration, state, governance logic, and API routes — including the eight `/api/cockpit/*` routes, the four `/api/cashleg/*` routes, and the Thifur-H session surface
 - `index.html`: Phase 1 pre-trade operator dashboard
 - `atreides-settlement-dashboard.html`: Settlement & Custody Console — pipeline, breaks workbench, cash leg
-- `aureon/thifur/`: the canonical Thifur-H implementation. Advisory mode is active in deployment under CAOM-001 human-in-the-loop approval; autonomous mode is declared and not activated, gated on independent SR 11-7 Tier 1 validation and EU AI Act registration per `AUR-CANONICAL-001 v1.6 §II`
+- `aureon/thifur/`: the canonical Thifur-H implementation. Advisory mode is active in deployment under CAOM-001 human-in-the-loop approval; autonomous mode is declared and not activated, gated on independent Tier 1 validation under NIST AI RMF 1.0 plus Aureon doctrine and EU AI Act registration per `AUR-CANONICAL-001 v1.6 §II`
 - `aureon/dsor/bridge.py`: the lineage adapter. Kept deliberately — it is not a duplicate of anything in Atreides
 - `aureon/config/caom.py`: CAOM-001 Consolidated Authority Operating Mode configuration
 - `aureon/mcp/server.py`: MCP server — Phase 1 Verana L0 (JSON-RPC 2.0 over HTTP, `POST /mcp`)
@@ -693,7 +694,7 @@ TWELVE_DATA_API_KEY=your_key
 - Thifur-C2 is fully specified at the doctrine level — coordination implementation is the next phase
 - The codebase is still structurally compressed and does not yet reflect the target service boundaries
 - FIX support is a translation stub, not a live broker, EMS, or OMS session
-- Thifur-H Phase 2 activated — five-gate governance layer live, Kraken live account validation in progress under CAOM-001, 20-cycle stress test protocol executing, DSOR export active for SR 11-7 evidence packaging; production expansion pending full validation cycle completion
+- Thifur-H Phase 2 activated — five-gate governance layer live, Kraken live account validation in progress under CAOM-001, 20-cycle stress test protocol executing, DSOR export active for evidence packaging under NIST AI RMF 1.0 plus Aureon doctrine; production expansion pending full validation cycle completion
 - The repository should be read as an institutional product prototype, not as a claim of full OMS, SOR, treasury, settlement, or books-and-records replacement
 
 ---

@@ -8947,7 +8947,7 @@ def thifur_h_session_status():
 @app.route("/api/thifur-h/dsor", methods=["GET"])
 def thifur_h_dsor_export():
     """
-    DSOR with three-layer fallback for SR 11-7 evidence continuity:
+    DSOR with three-layer fallback for evidence continuity under NIST AI RMF 1.0 plus Aureon doctrine:
       1. In-memory active session (live state) — preferred
       2. Most recent /data/dsor/ archive file (survives Railway restarts)
       3. 404 only if both are empty

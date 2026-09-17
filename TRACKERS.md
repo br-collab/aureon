@@ -27,7 +27,8 @@ static fixture at `aureon/doctrine/algo_inventory_fixture.json`
 with a 180-day `validation_frequency_days` per registered algorithm.
 Real deployment requires automated revalidation triggers on:
 algorithm code changes (tied to git commit hash), model updates
-(tied to SR 11-7 model-governance events), regulatory requirement
+(tied to model-governance events under Federal Reserve SR 26-2 / Office of the
+Comptroller of the Currency (OCC) Bulletin 2026-13, which supersede SR 11-7), regulatory requirement
 changes (DORA / MiFID II / RTS 6 amendment feeds).
 
 **Trigger:** before any live-trading activation that crosses a

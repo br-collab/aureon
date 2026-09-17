@@ -50,3 +50,33 @@ jobs:
 
       - name: Run parity harness
         run: python parity/run_parity.py
+
+  # Python 3.11 install from requirements.lock.txt (AUR-I-16). Railway still
+  # installs requirements.txt; the lock is what CI proves installs cleanly.
+  core:
+    name: Core (Python 3.11)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: astral-sh/setup-uv@v10.1.0
+
+      # Recompiling keeps every version already in the lock unless
+      # requirements.txt now demands otherwise, so any difference means
+      # requirements.txt changed without the lock being regenerated.
+      - name: Lock matches requirements.txt
+        run: |
+          uv pip compile requirements.txt --python-version 3.11 -o requirements.lock.txt
+          git diff --exit-code requirements.lock.txt
+
+      # --no-deps: only what the lock names is installed; pip check then
+      # fails if the locked set is not self-consistent.
+      - name: Install from the lock
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-deps -r requirements.lock.txt
+          pip check

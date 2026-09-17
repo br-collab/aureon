@@ -12,8 +12,8 @@
 ║  No function in this file generates an executable signal.            ║
 ║                                                                      ║
 ║  Activation requires:                                                ║
-║    1. SR 11-7 Tier 1 independent model validation — completed        ║
-║       and signed by MRM committee before any domain activation       ║
+║    1. Tier 1 independent validation (NIST AI RMF 1.0 plus Aureon     ║
+║       doctrine) — completed, MRM-committee signed, before activation ║
 ║    2. EU AI Act conformity assessment — completed before EU          ║
 ║       deployment                                                     ║
 ║    3. MiFID II RTS 6 algorithm inventory registration —              ║
@@ -37,7 +37,7 @@
 ║      in human-readable terms before execution, it does not execute   ║
 ║                                                                      ║
 ║  REGULATORY ADDRESS:                                                 ║
-║    SR 11-7 Tier 1 — adaptive optimization, material financial impact ║
+║    NIST AI RMF 1.0 plus Aureon doctrine — Tier 1, material impact    ║
 ║    MiFID II RTS 6 — kill switch, price collars, self-assessment     ║
 ║    EU AI Act — high-risk, conformity assessment, EU database         ║
 ║    DORA — TLPT (Threat-Led Penetration Testing) annual scope        ║

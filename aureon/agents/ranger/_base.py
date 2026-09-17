@@ -17,7 +17,7 @@
 ║    - Immutable lineage — stamped at execution, never modified        ║
 ║                                                                      ║
 ║  REGULATORY ADDRESS:                                                 ║
-║    SR 11-7 Tier 2 — deterministic, annual review                   ║
+║    NIST AI RMF 1.0 plus Aureon doctrine — Tier 2, annual review    ║
 ║    BCBS 239 P3 — automated accuracy, no manual error               ║
 ║    MiFID II RTS 6 — post-trade risk controls, 5s alerts            ║
 ╚══════════════════════════════════════════════════════════════════════╝
