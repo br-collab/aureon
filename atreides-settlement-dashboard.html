@@ -582,7 +582,9 @@ async function runLiveCycle(body){
     }
     liveRender(st, lb, outLabel, dd, cls);
     const empty=ledger.querySelector('.ledempty'); if(empty)empty.remove();
-    const rid=(gate.dsor_pre_trade_record_id||'').slice(0,8), oid=(op||'').slice(0,8);
+    // Atreides v0.4.0 (ATR-I-02): validation writes nothing, so the DSOR record
+    // reference is on the emitted package, not the gate result.
+    const rid=(pkg.dsor_record_id||'').slice(0,8), oid=(op||'').slice(0,8);
     const li=document.createElement('li');
     li.innerHTML=`<span class="dtg">${dtg()}</span> · op ${oid} · <span class="k">${kind}</span> · ${(body.rail||'').toUpperCase()} · DSOR ${rid} · <span class="r ${cls}">${outLabel}</span>`;
     ledger.insertBefore(li, ledger.firstChild);
@@ -718,7 +720,7 @@ async function syncLiveBreaks(){
       BREAKS.push({id:t.break_id||'BRK', sev:(t.leg==='clearing_fund_break'||t.leg==='funding_break')?'high':'med',
         cls:leg||'break', expo:'—', age:'live', rail:'live', kind:'settlement_escalation',
         sym:'Live break · '+leg, prox:'operator readback diverged from expected',
-        orig:'DSOR '+((t.dsor_pre_trade_record_id||'').slice(0,8))+' · op '+((t.operation_id||'').slice(0,8)),
+        orig:'DSOR '+((t.dsor_record_id||'').slice(0,8))+' · op '+((t.operation_id||'').slice(0,8)),
         liaison:['FICC','Ops control'], res:['Investigate','Reconcile to expected','Resolve & close'],
         status:'OPEN', actions:[]});
     });

@@ -4,7 +4,7 @@ annotated-types==0.8.0
     # via pydantic
 anyio==4.15.1
     # via httpx
-atreides @ git+https://github.com/br-collab/Project-Atreides.git@bbecb0e29e56b5fe1fd1f590fced7b9344890fed
+atreides @ git+https://github.com/br-collab/Project-Atreides.git@2c6b8deb6bd10cab7329c216398fd4c1ee63d31b
     # via -r requirements.txt
 base58==2.1.1
     # via xrpl-py
@@ -13,7 +13,9 @@ beautifulsoup4==4.15.0
 blinker==1.9.0
     # via flask
 cannae-kernel @ git+https://github.com/br-collab/cannae-kernel.git@42a0bfd07e6816d27c85211e24804233b064b8d5
-    # via -r requirements.txt
+    # via
+    #   -r requirements.txt
+    #   atreides
 certifi==2026.7.22
     # via
     #   curl-cffi

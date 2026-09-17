@@ -9539,10 +9539,12 @@ def cockpit_break():
     """Route reconciliation breaks to the workbench with full lineage."""
     d = request.get_json(silent=True) or {}
     op = _cockpit_ops.get(str(d.get("operation_id")))
-    if not op or "reconcile" not in op or "gate" not in op:
+    if not op or "reconcile" not in op or "package" not in op:
         return jsonify({"status": "error", "message": "reconcile required first"}), 409
     try:
-        tickets = _clearing_cockpit.raise_break(op["reconcile"], op["gate"].dsor_pre_trade_record_id)
+        # Atreides v0.4.0: validation writes nothing (ATR-I-02), so the DSOR
+        # reference is the emitted package's, not the gate result's.
+        tickets = _clearing_cockpit.raise_break(op["reconcile"], op["package"].dsor_record_id)
     except Exception as exc:  # noqa: BLE001
         return _ck_error(exc)
     return jsonify({"status": "ok", "tickets": [_ck_dump(t) for t in tickets]})
