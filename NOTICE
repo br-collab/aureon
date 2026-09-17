@@ -27,3 +27,12 @@ branch. On the same chain state (XRPL fee $0.00003, Solana $0.0004, Base
 solana. Golden vector V17 records this as KNOWN-FAILING and is reported on
 every run; the mirror spec is PARITY_XRPL.md in br-collab/Cato-FICC-MCP, and
 the work to land it is tracked in https://github.com/br-collab/aureon/issues/9.
+
+A second divergence is in the inputs, not the decision core. The Node gate
+reads FRED STLFSI4; the Python twin and the pre-trade policy engine read
+the OFR Financial Stress Index — scraped from financialresearch.gov, or,
+when that fails, a proxy computed from VIX, high-yield spreads and the
+yield curve. The golden vectors supply identical inputs to both sides, so
+parity holds under test; in production the two are fed different series,
+and the 0.5/1.0 thresholds were backtested on STLFSI4 only. Tracked in
+https://github.com/br-collab/aureon/issues/11.
