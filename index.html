@@ -4704,7 +4704,11 @@ function renderOverview() {
       </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:6px">
         <span>OFR FSI</span>
-        <span style="color:${ofrColor}">${ofr.fsi_value === undefined ? '—' : ofr.fsi_value.toFixed(2)} · ${(ofr.fsi_band || 'watch').toUpperCase()}</span>
+        <span style="color:${ofr.provenance === 'FABRICATED_DEFAULT' ? 'var(--amber, #f0b429)' : ofrColor}">${
+          ofr.provenance === 'FABRICATED_DEFAULT'
+            ? 'NO READING · feed unavailable'
+            : `${ofr.fsi_value === undefined ? '—' : ofr.fsi_value.toFixed(2)} · ${(ofr.fsi_band || 'watch').toUpperCase()}${ofr.provenance === 'POLICY_RESULT' ? ' · PROXY' : ''}`
+        }</span>
       </div>
       <div style="font-size:10px;color:var(--muted);margin-top:8px">Source: ${(macro.source || 'fallback').toUpperCase()} · ${macro.as_of || '—'}</div>`;
   }

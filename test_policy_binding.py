@@ -51,7 +51,8 @@ FLOOR = 0.03
 OFAC: dict[str, str] = {}
 RULES = pretrade_rules_digest(risk_policy=RISK, operating_cash_floor_pct=FLOOR, ofac_blocked_isins=OFAC)
 T0 = datetime(2026, 9, 17, 14, 0, tzinfo=timezone.utc)
-GOOD_OFR = {"fsi_value": 0.2, "source": "test"}
+# Fix F1: a reading must say where it came from; an unlabelled one is fabricated.
+GOOD_OFR = {"fsi_value": 0.2, "source": "ofr", "provenance": "FACT_EXTERNAL"}
 
 
 def _decision(**overrides):
@@ -198,7 +199,15 @@ def test_a_tampered_record_is_refused() -> None:
 # ── AUR-I-10: unavailable evidence is INDETERMINATE ─────────────────────────────
 
 
-@pytest.mark.parametrize("ofr", [{}, None, {"fsi_value": float("nan")}, {"fsi_value": "high"}])
+@pytest.mark.parametrize("ofr", [
+    {}, None,
+    {"fsi_value": float("nan"), "provenance": "FACT_EXTERNAL"},
+    {"fsi_value": "high", "provenance": "FACT_EXTERNAL"},
+    # Fix F1: a measured-looking number built from fixed constants.
+    {"fsi_value": 0.38, "source": "ofr_proxy", "provenance": "FABRICATED_DEFAULT"},
+    # Unlabelled: provenance cannot be assumed.
+    {"fsi_value": 0.2, "source": "ofr"},
+])
 def test_unusable_stress_reading_is_indeterminate_and_refused(ofr) -> None:
     state = _state()
     payload = _evaluate(state, ofr=ofr)
