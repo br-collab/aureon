@@ -131,6 +131,8 @@ Required in `.env` (local) or Railway service variables (production):
 - `ALPACA_API_KEY`, `ALPACA_API_SECRET` — paper trading
 - `RAILWAY_VOLUME_MOUNT_PATH` — production state persistence directory
 - `AUREON_ADMIN_KEY` — the operator key. Every authority mutation requires it; unset, those routes all refuse (fails closed). See "Authority mutations" below
+- `AUREON_MCP_WRITE_ENABLED` — set to `true` to register the MCP approval tool. Unset (the default, including Railway) the tool is not listed and not callable
+- `FRED_API_KEY` is also load-bearing for approvals: unset, and with the OFR scrape failing, the stress reading is a fixed constant, the pre-trade gate is INDETERMINATE and every approval is refused (AUR-I-10)
 
 ## Key API Routes
 
@@ -293,6 +295,16 @@ These are non-negotiable design constraints:
   reading, a check that could not run) is `INDETERMINATE`, never `PASS` or an overrideable `HOLD`.
   A new approval path must call `resolve_pending_decision` with `rules_digest`; do not call
   `_apply_trade` from anywhere else (a test enforces both)
+- Market evidence carries provenance (`aureon/policy_engine/evidence.py`): `FACT_EXTERNAL` published,
+  `POLICY_RESULT` computed from live inputs, `FABRICATED_DEFAULT` when a fixed constant stood in.
+  A fabricated or unlabelled reading is `INDETERMINATE` at the gate and `null` with a reason in the
+  audit fields — never a number that looks measured (AUR-I-10)
+- Agents never authorize (charter §7, JUM-D-07). The MCP approval tool exists but is registered only
+  under `AUREON_MCP_WRITE_ENABLED=true`, and records that the caller's human status is asserted,
+  not proven
+- One operator key can act in every role (AUR-I-19): each authority record states
+  `role_source=request_body` and `independence_asserted=false`, and the dashboard says so. The actor
+  registry (JUM-D-18, Wave 4) is the fix
 - Approval has no economic side effect (AUR-I-02). A full approval emits `RELEASE_AUTHORIZED`
   (`aureon/approval_service/release.py`) and nothing else. Cash, positions and trades change only in
   `aureon/booking/consumer.py`, from a venue fill; a duplicate fill books once. Until L.C. exists

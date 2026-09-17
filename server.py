@@ -254,7 +254,15 @@ _authority_nonces = _NonceCache()
 AUTHORITY_ENDPOINTS: set[str] = set()
 
 
-def _authenticate_authority_request(action: str, headers, *, channel: str):
+#: Until the actor registry (JUM-D-18), an MCP caller's human status is asserted
+#: by whoever holds the operator key, not proven (fix F2).
+MCP_HUMAN_STATUS_NOTE = (
+    "the caller's human status is asserted by possession of the operator key, not proven; "
+    "to be closed by the actor registry (JUM-D-18)"
+)
+
+
+def _authenticate_authority_request(action: str, headers, *, channel: str, channel_kind: str = "HTTP"):
     """Authenticate one authority mutation and record it. Returns (denied, actor).
 
     ``denied`` is (payload, status) when refused, else None. Shared by the
@@ -285,6 +293,8 @@ def _authenticate_authority_request(action: str, headers, *, channel: str):
             "outcome":   channel,
             "actor":     outcome.actor.model_dump(mode="json"),
             "nonce":     outcome.nonce,
+            "channel":   channel_kind,
+            **({"caller_human_status": MCP_HUMAN_STATUS_NOTE} if channel_kind == "MCP" else {}),
             "hash":      hashlib.sha256(
                 f"AUTH-{action}-{outcome.nonce}-{ts}".encode()
             ).hexdigest()[:16].upper(),
@@ -5514,8 +5524,9 @@ def _approval_clock() -> datetime:
 
 def _mcp_resolve_decision(arguments: dict, headers) -> tuple[dict, int]:
     """MCP tool aureon_resolve_decision: the operator key, then the same path as the API."""
-    denied, actor = _authenticate_authority_request("DECISION_RESOLVE", headers,
-                                                    channel="MCP tools/call aureon_resolve_decision")
+    denied, actor = _authenticate_authority_request(
+        "DECISION_RESOLVE", headers, channel="MCP tools/call aureon_resolve_decision",
+        channel_kind="MCP")
     if denied is not None:
         return denied
     return _resolve_decision_request(str(arguments.get("decision_id") or ""), dict(arguments),

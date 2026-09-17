@@ -4831,9 +4831,14 @@ function renderTrading() {
       const missing = d.missing_approvals || [];
       const complete = d.completed_approvals || d.current_approvals || [];
       const required = d.required_approvals || [];
-      const approvalButtons = missing.length
+      // AUR-I-19: the role is chosen here and sent in the request; one operator
+      // key can act in every role, so role approvals are not independent people.
+      const singleOperatorNote = required.length > 1
+        ? `<div style="color:var(--muted);font-size:10px;margin-top:6px">⚠ Single-operator mode (CAOM-001): roles are declared, not separately entitled — approvals by ${required.join(' + ')} are not independent people. Actor registry pending.</div>`
+        : '';
+      const approvalButtons = (missing.length
         ? missing.map(role => `<button class="btn btn-approve" onclick="resolveDecision('${d.id}','APPROVED','${role}')">Approve As ${role}</button>`).join('')
-        : `<button class="btn btn-approve" onclick="resolveDecision('${d.id}','APPROVED','TRADER')">Release</button>`;
+        : `<button class="btn btn-approve" onclick="resolveDecision('${d.id}','APPROVED','TRADER')">Release</button>`) + singleOperatorNote;
       return `
       <div class="decision-card" style="margin-bottom:12px;${selected ? 'box-shadow:0 0 0 1px rgba(0,212,255,0.18);' : ''}" onclick="selectDecision('${d.id}')">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
