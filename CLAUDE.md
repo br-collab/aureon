@@ -79,7 +79,7 @@ The custody and settlement domain layer lives in a **separate repository**,
 here as a pinned dependency declared in `requirements.txt`:
 
 ```
-atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.3.2
+atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.3.3
 ```
 
 **Do not vendor custody modules into this repository.** `aureon/cockpit/`,
