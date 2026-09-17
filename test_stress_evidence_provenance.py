@@ -32,6 +32,7 @@ import pytest
 
 os.environ.setdefault("RAILWAY_VOLUME_MOUNT_PATH", tempfile.mkdtemp(prefix="aureon-f1-test-"))
 
+from aureon.approval_service.operator_auth import OPERATOR_ACTOR  # noqa: E402
 from aureon.policy_engine.binding import PolicyBindingError, pretrade_rules_digest  # noqa: E402
 from aureon.policy_engine.evidence import EvidenceProvenance, provenance_of  # noqa: E402
 from aureon.policy_engine.service import evaluate_pretrade_decision  # noqa: E402
@@ -149,7 +150,8 @@ def test_a_fabricated_reading_refuses_a_direct_approval() -> None:
     with pytest.raises(PolicyBindingError) as info:
         resolve_pending_decision(
             state=state, lock=threading.RLock(), decision_id="DEC-F1", resolution="APPROVED",
-            approval_role="TRADER", rules_digest=RULES, now=T0 + timedelta(seconds=10),
+            approval_role="TRADER", actor=OPERATOR_ACTOR, rules_digest=RULES,
+            now=T0 + timedelta(seconds=10),
         )
     assert info.value.code == "POLICY_INDETERMINATE"
     assert state["pending_decisions"] == before
