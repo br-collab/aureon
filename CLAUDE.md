@@ -127,6 +127,7 @@ Required in `.env` (local) or Railway service variables (production):
 - `AUREON_EMAIL`, `AUREON_EMAIL_PW`, `AUREON_EMAIL_RECIPIENT` — Gmail SMTP reporting
 - `ALPACA_API_KEY`, `ALPACA_API_SECRET` — paper trading
 - `RAILWAY_VOLUME_MOUNT_PATH` — production state persistence directory
+- `AUREON_ADMIN_KEY` — the operator key. Every authority mutation requires it; unset, those routes all refuse (fails closed). See "Authority mutations" below
 
 ## Key API Routes
 
@@ -155,6 +156,23 @@ Required in `.env` (local) or Railway service variables (production):
   disarms unattended exit handling for an already-approved position.
 - `/cockpit` — Settlement & Custody Console (pipeline · breaks workbench · cash leg)
 - `/mcp` — Model Context Protocol endpoint (JSON-RPC 2.0)
+
+### Authority mutations require the operator key (AUR-I-03)
+
+Every route that creates or resolves a decision, opens the session, proposes or approves
+doctrine, resumes a paused lifecycle, moves MMF positions, promotes or dismisses an Atrox
+recommendation, or runs a cockpit step is decorated with `@_authority_required("<ACTION>")`
+in `server.py`. The request must carry `X-Admin-Key` (the operator key, compared in constant
+time) and `X-Request-Nonce` (16–128 letters, digits, `-` or `_`; a UUID works; reuse within
+15 minutes is refused as a replay). Missing credentials return 401, wrong ones 403, and both
+happen before the handler runs. A success is written to `authority_log` with the kernel
+`ActorRef` of the CAOM-001 operator; the boot-time session auto-open is recorded as the
+deterministic boot service. Logic lives in `aureon/approval_service/operator_auth.py`.
+
+**Adding a POST route:** decorate it (below `@app.route`) or add it, with the reason, to
+`REVIEWED_UNGUARDED` in `test_authority_auth.py`. That test fails on any POST route in neither.
+The dashboards send both headers through `authorityFetch` (`index.html`) and `api()`
+(`atreides-settlement-dashboard.html`).
 
 ## Cato — Verana L0 Tokenized Settlement Doctrine Gate
 

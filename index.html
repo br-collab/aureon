@@ -3811,7 +3811,7 @@ async function resolveDecision(id, resolution, approvalRole = 'TRADER') {
   if (resolution === 'REJECTED') {
     // Rejections skip pre-trade and execute immediately (no position change)
     try {
-      const r = await fetch(API.resolve(id), {
+      const r = await authorityFetch(API.resolve(id), {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ resolution: 'REJECTED', approval_role: approvalRole }),
@@ -3837,7 +3837,7 @@ async function resolveDecision(id, resolution, approvalRole = 'TRADER') {
 
   if (postApprovalMissing.length > 0) {
     try {
-      const r = await fetch(API.resolve(id), {
+      const r = await authorityFetch(API.resolve(id), {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ resolution: 'APPROVED', approval_role: approvalRole }),
@@ -3899,7 +3899,7 @@ async function submitNewOrder() {
   const msg = document.getElementById('no-msg');
   msg.textContent = 'Creating…';
   try {
-    const r = await fetch(API.createDecision, {
+    const r = await authorityFetch(API.createDecision, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
@@ -4049,7 +4049,7 @@ async function confirmExecute() {
   execBtn.textContent = 'ROUTING…';
 
   try {
-    const r = await fetch(API.resolve(id), {
+    const r = await authorityFetch(API.resolve(id), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ resolution: 'APPROVED', approval_role: _pendingApprovalRole || 'TRADER' }),
@@ -4269,9 +4269,35 @@ function closeHaltModal() {
 let _adminKey = null;
 function getAdminKey() {
   if (!_adminKey) {
-    _adminKey = (window.prompt('Tier 0 operator key (X-Admin-Key):') || '').trim();
+    _adminKey = (window.prompt('Operator key (X-Admin-Key):') || '').trim();
   }
   return _adminKey;
+}
+
+// AUR-I-03 (Wave 2): every authority mutation (create, approve or reject a
+// decision, propose or approve doctrine, promote or dismiss an Atrox
+// recommendation) needs the same operator key plus a one-time nonce, which the
+// server uses to refuse replays. A refused key is forgotten so the next action
+// prompts again.
+async function authorityFetch(url, opts) {
+  const key = getAdminKey();
+  if (!key) {
+    toast('⚠ Operator key required for this action.');
+    return new Response(JSON.stringify({ error: 'Operator key required' }),
+                        { status: 401, headers: { 'Content-Type': 'application/json' } });
+  }
+  const o = Object.assign({}, opts || {});
+  o.headers = Object.assign({}, o.headers || {}, {
+    'X-Admin-Key': key,
+    'X-Request-Nonce': (crypto.randomUUID ? crypto.randomUUID()
+                        : String(Date.now()) + Math.random().toString(16).slice(2)).replace(/\./g, ''),
+  });
+  const r = await fetch(url, o);
+  if (r.status === 401 || r.status === 403) {
+    _adminKey = null;
+    toast('⚠ Operator key refused — try again.');
+  }
+  return r;
 }
 
 async function confirmHalt() {
@@ -4434,7 +4460,7 @@ async function submitDoctrineProposal() {
 
   // ── Submit to backend ─────────────────────────────────────────
   try {
-    const res = await fetch(API.doctrinePropose, {
+    const res = await authorityFetch(API.doctrinePropose, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, trigger, urgency, reason, frameworks,
@@ -4475,7 +4501,7 @@ async function submitDoctrineProposal() {
 
 async function approveDoctrineUpdate(id) {
   try {
-    const r = await fetch(API.doctrineApprove(id), {
+    const r = await authorityFetch(API.doctrineApprove(id), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'APPROVE', authority: 'bill@billravelo.com' }),
@@ -4495,7 +4521,7 @@ async function approveDoctrineUpdate(id) {
 
 async function rejectDoctrineUpdate(id) {
   try {
-    const r = await fetch(API.doctrineApprove(id), {
+    const r = await authorityFetch(API.doctrineApprove(id), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'REJECT', authority: 'bill@billravelo.com' }),
@@ -5090,7 +5116,7 @@ async function fetchAtrox() {
 // ── Atrox recommendation actions ───────────────────
 async function atroxPromote(recId) {
   try {
-    const r = await fetch(API.atroxRecPromote(recId), { method: 'POST' });
+    const r = await authorityFetch(API.atroxRecPromote(recId), { method: 'POST' });
     const d = await r.json();
     if (r.ok) {
       toast(`Promoted to ${d.decision_id} — ${d.action} ${d.symbol} $${d.notional?.toLocaleString()}`);
@@ -5103,7 +5129,7 @@ async function atroxPromote(recId) {
 
 async function atroxDismiss(recId) {
   try {
-    const r = await fetch(API.atroxRecDismiss(recId), { method: 'POST' });
+    const r = await authorityFetch(API.atroxRecDismiss(recId), { method: 'POST' });
     if (r.ok) {
       toast('Recommendation dismissed');
       await fetchAtrox();

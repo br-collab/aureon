@@ -650,7 +650,10 @@ AUREON_EMAIL            — Gmail SMTP sender
 AUREON_EMAIL_PW         — Gmail app password (not account password)
 AUREON_EMAIL_RECIPIENT  — report delivery address
 RAILWAY_VOLUME_MOUNT_PATH — persistent state path (/data)
+AUREON_ADMIN_KEY        — operator key; required by every authority mutation (unset: all refused)
 ```
+
+Authority mutations (decisions, session steps, doctrine, MMF, cockpit steps, Atrox promote/dismiss, C2 resume) need the headers `X-Admin-Key` and `X-Request-Nonce`. The dashboard asks for the key once per page load.
 
 Market data: Twelve Data primary, yfinance fallback, 60-second price cache.
 

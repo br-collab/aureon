@@ -224,6 +224,64 @@ SYMBOL_TO_ISIN = {
 }
 
 app = Flask(__name__, static_folder=THIS_DIR)
+
+# ── Authority mutations require the operator key and a fresh nonce (AUR-I-03) ──
+# One mechanism for every route that changes authority, positions or doctrine:
+# the X-Admin-Key check the Tier 0 halt routes already used, plus replay
+# protection. See aureon/approval_service/operator_auth.py. The decorator runs
+# before the handler, so a refused request changes no state.
+import functools as _functools
+from aureon.approval_service.operator_auth import (
+    BOOT_SERVICE_ACTOR as _BOOT_SERVICE_ACTOR,
+    NonceCache as _NonceCache,
+    authenticate as _authenticate_operator,
+)
+
+_authority_nonces = _NonceCache()
+#: Endpoints guarded by _authority_required, for the route inventory test.
+AUTHORITY_ENDPOINTS: set[str] = set()
+
+
+def _authority_required(action: str):
+    def decorate(view):
+        AUTHORITY_ENDPOINTS.add(view.__name__)
+
+        @_functools.wraps(view)
+        def guarded(*args, **kwargs):
+            outcome = _authenticate_operator(
+                request.headers,
+                admin_key=os.environ.get("AUREON_ADMIN_KEY", ""),
+                nonces=_authority_nonces,
+                now=time.time(),
+            )
+            if not outcome.ok:
+                return jsonify({
+                    "status": "error",
+                    "message": "unauthorized" if outcome.status == 401 else "forbidden",
+                    "detail": outcome.error,
+                    "action": action,
+                }), outcome.status
+            ts = datetime.now(timezone.utc).isoformat()
+            with _lock:
+                aureon_state.setdefault("authority_log", []).insert(0, {
+                    "id":        f"AUTH-{outcome.nonce[:12]}",
+                    "ts":        ts,
+                    "tier":      "Tier 1 — Human Authority",
+                    "type":      f"AUTHENTICATED {action}",
+                    "authority": outcome.actor.role,
+                    "outcome":   f"{request.method} {request.path}",
+                    "actor":     outcome.actor.model_dump(mode="json"),
+                    "nonce":     outcome.nonce,
+                    "hash":      hashlib.sha256(
+                        f"AUTH-{action}-{outcome.nonce}-{ts}".encode()
+                    ).hexdigest()[:16].upper(),
+                })
+            return view(*args, **kwargs)
+
+        guarded.__authority_action__ = action
+        return guarded
+
+    return decorate
 from flask_cors import CORS
 CORS(app, origins=[
     "http://localhost:3000",
@@ -4890,6 +4948,7 @@ def _mmf_dsor_to_dict(rec) -> dict:
 
 
 @app.route("/api/mmf/subscribe", methods=["POST"])
+@_authority_required("MMF_SUBSCRIBE")
 def api_mmf_subscribe():
     """Process a subscription into Lane F (FIAT) or Lane D (Digital).
     Body: {investor_id, lane: "F"|"D", amount_usd}.
@@ -4910,6 +4969,7 @@ def api_mmf_subscribe():
 
 
 @app.route("/api/mmf/redeem", methods=["POST"])
+@_authority_required("MMF_REDEEM")
 def api_mmf_redeem():
     """Process a redemption. Body: {investor_id, shares_to_redeem,
     currency?}. Lane and payout currency are derived from the
@@ -4958,6 +5018,7 @@ def api_mmf_redeem():
 
 
 @app.route("/api/mmf/digital/register_investor", methods=["POST"])
+@_authority_required("MMF_REGISTER_INVESTOR")
 def api_mmf_register_investor():
     """Register a new investor for Lane D XRPL atomic DvP. Sandbox
     custody model — the fund auto-generates the investor's XRPL
@@ -5014,6 +5075,7 @@ def api_mmf_digital_status():
 # env var. Production Railway env must leave this unset or set to 0.
 # Without the flag, this route returns 403 and no override takes effect.
 @app.route("/api/mmf/_test/cato_override", methods=["POST"])
+@_authority_required("MMF_TEST_CATO_OVERRIDE")
 def api_mmf_test_cato_override():
     if not subscription_engine._test_hooks_enabled():
         return jsonify({
@@ -5117,6 +5179,7 @@ def api_mmf_dsor():
 
 
 @app.route("/api/mmf/sweep/trigger", methods=["POST"])
+@_authority_required("MMF_SWEEP_TRIGGER")
 def api_mmf_sweep_trigger():
     """Operator-only manual NAV sweep override. Optional query param
     `?force_allow_stale=1` mirrors the CLI test hook and bypasses the
@@ -5132,6 +5195,7 @@ def api_mmf_sweep_trigger():
 
 
 @app.route("/api/mmf/circuit/reset", methods=["POST"])
+@_authority_required("MMF_CIRCUIT_RESET")
 def api_mmf_circuit_reset():
     """Operator reset of the NAV engine circuit breaker. Emits
     NAV_CIRCUIT_RESET in the MMF DSOR log. Body (optional):
@@ -5147,6 +5211,7 @@ def api_mmf_circuit_reset():
 
 
 @app.route("/api/mmf/hitl/resolve", methods=["POST"])
+@_authority_required("MMF_HITL_RESOLVE")
 def api_mmf_hitl_resolve():
     """Resolve a pending KYC exception or Cato HOLD. The originating
     event remains in the DSOR log (append-only); this endpoint stamps
@@ -5205,6 +5270,7 @@ def api_decisions():
 
 
 @app.route("/api/decisions/create", methods=["POST"])
+@_authority_required("DECISION_CREATE")
 def api_create_decision():
     """WS-P5 — operator order-entry front door (governed origination).
 
@@ -5298,6 +5364,7 @@ def api_create_decision():
 
 
 @app.route("/api/decisions/<decision_id>", methods=["POST"])
+@_authority_required("DECISION_RESOLVE")
 def api_resolve_decision(decision_id):
     """
     Approve or reject a pending trade decision.
@@ -5868,6 +5935,7 @@ def api_session_status():
 
 
 @app.route("/api/session/step/1", methods=["POST"])
+@_authority_required("SESSION_STEP_1")
 def api_session_step1():
     """Run Step 1 — Verana session boundary check (automated)."""
     result = _session_protocol.run_step_1_verana_check()
@@ -5875,6 +5943,7 @@ def api_session_step1():
 
 
 @app.route("/api/session/step/2", methods=["POST"])
+@_authority_required("SESSION_STEP_2")
 def api_session_step2():
     """Run Step 2 — CAOM-001 mode declaration. Operator confirms."""
     result = _session_protocol.run_step_2_caom_declaration()
@@ -5882,6 +5951,7 @@ def api_session_step2():
 
 
 @app.route("/api/session/step/3", methods=["POST"])
+@_authority_required("SESSION_STEP_3")
 def api_session_step3():
     """
     Run Step 3 — Role consolidation acknowledgment.
@@ -5895,6 +5965,7 @@ def api_session_step3():
 
 
 @app.route("/api/session/open", methods=["POST"])
+@_authority_required("SESSION_OPEN")
 def api_session_open():
     """
     Run Steps 5 and 6 — stress review then session open.
@@ -6064,6 +6135,7 @@ def api_halt_resume():
 
 
 @app.route("/api/doctrine/propose", methods=["POST"])
+@_authority_required("DOCTRINE_PROPOSE")
 def api_doctrine_propose():
     """
     Propose a doctrine version update. Creates a pending update requiring Tier 1 approval.
@@ -6114,6 +6186,7 @@ def api_doctrine_propose():
 
 
 @app.route("/api/doctrine/approve/<update_id>", methods=["POST"])
+@_authority_required("DOCTRINE_APPROVE")
 def api_doctrine_approve(update_id):
     """
     Tier 1 human approval of a pending doctrine update.
@@ -6467,6 +6540,7 @@ def api_risk_latest():
 
 
 @app.route("/api/c2/algo-inventory-check", methods=["POST"])
+@_authority_required("C2_ALGO_INVENTORY_CHECK")
 def api_c2_algo_inventory_check():
     """Phase 4.5 — MiFID II RTS 6 algorithmic trading inventory compliance check.
     Session-level (not per-trade).
@@ -6548,6 +6622,7 @@ def api_c2_algo_inventory_check():
 
 
 @app.route("/api/c2/resume/<task_id>", methods=["POST"])
+@_authority_required("C2_RESUME")
 def api_c2_resume(task_id):
     """Resume a paused lifecycle with operator approval payload.
 
@@ -7403,6 +7478,7 @@ def api_atrox_scan():
 
 
 @app.route("/api/atrox/recommendations/<rec_id>/promote", methods=["POST"])
+@_authority_required("ATROX_PROMOTE")
 def api_atrox_promote(rec_id):
     """
     Promote a Atrox recommendation to a governed decision.
@@ -7475,6 +7551,7 @@ def api_atrox_promote(rec_id):
 
 
 @app.route("/api/atrox/recommendations/<rec_id>/dismiss", methods=["POST"])
+@_authority_required("ATROX_DISMISS")
 def api_atrox_dismiss(rec_id):
     """Dismiss a Atrox recommendation (operator reviewed, chose not to act)."""
     with _lock:
@@ -8580,6 +8657,25 @@ def catch_all(path):
 # 9. START
 # ─────────────────────────────────────────────────────────────────
 
+def _record_boot_session_actor() -> None:
+    """Record who opened the session at boot: the deterministic boot service.
+
+    In-process, not HTTP, so no operator key is involved; it is recorded as
+    DETERMINISTIC_SERVICE rather than as the human operator (AUR-I-03).
+    """
+    with _lock:
+        aureon_state.setdefault("authority_log", []).insert(0, {
+            "id":        "BOOT-SESSION-AUTO-OPEN",
+            "ts":        datetime.now(timezone.utc).isoformat(),
+            "tier":      "Tier 1 — Human Authority",
+            "type":      "SESSION AUTO-OPEN AT BOOT",
+            "authority": _BOOT_SERVICE_ACTOR.role,
+            "outcome":   "All six CAOM-001 session steps completed in-process",
+            "actor":     _BOOT_SERVICE_ACTOR.model_dump(mode="json"),
+            "hash":      "BOOT",
+        })
+
+
 def _start_background_threads():
     # ── Volume and state file diagnostics ────────────────────────────────────
     data_dir = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH", "")
@@ -8612,6 +8708,7 @@ def _start_background_threads():
     )
     _session_protocol.run_step_5_stress_review()
     _session_protocol.run_step_6_open_session()
+    _record_boot_session_actor()
     _journal("SESSION_OPEN", "CAOM-001", "SYSTEM",
              "CAOM-001 session opened at startup. All six protocol steps completed. "
              "Operator GR-001 holds Tier 1/2/3. Execution gates active.",
@@ -9134,6 +9231,7 @@ def _ck_error(exc):
 
 
 @app.route("/api/cockpit/capture", methods=["POST"])
+@_authority_required("COCKPIT_CAPTURE")
 def cockpit_capture():
     """Beat 1 — capture the transaction picture (operator readback)."""
     d = request.get_json(silent=True) or {}
@@ -9164,6 +9262,7 @@ def cockpit_capture():
 
 
 @app.route("/api/cockpit/validate", methods=["POST"])
+@_authority_required("COCKPIT_VALIDATE")
 def cockpit_validate():
     """Beat 2 — run the Settlement Operations Analyst gate set."""
     d = request.get_json(silent=True) or {}
@@ -9179,6 +9278,7 @@ def cockpit_validate():
 
 
 @app.route("/api/cockpit/prepare", methods=["POST"])
+@_authority_required("COCKPIT_PREPARE")
 def cockpit_prepare():
     """Beat 3 — emit a governed instruction package (or HOLD). Never a submission."""
     d = request.get_json(silent=True) or {}
@@ -9194,6 +9294,7 @@ def cockpit_prepare():
 
 
 @app.route("/api/cockpit/readback", methods=["POST"])
+@_authority_required("COCKPIT_READBACK")
 def cockpit_readback():
     """Beat 5 inbound — accept operator-entered post-submission portal state."""
     d = request.get_json(silent=True) or {}
@@ -9217,6 +9318,7 @@ def cockpit_readback():
 
 
 @app.route("/api/cockpit/reconcile", methods=["POST"])
+@_authority_required("COCKPIT_RECONCILE")
 def cockpit_reconcile():
     """Beat 5 — diff expected vs actual; classify breaks by leg."""
     d = request.get_json(silent=True) or {}
@@ -9232,6 +9334,7 @@ def cockpit_reconcile():
 
 
 @app.route("/api/cockpit/break", methods=["POST"])
+@_authority_required("COCKPIT_BREAK")
 def cockpit_break():
     """Route reconciliation breaks to the workbench with full lineage."""
     d = request.get_json(silent=True) or {}
