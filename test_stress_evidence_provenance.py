@@ -149,8 +149,7 @@ def test_a_fabricated_reading_refuses_a_direct_approval() -> None:
     with pytest.raises(PolicyBindingError) as info:
         resolve_pending_decision(
             state=state, lock=threading.RLock(), decision_id="DEC-F1", resolution="APPROVED",
-            approval_role="TRADER", build_trade_report=lambda *a: {"report_id": "RPT"},
-            rules_digest=RULES, now=T0 + timedelta(seconds=10),
+            approval_role="TRADER", rules_digest=RULES, now=T0 + timedelta(seconds=10),
         )
     assert info.value.code == "POLICY_INDETERMINATE"
     assert state["pending_decisions"] == before
