@@ -435,7 +435,7 @@ repository root/
     persistence/  core/  data/  cli/  session/  mmf/
 ```
 
-**What is deliberately absent.** There is no `aureon/cockpit/`, no `aureon/agents/tier1/`, and no `aureon/contracts/`. Those directories existed until 31 July 2026 as vendored copies of the Atreides custody domain layer, and were retired in favour of the declared dependency in `requirements.txt` per `AUR-ADD-006`. Do not reintroduce them — a copy of a module that has an authoritative home elsewhere is the failure mode that produced a Railway 502 on boot when it carried a transitive dependency this repository did not declare.
+**What is deliberately absent.** There is no `aureon/cockpit/` and no `aureon/agents/tier1/`. Those directories, and an earlier `aureon/contracts/`, existed until 31 July 2026 as vendored copies of the Atreides custody domain layer, and were retired in favour of the declared dependency in `requirements.txt` per `AUR-ADD-006`. The `aureon/contracts/` present today (since W2B-5) is unrelated: it holds only Aureon's own `ApprovedIntentEnvelope`. Do not reintroduce them — a copy of a module that has an authoritative home elsewhere is the failure mode that produced a Railway 502 on boot when it carried a transitive dependency this repository did not declare.
 
 Current file roles:
 
@@ -515,7 +515,11 @@ verana_screen_ofac(identifier)          — Gate 5 OFAC SDN screen — returns P
 verana_framework_status(framework)      — query specific regulatory framework status
 verana_node_status()                    — network operational posture
 verana_compliance_snapshot()            — full Verana governance picture in one call
+aureon_resolve_decision(decision_id, resolution, approval_role?, hold_exception?)
+                                        — approve or reject a decision; an authority mutation
 ```
+
+`aureon_resolve_decision` is the only tool that changes anything. The HTTP request to `/mcp` must carry `X-Admin-Key` and a fresh `X-Request-Nonce`, exactly as the dashboard does, and the tool runs the same path as `POST /api/decisions/<id>` (policy binding, routing, the sealed `ApprovedIntentEnvelope`, release). The command line reaches the same route with `aureon-agent resolve <decision_id> APPROVED --role TRADER --server <url>`, reading the key from `AUREON_ADMIN_KEY`.
 
 **Example — initialize:**
 ```json

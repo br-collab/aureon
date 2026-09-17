@@ -20,6 +20,7 @@ Run: pytest -q test_probe_policy_binding.py
 import copy
 import threading
 
+from aureon.approval_service.operator_auth import OPERATOR_ACTOR
 from aureon.approval_service.service import resolve_pending_decision
 from aureon.policy_engine.binding import PolicyBindingError, pretrade_rules_digest
 from aureon.policy_engine.service import evaluate_pretrade_decision
@@ -93,6 +94,7 @@ def test_failed_pretrade_gate_blocks_approval():
             decision_id=DECISION_ID,
             resolution="APPROVED",
             approval_role="TRADER",
+            actor=OPERATOR_ACTOR,
             rules_digest=pretrade_rules_digest(
                 risk_policy=RISK_POLICY, operating_cash_floor_pct=0.03, ofac_blocked_isins={}
             ),

@@ -11,14 +11,15 @@ only when an execution event arrives from a venue (``aureon.booking``).
 ``reference_price`` is the decision's price at approval. It is carried for
 reconciliation only; a venue must never fill at it.
 
-Schema ``0.1-draft`` (JUM-D-26). W2B-5 wraps this in the ApprovedIntentEnvelope.
+Since W2B-5 every term is taken from the sealed ApprovedIntentEnvelope, and the
+event carries the envelope id, digest and expiry. Schema ``0.2-draft`` (JUM-D-26).
 """
 
 from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Literal
 
 from cannae_kernel.canonical import canonical_bytes_of, digest_bytes
@@ -31,6 +32,7 @@ __all__ = [
     "authorize_release",
     "find_release",
     "persist_release",
+    "release_id_for",
 ]
 
 RELEASE_AUTHORIZED = "RELEASE_AUTHORIZED"
@@ -40,11 +42,14 @@ MAX_PERSISTED_RELEASES = 1000
 class ReleaseAuthorized(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    schema_version: Literal["aureon.release_authorized/0.1-draft"] = (
-        "aureon.release_authorized/0.1-draft"
+    schema_version: Literal["aureon.release_authorized/0.2-draft"] = (
+        "aureon.release_authorized/0.2-draft"
     )
     event_type: Literal["RELEASE_AUTHORIZED"] = RELEASE_AUTHORIZED
     release_id: str
+    envelope_id: str
+    envelope_digest: str
+    expires_at: datetime
     decision_id: str
     decision_digest: str
     policy_record_id: str
@@ -52,8 +57,12 @@ class ReleaseAuthorized(BaseModel):
     symbol: str
     action: str
     asset_class: str
+    quantity_basis: Literal["QUANTITY", "NOTIONAL"]
     quantity: str | None
-    notional: str
+    quantity_unit: str | None
+    whole_units: bool
+    notional: str | None
+    currency: str
     reference_price: str | None
     release_target: str
     approvals: tuple[str, ...]
@@ -62,43 +71,42 @@ class ReleaseAuthorized(BaseModel):
     provenance: Provenance = Provenance.HUMAN_JUDGMENT
 
 
-def _text(value: Any) -> str | None:
-    if value is None or value == "":
-        return None
-    return str(value)
-
-
-def authorize_release(
-    *,
-    decision: Mapping[str, Any],
-    policy_record: Any,
-    approvals: list[str],
-    authority_hash: str,
-    now: datetime | None = None,
-) -> ReleaseAuthorized:
-    authorized_at = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    fields = {
-        "decision_id": str(decision["id"]),
-        "decision_digest": policy_record.decision_digest,
-        "policy_record_id": policy_record.record_id,
-        "policy_record_digest": policy_record.record_digest,
-        "symbol": str(decision["symbol"]),
-        "action": str(decision["action"]),
-        "asset_class": str(decision.get("asset_class") or ""),
-        "quantity": _text(decision.get("shares")),
-        "notional": str(decision.get("notional", 0)),
-        "reference_price": _text(decision.get("price")),
-        "release_target": str(decision.get("release_target") or "OMS"),
-        "approvals": tuple(approvals),
-        "authority_hash": authority_hash,
-    }
-    # One release per decision digest: approving the same terms twice yields
-    # the same release id, so a venue or booking consumer can deduplicate.
-    release_id = "REL-" + digest_bytes(
-        canonical_bytes_of({"decision_digest": fields["decision_digest"],
-                            "decision_id": fields["decision_id"]})
+def release_id_for(decision_id: str, decision_digest: str) -> str:
+    """One release per decision digest: approving the same terms twice yields the
+    same release id, so a venue or booking consumer can deduplicate."""
+    return "REL-" + digest_bytes(
+        canonical_bytes_of({"decision_digest": decision_digest, "decision_id": decision_id})
     )[7:23].upper()
-    return ReleaseAuthorized(release_id=release_id, authorized_at=authorized_at, **fields)
+
+
+def authorize_release(*, envelope: Any, release_id: str) -> ReleaseAuthorized:
+    """The release event for a sealed ApprovedIntentEnvelope; every term comes from the envelope."""
+    intent = envelope.intent
+    last = max(envelope.authority_manifest.approvals, key=lambda a: a.approved_at)
+    return ReleaseAuthorized(
+        release_id=release_id,
+        envelope_id=str(envelope.envelope_id),
+        envelope_digest=envelope.digest,
+        expires_at=envelope.expires_at,
+        decision_id=intent.decision_id,
+        decision_digest=envelope.policy_manifest.decision_digest,
+        policy_record_id=envelope.policy_manifest.policy_record_id,
+        policy_record_digest=envelope.policy_manifest.policy_record_digest,
+        symbol=intent.instrument_id,
+        action=intent.side,
+        asset_class=intent.asset_class,
+        quantity_basis=intent.quantity.basis,
+        quantity=intent.quantity.quantity,
+        quantity_unit=intent.quantity.quantity_unit,
+        whole_units=intent.quantity.whole_units,
+        notional=intent.quantity.notional,
+        currency=intent.quantity.currency,
+        reference_price=intent.reference_price,
+        release_target=envelope.execution_constraints.release_target,
+        approvals=tuple(a.role for a in envelope.authority_manifest.approvals),
+        authority_hash=last.authority_hash,
+        authorized_at=envelope.created_at,
+    )
 
 
 def persist_release(state: dict[str, Any], release: ReleaseAuthorized) -> None:

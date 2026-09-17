@@ -43,17 +43,22 @@ mcp_bp = Blueprint("mcp", __name__)
 _state = None
 _lock  = None
 _ofac_blocked = None
+_resolve_decision = None
 
 
-def init_mcp(aureon_state: dict, state_lock, ofac_blocked_isins: dict):
+def init_mcp(aureon_state: dict, state_lock, ofac_blocked_isins: dict, resolve_decision=None):
     """
     Inject Aureon runtime state into the MCP server.
     Called from server.py after aureon_state is initialized.
+
+    resolve_decision(arguments, headers) -> (payload, status) is the server's
+    single decision-resolution path. Without it the approval tool refuses.
     """
-    global _state, _lock, _ofac_blocked
+    global _state, _lock, _ofac_blocked, _resolve_decision
     _state        = aureon_state
     _lock         = state_lock
     _ofac_blocked = ofac_blocked_isins
+    _resolve_decision = resolve_decision
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -216,6 +221,30 @@ TOOLS = [
             "type":       "object",
             "properties": {},
             "required":   [],
+        },
+    },
+    {
+        "name":        "aureon_resolve_decision",
+        "description": (
+            "Approve or reject a pending Aureon decision as the CAOM-001 operator. "
+            "An authority mutation: the HTTP request must carry X-Admin-Key and a "
+            "fresh X-Request-Nonce, exactly as the dashboard does. Runs the same "
+            "path as POST /api/decisions/<id>: policy binding, approval routing, "
+            "the sealed ApprovedIntentEnvelope, and release. Refused without a "
+            "current pre-trade check."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "decision_id":   {"type": "string"},
+                "resolution":    {"type": "string", "enum": ["APPROVED", "REJECTED"]},
+                "approval_role": {"type": "string", "description": "TRADER, RISK, COMPLIANCE, PM or CONTROL"},
+                "hold_exception": {
+                    "type": "object",
+                    "description": "For an overrideable HOLD: {reason, ttl_seconds}",
+                },
+            },
+            "required": ["decision_id", "resolution"],
         },
     },
     {
@@ -598,7 +627,16 @@ def _tool_verana_compliance_snapshot(params: dict) -> dict:
     }
 
 
+def _tool_aureon_resolve_decision(params: dict) -> dict:
+    """Authority mutation: authenticated and executed by the server's single resolve path."""
+    if _resolve_decision is None:
+        raise RuntimeError("decision resolution is not available on this MCP server")
+    payload, status = _resolve_decision(params, request.headers)
+    return {"http_status": status, **payload}
+
+
 TOOL_HANDLERS = {
+    "aureon_resolve_decision":     _tool_aureon_resolve_decision,
     "verana_screen_ofac":          _tool_verana_screen_ofac,
     "verana_framework_status":     _tool_verana_framework_status,
     "verana_node_status":          _tool_verana_node_status,

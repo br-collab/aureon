@@ -215,9 +215,13 @@ def release_to_oms(
     decision:       dict,
     authority_hash: str,
     oms_send:       Optional[Callable] = None,
+    approved_intent: Optional[dict] = None,
 ) -> dict:
     """
     Build the governed OMS release package and optionally call oms_send.
+
+    approved_intent is the sealed ApprovedIntentEnvelope (JSON form). The
+    package carries it and its digest unchanged (W2B-5).
 
     Stamps CAOM-001 operating mode on the package if CAOM is active.
 
@@ -241,6 +245,9 @@ def release_to_oms(
         "status":           "RELEASED",
         "dsor_stamped":     True,
     }
+    if approved_intent is not None:
+        package["approved_intent"]        = approved_intent
+        package["approved_intent_digest"] = approved_intent["digest"]
 
     # Stamp CAOM operating mode on the release record
     if is_caom_active():
@@ -268,9 +275,9 @@ def release_to_oms(
 class OMSReleaseError(RuntimeError):
     """A governed release did not reach the OMS.
 
-    By the time release_to_oms runs, resolve_pending_decision has already
-    booked the trade, so this is a break between the book and the OMS, not a
-    no-op. It carries the package (with authority_hash) so the caller can
+    By the time release_to_oms runs, release is authorized but nothing is
+    booked (booking follows a venue fill, W2B-4), so nothing may go to the
+    venue. It carries the package (with authority_hash) so the caller can
     record the break against the approval.
     """
 

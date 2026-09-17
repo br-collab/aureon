@@ -97,7 +97,8 @@ from aureon.policy_engine.binding import (
 )
 from aureon.evidence_service.service import build_trade_report as evidence_build_trade_report
 from aureon.approval_service.release_control import OMSReleaseError, can_release, missing_roles, normalize_decision, release_to_oms
-from aureon.approval_service.service import resolve_pending_decision, routed_required_approvals
+from aureon.approval_service.service import AuthorityError, resolve_pending_decision, routed_required_approvals
+from aureon.contracts.approved_intent import IntentShapeError, normalize_quantity
 from aureon.booking.consumer import book_fill
 from aureon.integration_adapters.paper_venue import PaperVenue, PriceObservation, VenueRejection
 from aureon.integration_adapters.oms_adapter import send as oms_send
@@ -252,41 +253,57 @@ _authority_nonces = _NonceCache()
 AUTHORITY_ENDPOINTS: set[str] = set()
 
 
+def _authenticate_authority_request(action: str, headers, *, channel: str):
+    """Authenticate one authority mutation and record it. Returns (denied, actor).
+
+    ``denied`` is (payload, status) when refused, else None. Shared by the
+    HTTP decorator and the MCP tool, so both apply the same key, nonce and
+    audit entry.
+    """
+    outcome = _authenticate_operator(
+        headers,
+        admin_key=os.environ.get("AUREON_ADMIN_KEY", ""),
+        nonces=_authority_nonces,
+        now=time.time(),
+    )
+    if not outcome.ok:
+        return ({
+            "status": "error",
+            "message": "unauthorized" if outcome.status == 401 else "forbidden",
+            "detail": outcome.error,
+            "action": action,
+        }, outcome.status), None
+    ts = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        aureon_state.setdefault("authority_log", []).insert(0, {
+            "id":        f"AUTH-{outcome.nonce[:12]}",
+            "ts":        ts,
+            "tier":      "Tier 1 — Human Authority",
+            "type":      f"AUTHENTICATED {action}",
+            "authority": outcome.actor.role,
+            "outcome":   channel,
+            "actor":     outcome.actor.model_dump(mode="json"),
+            "nonce":     outcome.nonce,
+            "hash":      hashlib.sha256(
+                f"AUTH-{action}-{outcome.nonce}-{ts}".encode()
+            ).hexdigest()[:16].upper(),
+        })
+    return None, outcome.actor
+
+
 def _authority_required(action: str):
     def decorate(view):
         AUTHORITY_ENDPOINTS.add(view.__name__)
 
         @_functools.wraps(view)
         def guarded(*args, **kwargs):
-            outcome = _authenticate_operator(
-                request.headers,
-                admin_key=os.environ.get("AUREON_ADMIN_KEY", ""),
-                nonces=_authority_nonces,
-                now=time.time(),
+            denied, actor = _authenticate_authority_request(
+                action, request.headers, channel=f"{request.method} {request.path}"
             )
-            if not outcome.ok:
-                return jsonify({
-                    "status": "error",
-                    "message": "unauthorized" if outcome.status == 401 else "forbidden",
-                    "detail": outcome.error,
-                    "action": action,
-                }), outcome.status
-            ts = datetime.now(timezone.utc).isoformat()
-            with _lock:
-                aureon_state.setdefault("authority_log", []).insert(0, {
-                    "id":        f"AUTH-{outcome.nonce[:12]}",
-                    "ts":        ts,
-                    "tier":      "Tier 1 — Human Authority",
-                    "type":      f"AUTHENTICATED {action}",
-                    "authority": outcome.actor.role,
-                    "outcome":   f"{request.method} {request.path}",
-                    "actor":     outcome.actor.model_dump(mode="json"),
-                    "nonce":     outcome.nonce,
-                    "hash":      hashlib.sha256(
-                        f"AUTH-{action}-{outcome.nonce}-{ts}".encode()
-                    ).hexdigest()[:16].upper(),
-                })
-            g.authority_actor = outcome.actor
+            if denied is not None:
+                payload, status = denied
+                return jsonify(payload), status
+            g.authority_actor = actor
             return view(*args, **kwargs)
 
         guarded.__authority_action__ = action
@@ -4360,6 +4377,7 @@ def run_doctrine_stack():
             # ── W2B-4 / AUR-I-17: pending decisions and execution events ──
             aureon_state["pending_decisions"]     = saved.get("pending_decisions",     [])
             aureon_state["release_events"]        = saved.get("release_events",        [])
+            aureon_state["approved_intents"]      = saved.get("approved_intents",      [])
             aureon_state["venue_fills"]           = saved.get("venue_fills",           [])
             aureon_state["booked_fill_ids"]       = saved.get("booked_fill_ids",       [])
             aureon_state["booking_breaks"]        = saved.get("booking_breaks",        [])
@@ -4395,7 +4413,7 @@ def run_doctrine_stack():
     # ── Initialize MCP server with live state ─────────────────────
     # Inject aureon_state and OFAC list so MCP resources reflect
     # real-time system state from this point forward.
-    init_mcp(aureon_state, _lock, OFAC_BLOCKED_ISINS)
+    init_mcp(aureon_state, _lock, OFAC_BLOCKED_ISINS, resolve_decision=_mcp_resolve_decision)
     print("[AUREON] MCP server initialized — Phase 1 Verana L0 — POST /mcp")
 
     # ── Initialize Atrox data pipes ───────────────────────
@@ -5272,10 +5290,6 @@ def api_create_decision():
     action      = (data.get("action") or "").strip().upper()
     asset_class = (data.get("asset_class") or "").strip().lower()
     try:
-        notional = float(data.get("notional", 0) or 0)
-    except (TypeError, ValueError):
-        notional = 0.0
-    try:
         price = float(data["price"]) if data.get("price") not in (None, "") else None
     except (TypeError, ValueError):
         price = None
@@ -5285,9 +5299,33 @@ def api_create_decision():
     if not symbol:                       errs.append("symbol required")
     if action not in ("BUY", "SELL"):    errs.append("action must be BUY or SELL")
     if not asset_class:                  errs.append("asset_class required")
-    if notional <= 0:                    errs.append("notional must be > 0")
     if errs:
         return jsonify({"error": "; ".join(errs)}), 400
+
+    # ── One quantity model (AUR-I-04) ─────────────────────────────
+    # Either quantity (with its unit) or notional (with its currency),
+    # validated for the asset class, so an operator order reaches the same
+    # valid intent shape as a signal decision.
+    quantity_in = data.get("quantity", data.get("shares"))
+    try:
+        terms = normalize_quantity(
+            asset_class,
+            quantity=quantity_in,
+            quantity_unit=data.get("quantity_unit"),
+            notional=data.get("notional"),
+            currency=data.get("currency"),
+        )
+    except IntentShapeError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if terms.basis == "QUANTITY":
+        with _lock:
+            estimate_price = price or (aureon_state.get("prices") or {}).get(symbol)
+        if not estimate_price:
+            return jsonify({"error": f"no price for {symbol} to estimate the notional of a "
+                                     "quantity order; give a price or a notional"}), 400
+        notional = float(terms.quantity) * float(estimate_price)
+    else:
+        notional = float(terms.notional)
 
     with _lock:
         if aureon_state.get("halt_active"):
@@ -5302,6 +5340,11 @@ def api_create_decision():
         "asset_class": asset_class,
         "price":       price,
         "notional":    notional,
+        "quantity_basis": terms.basis,
+        "quantity_unit":  terms.quantity_unit,
+        "currency":       terms.currency,
+        **({"shares": float(terms.quantity) if not terms.whole_units else int(terms.quantity)}
+           if terms.basis == "QUANTITY" else {}),
         "product_type": "SINGLE_NAME_EQUITY" if asset_class == "equities" else asset_class.upper(),
         "rationale":   (data.get("rationale") or "Operator-originated order").strip(),
         "signal_type": "OPERATOR_ORDER",
@@ -5358,7 +5401,7 @@ def _market_cache_price(symbol: str):
     return PriceObservation(price=str(value), observed_at=observed_at, source="aureon market-data cache")
 
 
-_paper_venue = PaperVenue(price_source=_market_cache_price)
+_paper_venue = PaperVenue(price_source=_market_cache_price, clock=lambda: _approval_clock())
 
 
 def _deliver_release_to_venue(release, decision) -> dict:
@@ -5430,6 +5473,22 @@ def _deliver_release_to_venue(release, decision) -> dict:
     return summary
 
 
+def _approval_clock() -> datetime:
+    """Time for pre-trade records and approvals. One function, so a test can fix it and
+    compare envelope digests across channels."""
+    return datetime.now(timezone.utc)
+
+
+def _mcp_resolve_decision(arguments: dict, headers) -> tuple[dict, int]:
+    """MCP tool aureon_resolve_decision: the operator key, then the same path as the API."""
+    denied, actor = _authenticate_authority_request("DECISION_RESOLVE", headers,
+                                                    channel="MCP tools/call aureon_resolve_decision")
+    if denied is not None:
+        return denied
+    return _resolve_decision_request(str(arguments.get("decision_id") or ""), dict(arguments),
+                                     actor=actor)
+
+
 def _pretrade_rules_digest() -> str:
     """Digest of the pre-trade rules in force; a record for other rules is stale."""
     return pretrade_rules_digest(
@@ -5439,7 +5498,7 @@ def _pretrade_rules_digest() -> str:
     )
 
 
-def _hold_exception_from_request(decision_id: str, body: dict, approval_role: str):
+def _hold_exception_from_request(decision_id: str, body: dict, approval_role: str, actor):
     """A typed HOLD exception from the resolve request, granted by the authenticated operator."""
     record = latest_policy_record(aureon_state, decision_id)
     if record is None:
@@ -5453,10 +5512,11 @@ def _hold_exception_from_request(decision_id: str, body: dict, approval_role: st
         ttl_seconds = 0
     return grant_hold_exception(
         record=record,
-        actor=g.authority_actor,
+        actor=actor,
         authority_role=approval_role,
         reason=str(body.get("reason") or ""),
         ttl_seconds=ttl_seconds,
+        now=_approval_clock(),
     )
 
 
@@ -5464,41 +5524,54 @@ def _policy_refusal(exc: PolicyBindingError, decision_id: str):
     _journal("DECISION_POLICY_REFUSED", "POLICY-ENGINE", decision_id,
              f"Approval of {decision_id} refused — {exc.message}",
              outcome=exc.code, ref_id=decision_id)
-    return jsonify({
+    return {
         "status":      "refused",
         "error":       exc.message,
         "code":        exc.code,
         "decision_id": decision_id,
-    }), 409
+    }, 409
 
 
 @app.route("/api/decisions/<decision_id>", methods=["POST"])
 @_authority_required("DECISION_RESOLVE")
 def api_resolve_decision(decision_id):
     """
-    Approve or reject a pending trade decision.
-    Called when you click APPROVE or REJECT in the dashboard.
-    Expects JSON body: {"resolution": "APPROVED"} or {"resolution": "REJECTED"}
+    Approve or reject a pending trade decision (dashboard and API).
+    Expects JSON body: {"resolution": "APPROVED"} or {"resolution": "REJECTED"}.
+    The MCP tool aureon_resolve_decision and the CLI reach the same function.
+    """
+    payload, status = _resolve_decision_request(
+        decision_id, request.get_json() or {}, actor=g.authority_actor
+    )
+    return jsonify(payload), status
+
+
+def _resolve_decision_request(decision_id, data, *, actor):
+    """
+    The one application path for resolving a decision, whatever the channel.
 
     This is the core of the Human Authority Doctrine:
-      - APPROVED → trade is executed, logged with your hash
-      - REJECTED → trade is cancelled, still logged for audit
+      - APPROVED → the intent is sealed and release authorized; the book
+        changes only when the venue fills
+      - REJECTED → the decision is cancelled, still logged for audit
+
+    ``actor`` is the authenticated operator (W2B-2). Returns (payload, status).
     """
     # CAOM-001 session guard — operator must have opened a session
     from aureon.config.caom import is_caom_active
     if is_caom_active() and not _session_protocol.is_session_open():
-        return jsonify({
+        return ({
             "error": "Session not open. Complete the CAOM-001 session open "
                      "protocol before approving decisions.",
             "session_status": _session_protocol.get_status()["session_status"],
         }), 403
 
-    data       = request.get_json() or {}
+    data       = data or {}
     resolution = data.get("resolution", "").upper()
     approval_role = (data.get("approval_role") or "TRADER").upper()
 
     if resolution not in ("APPROVED", "REJECTED"):
-        return jsonify({"error": "resolution must be APPROVED or REJECTED"}), 400
+        return ({"error": "resolution must be APPROVED or REJECTED"}), 400
 
     # ── Policy binding (AUR-I-01) ────────────────────────────────────────────
     # An approval needs the persisted pre-trade result for this decision's
@@ -5518,7 +5591,7 @@ def api_resolve_decision(decision_id):
                     evidence = aureon_state
                     if isinstance(data.get("hold_exception"), dict):
                         hold_exception = _hold_exception_from_request(
-                            decision_id, data["hold_exception"], approval_role
+                            decision_id, data["hold_exception"], approval_role, actor
                         )
                         evidence = {
                             **aureon_state,
@@ -5527,7 +5600,8 @@ def api_resolve_decision(decision_id):
                                 *aureon_state.get("policy_hold_exceptions", []),
                             ],
                         }
-                    require_approvable(evidence, decision_obj, rules_digest=rules_digest)
+                    require_approvable(evidence, decision_obj, rules_digest=rules_digest,
+                                       now=_approval_clock())
                 except PolicyBindingError as exc:
                     refusal = exc
         if refusal is not None:
@@ -5548,6 +5622,7 @@ def api_resolve_decision(decision_id):
                         persist_hold_exception(aureon_state, hold_exception)
                     decision_obj["status"]      = "APPROVED_PENDING_SESSION"
                     decision_obj["approved_at"] = ts
+                    decision_obj["approved_by"] = actor.model_dump(mode="json")
                     decision_obj["session_reason"] = session_reason
                 threading.Thread(target=_save_state, daemon=True).start()
                 _journal("DECISION_DEFERRED", "VERANA-L0", sym,
@@ -5557,7 +5632,7 @@ def api_resolve_decision(decision_id):
                          ref_id=decision_id)
                 print(f"[AUREON] APPROVED_PENDING_SESSION: {decision_obj.get('action')} "
                       f"{sym} — {session_reason}")
-                return jsonify({
+                return ({
                     "status":      "APPROVED_PENDING_SESSION",
                     "message":     "Approval recorded. Execution deferred to next session open.",
                     "reason":      session_reason,
@@ -5572,15 +5647,23 @@ def api_resolve_decision(decision_id):
             decision_id=decision_id,
             resolution=resolution,
             approval_role=approval_role,
+            actor=actor,
             rules_digest=rules_digest,
             hold_exception=hold_exception,
+            now=_approval_clock(),
         )
     except PolicyBindingError as exc:
         return _policy_refusal(exc, decision_id)
+    except AuthorityError as exc:
+        return {"status": "refused", "error": exc.message, "code": exc.code,
+                "decision_id": decision_id}, 403
+    except IntentShapeError as exc:
+        return {"status": "refused", "error": str(exc), "code": "INTENT_INVALID",
+                "decision_id": decision_id}, 422
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return ({"error": str(exc)}), 400
     except LookupError:
-        return jsonify({"error": "decision not found"}), 404
+        return ({"error": "decision not found"}), 404
     except RuntimeError as exc:
         message = str(exc)
         status = 423 if "SYSTEM HALTED" in message else 409
@@ -5589,7 +5672,7 @@ def api_resolve_decision(decision_id):
             if status == 423:
                 payload["halt_reason"] = aureon_state["halt_reason"]
                 payload["halt_ts"] = aureon_state["halt_ts"]
-        return jsonify(payload), status
+        return payload, status
 
     authority_hash = result["hash"]
     decision = result["decision"]
@@ -5604,7 +5687,8 @@ def api_resolve_decision(decision_id):
         # that fails or is not ACCEPTED raises — it cannot read as released.
         if decision.get("release_target") == "EMS":
             release_mode = "EMS"
-            release_packet = build_execution_release(decision, authority_hash)
+            release_packet = build_execution_release(
+                decision, authority_hash, approved_intent=result["envelope"].model_dump(mode="json"))
         else:
             release_mode = "OMS"
             try:
@@ -5612,6 +5696,7 @@ def api_resolve_decision(decision_id):
                     decision,
                     authority_hash=authority_hash,
                     oms_send=oms_send,
+                    approved_intent=result["envelope"].model_dump(mode="json"),
                 )
             except OMSReleaseError as exc:
                 release_packet = exc.package
@@ -5728,7 +5813,7 @@ def api_resolve_decision(decision_id):
     threading.Thread(target=_save_state, daemon=True).start()
 
     if release_failure is not None:
-        return jsonify({
+        return ({
             "status":         "release_failed",
             "error":          "Release is authorized, but the OMS did not receive it. Nothing "
                               "was booked. Reconcile before any re-release.",
@@ -5739,18 +5824,20 @@ def api_resolve_decision(decision_id):
             "hash":           authority_hash,
         }), 502
 
-    return jsonify({
+    return ({
         "status": result["status"],
         "resolution": result["resolution"],
         "decision_id": result["decision_id"],
         "hash": authority_hash,
         "release_id": result["release"].release_id if result.get("release") else None,
+        "envelope_id": str(result["envelope"].envelope_id) if result.get("envelope") else None,
+        "envelope_digest": result["envelope"].digest if result.get("envelope") else None,
         "execution": execution,
         "report_id": (execution or {}).get("report_id"),
         "approval_role": approval_role,
         "current_approvals": decision.get("current_approvals", []),
         "required_approvals": decision.get("required_approvals", []),
-    })
+    }), 200
 
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
@@ -5776,6 +5863,7 @@ def _evaluate_pretrade(decision_id, *, macro_snapshot_fn):
         # eligibility) so the live modal is asset-class-aware. Equities
         # get no extra gates — identical behavior to before.
         asset_class_gate_fn=_agent_j.asset_class_gates,
+        now=_approval_clock(),
     )
 
 

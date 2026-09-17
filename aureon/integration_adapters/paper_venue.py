@@ -13,9 +13,10 @@ executes. It is independent of the approval in the ways reconciliation needs:
 - Its fills are labelled ``Provenance.FACT_SYNTHETIC``: a paper fact, not an
   external one.
 
-It rejects rather than invents. With no usable price, or no quantity (an
-operator order carrying only notional, until the quantity model in W2B-5), it
-returns a ``VenueRejection`` and nothing is booked.
+It rejects rather than invents: an expired intent, no usable price, or a
+notional too small for one unit returns a ``VenueRejection`` and nothing is
+booked. A notional instruction fills the units it buys at the venue's price,
+whole units where the asset class requires them (the quantity model, W2B-5).
 
 A release is filled once. Delivering the same release again returns the
 original fill, so a retry cannot create a second execution.
@@ -27,7 +28,7 @@ import json
 import math
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_DOWN, Decimal, InvalidOperation
 from typing import Any, Literal
 
 from cannae_kernel.canonical import canonical_bytes_of, digest_bytes
@@ -118,14 +119,28 @@ class PaperVenue:
                 return PaperFill.model_validate_json(json.dumps(raw))
 
         now = self._clock().astimezone(timezone.utc)
-        quantity = _positive_decimal(release.quantity)
-        if quantity is None:
-            return self._reject(release, now, "no positive quantity on the release "
-                                "(notional-only orders wait for the quantity model, AUR-I-04)")
+        if now >= release.expires_at:
+            return self._reject(release, now, "the approved intent expired at "
+                                f"{release.expires_at.isoformat()}; it may not execute")
         observation = self._price_source(release.symbol)
         price = _positive_decimal(observation.price) if observation is not None else None
         if observation is None or price is None:
             return self._reject(release, now, f"no usable market price for {release.symbol}")
+        if release.quantity_basis == "QUANTITY":
+            quantity = _positive_decimal(release.quantity)
+        else:
+            # A notional instruction fills as many units as it buys at the
+            # venue's price: whole units where the asset class requires them.
+            notional = _positive_decimal(release.notional)
+            quantity = None if notional is None else notional / price
+            if quantity is not None:
+                quantity = (quantity.to_integral_value(rounding=ROUND_DOWN) if release.whole_units
+                            else quantity.quantize(Decimal("0.00000001"), rounding=ROUND_DOWN))
+                if quantity <= 0:
+                    return self._reject(release, now, f"notional {release.notional} buys less "
+                                        f"than one unit of {release.symbol} at {price}")
+        if quantity is None:
+            return self._reject(release, now, "no positive quantity or notional on the release")
 
         fields = {
             "release_id": release.release_id,
@@ -133,7 +148,8 @@ class PaperVenue:
             "symbol": release.symbol,
             "action": release.action,
             "asset_class": release.asset_class,
-            "quantity": format(quantity, "f"),
+            "quantity": format(quantity.normalize(), "f") if quantity != quantity.to_integral()
+                        else str(int(quantity)),
             "price": format(price, "f"),
             "notional": format(quantity * price, "f"),
             "venue": VENUE_ID,

@@ -10,6 +10,8 @@ never find a difference. The execution side now comes from a venue fill.
 Symbol, action and quantity must match exactly. Price and notional are
 compared with a tolerance, because a market fill legitimately differs from the
 reference price the decision carried; a move beyond the tolerance is a break.
+A notional instruction states no quantity; its fill may spend up to one unit's
+price less than instructed (whole units), and no more than the tolerance above.
 """
 
 from __future__ import annotations
@@ -58,7 +60,10 @@ def compare_intent_with_execution(
     difference; a missing intent price or notional has nothing to compare.
     """
     mismatches: list[dict[str, Any]] = []
+    notional_basis = intent.get("shares") in (None, "")
     for field in EXACT_FIELDS:
+        if field == "shares" and notional_basis:
+            continue  # a notional instruction does not state a quantity
         if not _same(intent.get(field), execution.get(field)):
             mismatches.append({"field": field, "expected": intent.get(field),
                                "actual": execution.get(field)})
@@ -72,6 +77,18 @@ def compare_intent_with_execution(
                                "actual": execution.get(exec_field)})
             continue
         deviation_bps = abs(actual - expected) / abs(expected) * 10_000
+        if exec_field == "notional" and notional_basis:
+            # Filled in whole units, a notional order may spend up to one unit's
+            # price less than instructed, never more than the tolerance above it.
+            unit_price = _number(execution.get("price")) or Decimal(0)
+            over = actual > expected * (1 + Decimal(tolerance_bps) / 10_000)
+            under = expected - actual > max(unit_price, expected * Decimal(tolerance_bps) / 10_000)
+            if over or under:
+                mismatches.append({"field": exec_field, "expected": intent.get(intent_field),
+                                   "actual": execution.get(exec_field),
+                                   "deviation_bps": float(round(deviation_bps, 1)),
+                                   "tolerance_bps": tolerance_bps})
+            continue
         if deviation_bps > tolerance_bps:
             mismatches.append({
                 "field": exec_field,

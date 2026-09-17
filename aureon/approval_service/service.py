@@ -18,10 +18,12 @@ Handles the core approve/reject lifecycle:
 """
 
 import hashlib
+import json
 from datetime import datetime, timezone
 
-from aureon.approval_service.release import authorize_release, persist_release
+from aureon.approval_service.release import authorize_release, persist_release, release_id_for
 from aureon.approval_service.routing import apply_routing
+from aureon.contracts.approved_intent import ApprovalRecord, seal_approved_intent
 from aureon.policy_engine.binding import (
     PolicyBindingError,
     persist_hold_exception,
@@ -42,6 +44,15 @@ def routed_required_approvals(decision):
     return required
 
 
+class AuthorityError(RuntimeError):
+    """Approval refused because it does not come from an authenticated actor."""
+
+    def __init__(self, code, message):
+        super().__init__(f"{code}: {message}")
+        self.code = code
+        self.message = message
+
+
 def resolve_pending_decision(
     *,
     state,
@@ -49,12 +60,17 @@ def resolve_pending_decision(
     decision_id,
     resolution,
     approval_role,
+    actor=None,
     rules_digest=None,
     hold_exception=None,
     now=None,
 ):
     """
     Resolve a pending decision as APPROVED or REJECTED.
+
+    Every entry point (dashboard, API, CLI, MCP) reaches approval through this
+    function, so policy binding, authority and envelope sealing are the same
+    whichever path a request took (AUR-I-05, partial).
 
     Parameters
     ----------
@@ -68,6 +84,8 @@ def resolve_pending_decision(
         "APPROVED" or "REJECTED".
     approval_role : str
         The role of the approving/rejecting authority (e.g. "TRADER").
+    actor : cannae_kernel.actor.ActorRef
+        The authenticated actor. Required to approve (W2B-2).
     rules_digest : str
         ``pretrade_rules_digest(...)`` of the rules in force. Required to
         approve: without it the evidence cannot be shown to be current.
@@ -76,31 +94,39 @@ def resolve_pending_decision(
         checked against the record and persisted only if the approval is
         permitted.
     now : datetime, optional
-        Evaluation time (UTC) for expiry checks; defaults to now.
+        The approval time (UTC); defaults to now. A fixed clock gives a
+        reproducible envelope digest.
 
     Returns
     -------
     dict
-        Keys: status, resolution, decision_id, hash, decision,
-              policy_record, release. ``status`` is "ok" when release is
-              authorized, "pending" after a partial approval, "rejected".
+        Keys: status, resolution, decision_id, hash, decision, policy_record,
+        release, envelope. ``status`` is "ok" when the intent is sealed and
+        release authorized, "pending" after a partial approval, "rejected".
 
     Raises
     ------
     LookupError
         If *decision_id* is not found in pending_decisions.
+    AuthorityError
+        (a RuntimeError) If the approval has no authenticated actor.
     PolicyBindingError
         (a RuntimeError) If the pre-trade policy record does not permit
-        approval. Nothing is recorded or changed.
+        approval.
+    IntentShapeError
+        (a ValueError) If the decision cannot be sealed as a valid intent.
     RuntimeError
         If the system halt is active (status 423).
     ValueError
         If *resolution* is not "APPROVED" or "REJECTED".
+
+    Nothing is recorded or changed when any of these is raised.
     """
     if resolution not in ("APPROVED", "REJECTED"):
         raise ValueError(f"Invalid resolution: {resolution!r}")
 
-    ts = datetime.now(timezone.utc).isoformat()
+    at = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    ts = at.isoformat()
     authority_hash = hashlib.sha256(
         f"AUREON-{resolution}-{decision_id}-{approval_role}-{ts}".encode()
     ).hexdigest()[:16].upper()
@@ -129,7 +155,8 @@ def resolve_pending_decision(
                 "tier":      "Tier 1 — Human Authority",
                 "type":      f"REJECT {decision['action']} {decision['symbol']}",
                 "authority": approval_role,
-                "outcome":   f"REJECTED — ${decision.get('notional', 0):,}",
+                "outcome":   f"REJECTED — ${float(decision.get('notional', 0) or 0):,.0f}",
+                **({"actor": actor.model_dump(mode="json")} if actor is not None else {}),
                 "hash":      authority_hash,
             })
 
@@ -141,19 +168,71 @@ def resolve_pending_decision(
                 "decision":    decision,
                 "policy_record": None,
                 "release":     None,
+                "envelope":    None,
             }
 
-        # ── Approval path ─────────────────────────────────────────
+        # ── Approval path: check everything, then change anything ─
+        if actor is None or not actor.authenticated:
+            raise AuthorityError(
+                "ACTOR_REQUIRED", "an approval must come from an authenticated actor"
+            )
+
         # Policy binds before anything is recorded, partial approvals included.
+        evidence = state
         if hold_exception is not None:
-            candidate = dict(state)
-            candidate["policy_hold_exceptions"] = [
+            evidence = dict(state)
+            evidence["policy_hold_exceptions"] = [
                 hold_exception.model_dump(mode="json"),
                 *state.get("policy_hold_exceptions", []),
             ]
-            policy_record = require_approvable(
-                candidate, decision, rules_digest=rules_digest, now=now
+        policy_record = require_approvable(evidence, decision, rules_digest=rules_digest, now=at)
+        policy_ref = {
+            "record_id":       policy_record.record_id,
+            "record_digest":   policy_record.record_digest,
+            "decision_digest": policy_record.decision_digest,
+            "disposition":     policy_record.disposition.value,
+        }
+
+        required = routed_required_approvals(decision)
+        current = list(decision.get("current_approvals", []))
+        if approval_role not in current:
+            current.append(approval_role)
+        records = [
+            ApprovalRecord.model_validate_json(json.dumps(raw))
+            for raw in decision.get("approval_records", [])
+            if raw.get("role") != approval_role
+        ]
+        records.append(ApprovalRecord(role=approval_role, actor=actor, approved_at=at,
+                                      authority_hash=authority_hash))
+        all_approved = all(r in current for r in required)
+
+        envelope = release = None
+        if all_approved:
+            missing_actor = [r for r in required if r not in {x.role for x in records}]
+            if missing_actor:
+                raise AuthorityError(
+                    "ACTOR_REQUIRED",
+                    f"roles {missing_actor} approved without an authenticated actor; "
+                    "they must approve again",
+                )
+            exception_ids = [
+                raw["exception_id"] for raw in evidence.get("policy_hold_exceptions", [])
+                if raw.get("policy_record_digest") == policy_record.record_digest
+            ] if policy_record.disposition.value == "HOLD" else []
+            release_id = release_id_for(decision_id, policy_record.decision_digest)
+            envelope = seal_approved_intent(
+                decision=decision,
+                policy_record=policy_record,
+                hold_exception_ids=exception_ids,
+                approvals=sorted(records, key=lambda r: r.role),
+                required_roles=required,
+                release_id=release_id,
+                now=at,
             )
+            release = authorize_release(envelope=envelope, release_id=release_id)
+
+        # ── Everything checked; record it ─────────────────────────
+        if hold_exception is not None:
             persist_hold_exception(state, hold_exception)
             state["authority_log"].insert(0, {
                 "id":        hold_exception.exception_id,
@@ -166,28 +245,11 @@ def resolve_pending_decision(
                 "actor":     hold_exception.authority.model_dump(mode="json"),
                 "hash":      hold_exception.exception_id,
             })
-        else:
-            policy_record = require_approvable(
-                state, decision, rules_digest=rules_digest, now=now
-            )
-        policy_ref = {
-            "record_id":       policy_record.record_id,
-            "record_digest":   policy_record.record_digest,
-            "decision_digest": policy_record.decision_digest,
-            "disposition":     policy_record.disposition.value,
-        }
-
-        decision["required_approvals"] = routed_required_approvals(decision)
-        current = list(decision.get("current_approvals", []))
-        if approval_role not in current:
-            current.append(approval_role)
+        decision["required_approvals"] = required
         decision["current_approvals"] = current
-
-        required = list(decision.get("required_approvals", []))
-        all_approved = all(r in current for r in required)
+        decision["approval_records"] = [r.model_dump(mode="json") for r in records]
 
         if not all_approved:
-            # Partial approval — record and return "pending" status
             state["authority_log"].insert(0, {
                 "id":        f"HAD-{decision_id[-8:]}",
                 "ts":        ts,
@@ -195,6 +257,7 @@ def resolve_pending_decision(
                 "type":      f"PARTIAL APPROVE {decision['action']} {decision['symbol']}",
                 "authority": approval_role,
                 "outcome":   f"Role {approval_role} approved — awaiting {set(required) - set(current)}",
+                "actor":     actor.model_dump(mode="json"),
                 "policy":    policy_ref,
                 "hash":      authority_hash,
             })
@@ -206,20 +269,17 @@ def resolve_pending_decision(
                 "decision":    decision,
                 "policy_record": policy_record,
                 "release":     None,
+                "envelope":    None,
             }
 
-        # ── Full approval — authorize release, nothing more ───────
-        release = authorize_release(
-            decision=decision,
-            policy_record=policy_record,
-            approvals=current,
-            authority_hash=authority_hash,
-            now=now,
-        )
+        # ── Full approval — seal the intent, authorize release, nothing more ─
+        persist_approved_intent(state, envelope)
         persist_release(state, release)
         pending[:] = [d for d in pending if d["id"] != decision_id]
         decision["status"] = "RELEASE_AUTHORIZED"
         decision["release_id"] = release.release_id
+        decision["envelope_id"] = str(envelope.envelope_id)
+        decision["envelope_digest"] = envelope.digest
 
         state["authority_log"].insert(0, {
             "id":        f"HAD-{decision_id[-8:]}",
@@ -227,10 +287,12 @@ def resolve_pending_decision(
             "tier":      "Tier 1 — Human Authority",
             "type":      f"APPROVE {decision['action']} {decision['symbol']}",
             "authority": approval_role,
-            "outcome":   (f"RELEASE AUTHORIZED — ${float(decision.get('notional', 0)):,.0f} "
-                          f"({release.release_id}); books only on execution"),
+            "outcome":   (f"INTENT SEALED, RELEASE AUTHORIZED — {release.release_id}; "
+                          f"books only on execution"),
+            "actor":     actor.model_dump(mode="json"),
             "policy":    policy_ref,
             "release_id": release.release_id,
+            "envelope_digest": envelope.digest,
             "hash":      authority_hash,
         })
 
@@ -242,7 +304,20 @@ def resolve_pending_decision(
         "decision":    decision,
         "policy_record": policy_record,
         "release":     release,
+        "envelope":    envelope,
     }
 
 
-__all__ = ["PolicyBindingError", "resolve_pending_decision", "routed_required_approvals"]
+def persist_approved_intent(state, envelope):
+    log = state.setdefault("approved_intents", [])
+    log.insert(0, envelope.model_dump(mode="json"))
+    del log[1000:]
+
+
+__all__ = [
+    "AuthorityError",
+    "PolicyBindingError",
+    "persist_approved_intent",
+    "resolve_pending_decision",
+    "routed_required_approvals",
+]

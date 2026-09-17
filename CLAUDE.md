@@ -86,7 +86,10 @@ atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.3.3
 
 **Do not vendor custody modules into this repository.** `aureon/cockpit/`,
 `aureon/agents/tier1/`, and `aureon/contracts/` existed as vendored copies until 31 July 2026
-and were deleted per `AUR-ADD-006`. The copy is what caused the Railway 502 on boot in
+and were deleted per `AUR-ADD-006`. `aureon/contracts/` exists again since W2B-5, but it is
+**not** that directory: it holds only Aureon's own intent contract
+(`approved_intent.py`, the `ApprovedIntentEnvelope`), which Aureon produces. Never put custody
+code in it. The copy is what caused the Railway 502 on boot in
 `1410e36` — it carried a transitive pydantic requirement this repo's dependency list did not
 declare. If you need a custody symbol, import it from `atreides.*` and bump the pin.
 
@@ -298,6 +301,14 @@ These are non-negotiable design constraints:
   for that fill (`on_execution_event`) and reconciles against it; nothing may build an execution
   confirmation from the approved decision
 - Pending decisions, release events, venue fills and booked fill ids are persisted (AUR-I-17)
+- One approval path, one sealed intent (W2B-5). The dashboard, `POST /api/decisions/<id>`, the MCP
+  tool `aureon_resolve_decision` (operator key and nonce required, as over HTTP) and
+  `aureon-agent resolve` (which calls that HTTP route) all reach `_resolve_decision_request` →
+  `resolve_pending_decision`. A full approval needs an authenticated actor and seals an
+  `ApprovedIntentEnvelope` (`0.1-draft`, `aureon/contracts/approved_intent.py`): one quantity model
+  (quantity + unit, or notional + currency, per asset class), policy and authority manifests,
+  evidence manifest, expiry, permitted and prohibited downstream actions, kernel digest. The OMS and
+  EMS packets carry it and its digest unchanged. A parity test pins the same digest across channels
 - Agents advise only — no autonomous execution
 - All decisions carry immutable audit lineage with hash
 - The 6-step session protocol must auto-complete at boot (CAOM-001)

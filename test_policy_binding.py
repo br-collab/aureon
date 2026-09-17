@@ -93,7 +93,7 @@ def _resolve(state, *, role="TRADER", now=T0 + timedelta(seconds=30), rules=RULE
     return resolve_pending_decision(
         state=state, lock=threading.RLock(),
         decision_id=decision_id or state["pending_decisions"][0]["id"],
-        resolution="APPROVED", approval_role=role,
+        resolution="APPROVED", approval_role=role, actor=OPERATOR_ACTOR,
         rules_digest=rules, hold_exception=hold_exception, now=now,
     )
 

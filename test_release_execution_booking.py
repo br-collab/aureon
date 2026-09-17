@@ -32,6 +32,7 @@ os.environ.setdefault("RAILWAY_VOLUME_MOUNT_PATH", tempfile.mkdtemp(prefix="aure
 
 from cannae_kernel.provenance import Provenance  # noqa: E402
 
+from aureon.approval_service.operator_auth import OPERATOR_ACTOR  # noqa: E402
 from aureon.approval_service.release import find_release  # noqa: E402
 from aureon.approval_service.service import resolve_pending_decision  # noqa: E402
 from aureon.booking.consumer import book_fill  # noqa: E402
@@ -72,7 +73,7 @@ def _authorize(state):
     )
     return resolve_pending_decision(
         state=state, lock=lock, decision_id=state["pending_decisions"][0]["id"],
-        resolution="APPROVED", approval_role="TRADER", rules_digest=RULES,
+        resolution="APPROVED", approval_role="TRADER", actor=OPERATOR_ACTOR, rules_digest=RULES,
         now=T0 + timedelta(seconds=30),
     )
 
@@ -116,7 +117,7 @@ def test_the_approval_service_has_no_booking_code() -> None:
 def test_the_venue_prices_from_its_own_observation_not_the_decision() -> None:
     state = _state(price=1.0)  # an absurd decision price the venue must ignore
     release = _authorize(state)["release"]
-    assert release.reference_price == "1.0"
+    assert release.reference_price == "1"
     fill = _venue(price="101.50").execute(state, release)
     assert isinstance(fill, PaperFill)
     assert fill.price == "101.50"
@@ -138,11 +139,28 @@ def test_the_venue_rejects_rather_than_invents() -> None:
     no_price = _venue(price=None).execute(state, release)
     assert isinstance(no_price, VenueRejection) and "price" in no_price.reason
 
-    operator = _state(shares=None, price=None, notional=5_000.0)
-    operator_release = _authorize(operator)["release"]
-    no_quantity = _venue().execute(operator, operator_release)
-    assert isinstance(no_quantity, VenueRejection) and "quantity" in no_quantity.reason
-    assert "venue_fills" not in operator
+    tiny = _state(shares=None, price=None, notional=50.0, quantity_basis="NOTIONAL")
+    too_small = _venue(price="101.50").execute(tiny, _authorize(tiny)["release"])
+    assert isinstance(too_small, VenueRejection) and "less than one unit" in too_small.reason
+    assert "venue_fills" not in tiny
+
+    late = PaperVenue(price_source=lambda s: PriceObservation(price="100", observed_at=OBSERVED,
+                                                              source="test"),
+                      clock=lambda: T0 + timedelta(hours=1))
+    expired = late.execute(state, release)
+    assert isinstance(expired, VenueRejection) and "expired" in expired.reason
+
+
+def test_a_notional_order_fills_whole_units_at_the_venue_price() -> None:
+    """AUR-I-04: an operator order given as notional now has an execution path."""
+    state = _state(shares=None, price=None, notional=5_000.0, quantity_basis="NOTIONAL")
+    decision = copy.deepcopy(state["pending_decisions"][0])
+    release = _authorize(state)["release"]
+    assert (release.quantity_basis, release.quantity, release.whole_units) == ("NOTIONAL", None, True)
+    fill = _venue(price="101.50").execute(state, release)
+    assert (fill.quantity, fill.notional) == ("49", "4973.50")
+    outcome = book_fill(state, fill, release, decision=decision)
+    assert outcome.status == "BOOKED" and outcome.reconciliation == []
 
 
 def test_a_release_fills_once() -> None:

@@ -6,6 +6,13 @@ Usage:
     aureon-agent list [ranger]
     aureon-agent describe <role_id>
     aureon-agent call <role_id> <method> --input <path.json>
+    aureon-agent resolve <decision_id> APPROVED|REJECTED [--role TRADER] [--server URL]
+
+``resolve`` is the CLI's only authority mutation. It does not approve anything
+itself: it sends the same authenticated request the dashboard sends
+(X-Admin-Key from AUREON_ADMIN_KEY, a fresh X-Request-Nonce) to the server's
+decision endpoint, so policy binding, routing and envelope sealing are the
+server's single path (W2B-5).
 """
 
 import argparse
@@ -203,6 +210,50 @@ def cmd_call(args):
     print(f"elapsed:  {elapsed:.4f}s")
 
 
+def resolve_decision(decision_id, resolution, *, role="TRADER", server="http://localhost:5001",
+                     admin_key=None, hold_exception=None, transport=None):
+    """Send one decision resolution to the server. Returns (status, payload).
+
+    ``transport(url, body_bytes, headers) -> (status, payload)`` defaults to an
+    HTTP POST; tests pass one that targets a Flask test client.
+    """
+    import os
+    import uuid
+
+    key = admin_key if admin_key is not None else os.environ.get("AUREON_ADMIN_KEY", "")
+    if not key:
+        return 401, {"error": "AUREON_ADMIN_KEY is not set; the CLI cannot authenticate"}
+    body = {"resolution": resolution.upper(), "approval_role": role.upper()}
+    if hold_exception is not None:
+        body["hold_exception"] = hold_exception
+    headers = {
+        "Content-Type": "application/json",
+        "X-Admin-Key": key,
+        "X-Request-Nonce": uuid.uuid4().hex,
+    }
+    url = f"{server.rstrip('/')}/api/decisions/{decision_id}"
+    data = json.dumps(body).encode("utf-8")
+    if transport is not None:
+        return transport(url, data, headers)
+
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return resp.status, json.loads(resp.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        return exc.code, json.loads(exc.read() or b"{}")
+
+
+def cmd_resolve(args):
+    status, payload = resolve_decision(args.decision_id, args.resolution, role=args.role,
+                                       server=args.server)
+    print(json.dumps(payload, indent=2))
+    sys.exit(0 if 200 <= status < 300 else 1)
+
+
 def main():
     parser = argparse.ArgumentParser(prog="aureon-agent", description="Aureon agent inspection CLI")
     subparsers = parser.add_subparsers(dest="command")
@@ -221,6 +272,13 @@ def main():
     p_call.add_argument("method", help="Method name")
     p_call.add_argument("--input", help="Path to JSON fixture file")
 
+    # resolve (authority mutation, via the server)
+    p_res = subparsers.add_parser("resolve", help="Approve or reject a decision on the server")
+    p_res.add_argument("decision_id")
+    p_res.add_argument("resolution", choices=["APPROVED", "REJECTED"])
+    p_res.add_argument("--role", default="TRADER")
+    p_res.add_argument("--server", default="http://localhost:5001")
+
     args = parser.parse_args()
 
     if args.command == "list":
@@ -229,6 +287,8 @@ def main():
         cmd_describe(args)
     elif args.command == "call":
         cmd_call(args)
+    elif args.command == "resolve":
+        cmd_resolve(args)
     else:
         parser.print_help()
         sys.exit(1)

@@ -77,6 +77,7 @@ def save_state(*, state, lock, state_file, resolve_mmf_provider, log_error):
                 # deploy). Approval-side events and execution facts survive too.
                 "pending_decisions":      list(state.get("pending_decisions", [])),
                 "release_events":         list(state.get("release_events", [])),
+                "approved_intents":       list(state.get("approved_intents", [])),
                 "venue_fills":            list(state.get("venue_fills", [])),
                 "booked_fill_ids":        list(state.get("booked_fill_ids", [])),
                 "booking_breaks":         list(state.get("booking_breaks", [])),
