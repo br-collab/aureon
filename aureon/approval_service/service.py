@@ -5,6 +5,10 @@ Human-in-the-loop (HITL) decision resolution for Aureon Grid 3.
 
 Handles the core approve/reject lifecycle:
   - Validates the decision exists and the system is not halted
+  - Refuses any approval the persisted pre-trade policy record does not
+    permit: a current PASS for this decision's digest and rules, or a HOLD
+    covered by a typed exception (AUR-I-01; aureon.policy_engine.binding)
+  - Recomputes the required roles from the decision's terms (AUR-I-08)
   - Records partial approvals (multi-role workflows)
   - On full approval: applies the trade, builds the compliance report
   - On rejection: marks the decision cancelled
@@ -13,6 +17,26 @@ Handles the core approve/reject lifecycle:
 
 import hashlib
 from datetime import datetime, timezone
+
+from aureon.approval_service.routing import apply_routing
+from aureon.policy_engine.binding import (
+    PolicyBindingError,
+    persist_hold_exception,
+    require_approvable,
+)
+
+
+def routed_required_approvals(decision):
+    """Roles the decision needs: those already required plus those routing adds.
+
+    Routing never removes a role a decision was created with; it adds the roles
+    that materiality and exception flags demand (AUR-I-08).
+    """
+    required = list(decision.get("required_approvals") or [])
+    for role in apply_routing(decision).required_approvals:
+        if role not in required:
+            required.append(role)
+    return required
 
 
 def resolve_pending_decision(
@@ -23,6 +47,9 @@ def resolve_pending_decision(
     resolution,
     approval_role,
     build_trade_report,
+    rules_digest=None,
+    hold_exception=None,
+    now=None,
 ):
     """
     Resolve a pending decision as APPROVED or REJECTED.
@@ -42,6 +69,15 @@ def resolve_pending_decision(
     build_trade_report : callable
         ``_build_trade_report(decision, exec_price, authority_hash,
         gate_results, portfolio_before)`` — builds the compliance artifact.
+    rules_digest : str
+        ``pretrade_rules_digest(...)`` of the rules in force. Required to
+        approve: without it the evidence cannot be shown to be current.
+    hold_exception : PolicyHoldException, optional
+        An exception granted with this request for an overrideable HOLD. It is
+        checked against the record and persisted only if the approval is
+        permitted.
+    now : datetime, optional
+        Evaluation time (UTC) for expiry checks; defaults to now.
 
     Returns
     -------
@@ -53,6 +89,9 @@ def resolve_pending_decision(
     ------
     LookupError
         If *decision_id* is not found in pending_decisions.
+    PolicyBindingError
+        (a RuntimeError) If the pre-trade policy record does not permit
+        approval. Nothing is recorded or changed.
     RuntimeError
         If the system halt is active (status 423) or the trade cannot
         be applied (status 409).
@@ -106,6 +145,40 @@ def resolve_pending_decision(
             }
 
         # ── Approval path ─────────────────────────────────────────
+        # Policy binds before anything is recorded, partial approvals included.
+        if hold_exception is not None:
+            candidate = dict(state)
+            candidate["policy_hold_exceptions"] = [
+                hold_exception.model_dump(mode="json"),
+                *state.get("policy_hold_exceptions", []),
+            ]
+            policy_record = require_approvable(
+                candidate, decision, rules_digest=rules_digest, now=now
+            )
+            persist_hold_exception(state, hold_exception)
+            state["authority_log"].insert(0, {
+                "id":        hold_exception.exception_id,
+                "ts":        ts,
+                "tier":      "Tier 1 — Human Authority",
+                "type":      f"HOLD EXCEPTION {decision['action']} {decision['symbol']}",
+                "authority": hold_exception.authority_role,
+                "outcome":   (f"Overrides {', '.join(hold_exception.held_gates)} until "
+                              f"{hold_exception.expires_at.isoformat()}: {hold_exception.reason}"),
+                "actor":     hold_exception.authority.model_dump(mode="json"),
+                "hash":      hold_exception.exception_id,
+            })
+        else:
+            policy_record = require_approvable(
+                state, decision, rules_digest=rules_digest, now=now
+            )
+        policy_ref = {
+            "record_id":       policy_record.record_id,
+            "record_digest":   policy_record.record_digest,
+            "decision_digest": policy_record.decision_digest,
+            "disposition":     policy_record.disposition.value,
+        }
+
+        decision["required_approvals"] = routed_required_approvals(decision)
         current = list(decision.get("current_approvals", []))
         if approval_role not in current:
             current.append(approval_role)
@@ -123,6 +196,7 @@ def resolve_pending_decision(
                 "type":      f"PARTIAL APPROVE {decision['action']} {decision['symbol']}",
                 "authority": approval_role,
                 "outcome":   f"Role {approval_role} approved — awaiting {set(required) - set(current)}",
+                "policy":    policy_ref,
                 "hash":      authority_hash,
             })
             return {
@@ -133,6 +207,7 @@ def resolve_pending_decision(
                 "report_id":   None,
                 "decision":    decision,
                 "trade_report": None,
+                "policy_record": policy_record,
             }
 
         # ── Full approval — execute the trade ─────────────────────
@@ -170,6 +245,7 @@ def resolve_pending_decision(
             "required_approvals": required,
             "release_target":    decision.get("release_target", "OMS"),
             "release_outcome":   "RELEASED",
+            "policy":            policy_ref,
             "ts":                ts,
         }
         state.setdefault("trades", []).insert(0, trade_record)
@@ -182,6 +258,7 @@ def resolve_pending_decision(
             "type":      f"APPROVE {decision['action']} {decision['symbol']}",
             "authority": approval_role,
             "outcome":   f"APPROVED — ${notional:,.0f} @ ${exec_price:.2f}",
+            "policy":    policy_ref,
             "hash":      authority_hash,
         })
 
@@ -192,7 +269,7 @@ def resolve_pending_decision(
             decision,
             exec_price,
             authority_hash,
-            [],   # gate_results — populated by pre-trade check
+            [g.model_dump(mode="json") for g in policy_record.gates],
             portfolio_before,
         )
         with lock:
@@ -210,7 +287,11 @@ def resolve_pending_decision(
         "report_id":   report_id,
         "decision":    decision,
         "trade_report": trade_report,
+        "policy_record": policy_record,
     }
+
+
+__all__ = ["PolicyBindingError", "resolve_pending_decision", "routed_required_approvals"]
 
 
 def _apply_trade(state, decision, exec_price):

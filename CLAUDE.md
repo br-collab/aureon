@@ -133,7 +133,7 @@ Required in `.env` (local) or Railway service variables (production):
 
 - `/api/snapshot` — Portfolio + compliance state (also health check)
 - `/api/decisions` — Pending decisions with pre-trade gates
-- `/api/decisions/<id>/pretrade` — Full gate evaluation
+- `/api/decisions/<id>/pretrade` — Full gate evaluation; persists the policy record that approval requires
 - `/api/compliance` — Alerts + compliance surfaces
 - `/api/authority` — Authority log + approval lineage
 - `/api/decision-journal` — HITL decisions + outcomes
@@ -282,6 +282,14 @@ See `TRACKERS.md` for tech debt, architectural findings, and operational concern
 
 These are non-negotiable design constraints:
 - No execution without governed approval through the approval service
+- Pre-trade gates bind approval (AUR-I-01; `aureon/policy_engine/binding.py`). Every evaluation is
+  persisted as a record bound to the decision's content digest and the rules digest, with a kernel
+  `Disposition` and a five-minute expiry. `resolve_pending_decision` approves only on a current
+  `PASS`, or a `HOLD` covered by a typed exception from the role `HOLD_OVERRIDE_POLICY` names.
+  `BLOCK` and `INDETERMINATE` are never approvable, and unavailable evidence (an unusable OFR
+  reading, a check that could not run) is `INDETERMINATE`, never `PASS` or an overrideable `HOLD`.
+  A new approval path must call `resolve_pending_decision` with `rules_digest`; do not call
+  `_apply_trade` from anywhere else (a test enforces both)
 - Agents advise only — no autonomous execution
 - All decisions carry immutable audit lineage with hash
 - The 6-step session protocol must auto-complete at boot (CAOM-001)

@@ -3,6 +3,10 @@ aureon.policy_engine.service
 =============================
 Pre-trade compliance gate evaluation for Aureon Grid 3.
 
+Every evaluation is persisted as a policy record bound to the decision's
+content digest and the rule versions (aureon.policy_engine.binding). Approval
+consumes that record: the gates bind, they do not merely advise (AUR-I-01).
+
 Runs the full pre-trade gate sequence for a pending decision:
   - Market status (session boundary)
   - Cash sufficiency
@@ -18,6 +22,32 @@ endpoint, or None if the decision_id is not found.
 from datetime import datetime, timezone
 
 from aureon.mcp.cato_client import _is_usable_stress_reading
+from aureon.policy_engine.binding import (
+    build_policy_record,
+    persist_policy_record,
+    pretrade_rules_digest,
+)
+
+
+def pro_forma_concentration_pct(*, positions, prices, symbol, action, notional, portfolio_value):
+    """Percent of portfolio value in *symbol* before and after the proposed trade.
+
+    The single concentration definition for every evaluation path (AUR-I-09):
+    the pre-trade position in the symbol, valued at the latest price, plus the
+    BUY notional or minus the SELL notional. A BUY moves value from cash into
+    the position, so portfolio value is the denominator both times. Returns
+    (None, None) when portfolio value is not positive: concentration cannot be
+    computed, and the gate must not pass on that.
+    """
+    if not portfolio_value or portfolio_value <= 0:
+        return None, None
+    current = sum(
+        pos["shares"] * prices.get(pos["symbol"], pos.get("cost", 0))
+        for pos in positions
+        if pos.get("symbol") == symbol
+    )
+    post = current + notional if action == "BUY" else max(0.0, current - notional)
+    return current / portfolio_value * 100, post / portfolio_value * 100
 
 
 def evaluate_pretrade_decision(
@@ -33,6 +63,7 @@ def evaluate_pretrade_decision(
     symbol_to_isin,
     ofac_blocked_isins,
     asset_class_gate_fn=None,
+    now=None,
 ):
     """
     Evaluate all pre-trade gates for *decision_id*.
@@ -61,10 +92,15 @@ def evaluate_pretrade_decision(
     ofac_blocked_isins : dict
         Maps blocked ISINs to their sanction description.
 
+    now : datetime, optional
+        Evaluation time (UTC); defaults to the current time.
+
     Returns
     -------
     dict or None
-        Structured gate payload, or None if decision not found.
+        Structured gate payload, or None if decision not found. ``disposition``
+        is the kernel Disposition that binds approval; ``overall`` is the
+        dashboard's status word. ``policy_record`` is the persisted record.
     """
     with lock:
         decision = next(
@@ -73,6 +109,7 @@ def evaluate_pretrade_decision(
         )
         if decision is None:
             return None
+        decision = dict(decision)
 
         portfolio_value = state.get("portfolio_value", 0.0)
         cash            = state.get("cash", 0.0)
@@ -131,29 +168,33 @@ def evaluate_pretrade_decision(
                 "detail": f"Available: ${cash_avail:,.0f} < Notional: ${notional:,.0f} — insufficient cash",
             })
 
-    # ── Gate 3: Single-position concentration limit ───────────────
+    # ── Gate 3: Single-position concentration limit (pro forma) ───
     # Checks the specific symbol being traded, not the whole asset class.
     # Asset class allocations (e.g. 45% equities) are doctrine-mandated
     # and should not be flagged here. The relevant risk is a single name
-    # becoming too dominant in the portfolio.
+    # becoming too dominant in the portfolio — after this trade, not before.
     symbol = decision.get("symbol", "")
-    pos_value = sum(
-        pos["shares"] * prices.get(pos["symbol"], pos.get("cost", 0))
-        for pos in positions
-        if pos.get("symbol") == symbol
-    )
-    pos_pct  = (pos_value / portfolio_value * 100) if portfolio_value > 0 else 0.0
     warn_pct = risk_policy.get("position_warn_pct", 20.0)
     fail_pct = risk_policy.get("position_fail_pct", 35.0)
-    if pos_pct >= fail_pct:
+    pre_pct, pos_pct = pro_forma_concentration_pct(
+        positions=positions, prices=prices, symbol=symbol,
+        action=action, notional=notional, portfolio_value=portfolio_value,
+    )
+    if pos_pct is None:
+        pos_status = "INDETERMINATE"
+        pos_detail = f"Portfolio value {portfolio_value!r} — concentration cannot be computed"
+    elif pos_pct >= fail_pct:
         pos_status = "FAIL"
-        pos_detail = f"{symbol} at {pos_pct:.1f}% of portfolio — exceeds single-position limit {fail_pct:.0f}%"
+        pos_detail = (f"{symbol} {pre_pct:.1f}% → {pos_pct:.1f}% of portfolio after this "
+                      f"{action} — exceeds single-position limit {fail_pct:.0f}%")
     elif pos_pct >= warn_pct:
         pos_status = "WARN"
-        pos_detail = f"{symbol} at {pos_pct:.1f}% of portfolio — approaching limit {fail_pct:.0f}%"
+        pos_detail = (f"{symbol} {pre_pct:.1f}% → {pos_pct:.1f}% of portfolio after this "
+                      f"{action} — approaching limit {fail_pct:.0f}%")
     else:
         pos_status = "PASS"
-        pos_detail = f"{symbol} at {pos_pct:.1f}% of portfolio — within limits"
+        pos_detail = (f"{symbol} {pre_pct:.1f}% → {pos_pct:.1f}% of portfolio after this "
+                      f"{action} — within limits")
     gates.append({
         "gate":   "POSITION_CONCENTRATION",
         "layer":  "Mentat L1",
@@ -200,7 +241,8 @@ def evaluate_pretrade_decision(
     # ── Gate 6: Macro stress overlay ──────────────────────────────
     # Fails closed, matching Cato v0.3.1 (golden vector V16): a stress
     # reading that is missing, NaN or infinite — or a feed that cannot be
-    # read at all — HOLDs the gate. It must never read as PASS.
+    # read at all — never reads as PASS. Required evidence is unavailable,
+    # so the disposition is INDETERMINATE (AUR-I-10), not an overrideable HOLD.
     # ofr_snapshot_fn takes the macro snapshot, as evidence_service calls it.
     try:
         macro = macro_snapshot_fn() or {}
@@ -212,8 +254,8 @@ def evaluate_pretrade_decision(
         unusable = f"OFR stress feed unavailable ({type(exc).__name__}: {exc})"
     source = ofr.get("source", "unknown")
     if not _is_usable_stress_reading(stress_reading):
-        macro_status = "HOLD"
-        macro_detail = f"{unusable} — holding rather than assuming clear"
+        macro_status = "INDETERMINATE"
+        macro_detail = f"{unusable} — indeterminate, not assumed clear; approval refused"
     elif stress_reading > 0.7:
         macro_status = "WARN"
         macro_detail = f"OFR stress {stress_reading:.2f} ({source}) — elevated systemic risk"
@@ -231,7 +273,7 @@ def evaluate_pretrade_decision(
     # Append the ThifurJ asset-class gates (MiFIR transparency, tokenized
     # eligibility) so the live modal runs the same asset-class-aware checks
     # as the C2 lifecycle. Equities/unmapped -> [] (no change). Never fails
-    # open: an error yields a HOLD gate, not a silent pass.
+    # open: an error yields an INDETERMINATE gate, not a silent pass.
     if asset_class_gate_fn is not None:
         try:
             extra = asset_class_gate_fn(decision) or []
@@ -241,16 +283,43 @@ def evaluate_pretrade_decision(
             gates.append({
                 "gate":   "ASSET_CLASS_DISPATCH",
                 "layer":  "Thifur-J",
-                "status": "HOLD",
-                "detail": f"Asset-class gate evaluation error ({exc}) — held, not passed.",
+                "status": "INDETERMINATE",
+                "detail": f"Asset-class gate evaluation error ({exc}) — not evaluated, not passed.",
             })
 
-    # ── Aggregate result ──────────────────────────────────────────
-    # Precedence: FAIL/BLOCKED > HOLD > WARN > PASS. HOLD is more restrictive
-    # than WARN (a held gate must not be executable) but is not a hard block.
+    # ── Bind: persist the result against the decision digest ─────
+    record = build_policy_record(
+        decision=decision,
+        gates=gates,
+        rules_digest=pretrade_rules_digest(
+            risk_policy=risk_policy,
+            operating_cash_floor_pct=operating_cash_floor_pct,
+            ofac_blocked_isins=ofac_blocked_isins,
+        ),
+        inputs={
+            "portfolio_value": portfolio_value,
+            "cash": cash,
+            "drawdown": drawdown,
+            "price": prices.get(symbol),
+            "concentration_pct_pre": pre_pct,
+            "concentration_pct_pro_forma": pos_pct,
+        },
+        now=now or datetime.now(timezone.utc),
+    )
+    with lock:
+        persist_policy_record(state, record)
+
+    for gate, outcome in zip(gates, record.gates):
+        gate["disposition"] = outcome.disposition.value
+        gate["overrideable"] = outcome.overrideable
+
+    # Dashboard status word. Precedence: FAIL/BLOCKED > INDETERMINATE > HOLD >
+    # WARN > PASS. The binding value is ``disposition``.
     statuses = [g["status"] for g in gates]
     if "FAIL" in statuses or "BLOCKED" in statuses:
         overall = "FAIL"
+    elif record.disposition.value == "INDETERMINATE":
+        overall = "INDETERMINATE"
     elif "HOLD" in statuses:
         overall = "HOLD"
     elif "WARN" in statuses:
@@ -259,11 +328,13 @@ def evaluate_pretrade_decision(
         overall = "PASS"
 
     return {
-        "decision_id": decision_id,
-        "symbol":      symbol,
-        "action":      decision.get("action"),
-        "notional":    notional,
-        "overall":     overall,
-        "gates":       gates,
-        "ts":          datetime.now(timezone.utc).isoformat(),
+        "decision_id":    decision_id,
+        "symbol":         symbol,
+        "action":         decision.get("action"),
+        "notional":       notional,
+        "overall":        overall,
+        "disposition":    record.disposition.value,
+        "gates":          gates,
+        "policy_record":  record.model_dump(mode="json"),
+        "ts":             record.evaluated_at.isoformat(),
     }

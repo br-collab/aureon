@@ -72,6 +72,9 @@ def save_state(*, state, lock, state_file, resolve_mmf_provider, log_error):
                 "c2_j_risk_log":     list(state.get("c2_j_risk_log", [])),
                 # ── WS-2.4 Trade Surveillance (AUR-J-SURV-001) ─────
                 "c2_j_surveillance_log": list(state.get("c2_j_surveillance_log", [])),
+                # W2B-3: pre-trade policy evidence and HOLD exceptions (AUR-I-01).
+                "policy_evaluations":     list(state.get("policy_evaluations", [])),
+                "policy_hold_exceptions": list(state.get("policy_hold_exceptions", [])),
                 "saved_at":          datetime.now(timezone.utc).isoformat(),
             }
         # Atomic save: write to tmp in the same directory, then rename.

@@ -68,7 +68,7 @@ from email.mime.text import MIMEText
 from html import unescape
 from datetime import datetime, timedelta, timezone, time as dt_time
 import zoneinfo
-from flask import Flask, Response, jsonify, send_from_directory, request
+from flask import Flask, Response, g, jsonify, send_from_directory, request
 from aureon.config.settings import LOG_FILE, STATE_FILE
 from aureon.config.atrox import get_atrox_source_document_text, get_atrox_declaration
 from aureon.config.thifur_c2_doctrine import get_c2_source_document_text, get_c2_doctrine_declaration
@@ -87,9 +87,17 @@ from aureon.mcp.cato_client import (
 )
 from aureon.persistence.store import load_state as persistence_load_state, save_state as persistence_save_state
 from aureon.policy_engine.service import evaluate_pretrade_decision
+from aureon.policy_engine.binding import (
+    PolicyBindingError,
+    grant_hold_exception,
+    latest_policy_record,
+    persist_hold_exception,
+    pretrade_rules_digest,
+    require_approvable,
+)
 from aureon.evidence_service.service import build_trade_report as evidence_build_trade_report
 from aureon.approval_service.release_control import OMSReleaseError, can_release, missing_roles, normalize_decision, release_to_oms
-from aureon.approval_service.service import resolve_pending_decision
+from aureon.approval_service.service import resolve_pending_decision, routed_required_approvals
 from aureon.integration_adapters.oms_adapter import send as oms_send
 from aureon.integration_adapters.ems_adapter import build_execution_release
 from aureon.session.session_protocol import SessionProtocol
@@ -276,6 +284,7 @@ def _authority_required(action: str):
                         f"AUTH-{action}-{outcome.nonce}-{ts}".encode()
                     ).hexdigest()[:16].upper(),
                 })
+            g.authority_actor = outcome.actor
             return view(*args, **kwargs)
 
         guarded.__authority_action__ = action
@@ -3505,6 +3514,8 @@ def _generate_signal():
         "signal_brief":       signal_brief,
     }
 
+    decision["required_approvals"] = routed_required_approvals(decision)
+
     with _lock:
         if aureon_state["halt_active"]:
             return
@@ -4389,6 +4400,9 @@ def run_doctrine_stack():
             aureon_state["c2_j_surveillance_log"] = saved.get("c2_j_surveillance_log", [])
             # ── WS-1 Clearing Cockpit DSOR bridge ────────────
             aureon_state["cockpit_dsor_log"] = saved.get("cockpit_dsor_log", [])
+            # ── W2B-3 policy evidence (AUR-I-01) ─────────────────
+            aureon_state["policy_evaluations"]     = saved.get("policy_evaluations",     [])
+            aureon_state["policy_hold_exceptions"] = saved.get("policy_hold_exceptions", [])
         else:
             # ── First-ever launch — seed from INITIAL_POSITIONS ───
             aureon_state["positions"] = [dict(p) for p in INITIAL_POSITIONS]
@@ -4396,7 +4410,10 @@ def run_doctrine_stack():
             aureon_state["mmf_provider"] = _resolve_mmf_provider()
 
         if not aureon_state["pending_decisions"]:
-            aureon_state["pending_decisions"] = [dict(d) for d in PENDING_DECISIONS_INIT]
+            aureon_state["pending_decisions"] = [
+                {**d, "required_approvals": routed_required_approvals(d)}
+                for d in PENDING_DECISIONS_INIT
+            ]
 
     # ── WS-0.1: restore the full C2 registers (outside _lock) ─────
     if saved:
@@ -5345,6 +5362,7 @@ def api_create_decision():
               "waiver_claimed", "counterparty_name", "counterparty_jurisdiction"):
         if data.get(f) is not None:
             decision[f] = data[f]
+    decision["required_approvals"] = routed_required_approvals(decision)
 
     with _lock:
         aureon_state.setdefault("pending_decisions", []).append(decision)
@@ -5361,6 +5379,48 @@ def api_create_decision():
         "asset_class": asset_class,
         "message":     "Order created — pending pre-trade check and approval.",
     })
+
+
+def _pretrade_rules_digest() -> str:
+    """Digest of the pre-trade rules in force; a record for other rules is stale."""
+    return pretrade_rules_digest(
+        risk_policy=RISK_MANAGER_POLICY,
+        operating_cash_floor_pct=OPERATING_CASH_FLOOR_PCT,
+        ofac_blocked_isins=OFAC_BLOCKED_ISINS,
+    )
+
+
+def _hold_exception_from_request(decision_id: str, body: dict, approval_role: str):
+    """A typed HOLD exception from the resolve request, granted by the authenticated operator."""
+    record = latest_policy_record(aureon_state, decision_id)
+    if record is None:
+        raise PolicyBindingError(
+            "NO_POLICY_EVIDENCE",
+            f"no pre-trade gate result for {decision_id}; run the pre-trade check first",
+        )
+    try:
+        ttl_seconds = int(body.get("ttl_seconds", 0))
+    except (TypeError, ValueError):
+        ttl_seconds = 0
+    return grant_hold_exception(
+        record=record,
+        actor=g.authority_actor,
+        authority_role=approval_role,
+        reason=str(body.get("reason") or ""),
+        ttl_seconds=ttl_seconds,
+    )
+
+
+def _policy_refusal(exc: PolicyBindingError, decision_id: str):
+    _journal("DECISION_POLICY_REFUSED", "POLICY-ENGINE", decision_id,
+             f"Approval of {decision_id} refused — {exc.message}",
+             outcome=exc.code, ref_id=decision_id)
+    return jsonify({
+        "status":      "refused",
+        "error":       exc.message,
+        "code":        exc.code,
+        "decision_id": decision_id,
+    }), 409
 
 
 @app.route("/api/decisions/<decision_id>", methods=["POST"])
@@ -5391,13 +5451,43 @@ def api_resolve_decision(decision_id):
     if resolution not in ("APPROVED", "REJECTED"):
         return jsonify({"error": "resolution must be APPROVED or REJECTED"}), 400
 
-    # ── Session boundary check for APPROVED trades ────────────────────────────
-    # Record the approval regardless of market hours; defer execution if the
-    # instrument's session is closed. Approval is never lost.
+    # ── Policy binding (AUR-I-01) ────────────────────────────────────────────
+    # An approval needs the persisted pre-trade result for this decision's
+    # current terms and rules: a PASS, or a HOLD with a typed exception. An
+    # exception may be granted in the same request:
+    #   "hold_exception": {"reason": "...", "ttl_seconds": 900}
+    rules_digest = _pretrade_rules_digest()
+    hold_exception = None
+    decision_obj = None
+    refusal = None
     if resolution == "APPROVED":
         with _lock:
             pending = aureon_state["pending_decisions"]
             decision_obj = next((d for d in pending if d.get("id") == decision_id), None)
+            if decision_obj is not None:
+                try:
+                    evidence = aureon_state
+                    if isinstance(data.get("hold_exception"), dict):
+                        hold_exception = _hold_exception_from_request(
+                            decision_id, data["hold_exception"], approval_role
+                        )
+                        evidence = {
+                            **aureon_state,
+                            "policy_hold_exceptions": [
+                                hold_exception.model_dump(mode="json"),
+                                *aureon_state.get("policy_hold_exceptions", []),
+                            ],
+                        }
+                    require_approvable(evidence, decision_obj, rules_digest=rules_digest)
+                except PolicyBindingError as exc:
+                    refusal = exc
+        if refusal is not None:
+            return _policy_refusal(refusal, decision_id)
+
+    # ── Session boundary check for APPROVED trades ────────────────────────────
+    # Record the approval regardless of market hours; defer execution if the
+    # instrument's session is closed. Approval is never lost.
+    if resolution == "APPROVED":
         if decision_obj is not None:
             sym = decision_obj.get("symbol", "SPY")
             acls = decision_obj.get("asset_class", "equities")
@@ -5405,6 +5495,8 @@ def api_resolve_decision(decision_id):
             if not tradeable:
                 ts = datetime.now(timezone.utc).isoformat()
                 with _lock:
+                    if hold_exception is not None:
+                        persist_hold_exception(aureon_state, hold_exception)
                     decision_obj["status"]      = "APPROVED_PENDING_SESSION"
                     decision_obj["approved_at"] = ts
                     decision_obj["session_reason"] = session_reason
@@ -5432,7 +5524,11 @@ def api_resolve_decision(decision_id):
             resolution=resolution,
             approval_role=approval_role,
             build_trade_report=_build_trade_report,
+            rules_digest=rules_digest,
+            hold_exception=hold_exception,
         )
+    except PolicyBindingError as exc:
+        return _policy_refusal(exc, decision_id)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except LookupError:
@@ -5563,7 +5659,13 @@ def api_resolve_decision(decision_id):
         "approval_ts":            _now_ts,
         "approval_latency_sec":   _latency,
         "signal_brief":           _dec_obj.get("signal_brief"),
-        "pretrade_gates":         _build_pretrade_checks_from_cache(result["decision_id"]),
+        "pretrade_gates":         (
+            [g_.model_dump(mode="json") for g_ in result["policy_record"].gates]
+            if result.get("policy_record") is not None else []
+        ),
+        "policy_record_id":       (
+            result["policy_record"].record_id if result.get("policy_record") is not None else None
+        ),
     }
     if release_failure is not None:
         _jrn_entry["release_status"] = release_packet.get("status")
@@ -5600,177 +5702,87 @@ def api_resolve_decision(decision_id):
     })
 
 
-def _build_pretrade_checks_from_cache(decision_id: str) -> list:
-    """
-    Build pretrade gate results purely from cached aureon_state.
-    No external API calls — guaranteed to return instantly.
-    Used as the fallback when the full pretrade check times out.
-    """
-    with _lock:
-        decision = next(
-            (d for d in aureon_state.get("pending_decisions", []) if d["id"] == decision_id),
-            None,
-        )
-        if decision is None:
-            return []
-        portfolio_value = aureon_state.get("portfolio_value", 0.0)
-        cash            = aureon_state.get("cash", 0.0)
-        drawdown        = aureon_state.get("drawdown", 0.0)
-        positions       = list(aureon_state.get("positions", []))
-        prices          = dict(aureon_state.get("prices", {}))
-
-    symbol      = decision.get("symbol", "")
-    notional    = float(decision.get("notional", 0))
-    asset_class = decision.get("asset_class", "")
-    is_crypto   = symbol in {"BTC", "ETH", "SOL"}
-
-    # Gate 1 — market status (use cached _market_is_open)
-    market_open = _market_is_open()
-    gates = [{
-        "gate":   "MARKET_STATUS",
-        "layer":  "Verana L0",
-        "status": "PASS",
-        "detail": "24/7 crypto market" if is_crypto else (
-                  "US equity session open" if market_open else
-                  "US equity/FX market closed — execution will queue for next session"),
-    }]
-    if not is_crypto and not market_open:
-        gates[0]["status"] = "WARN"
-
-    # Gate 2 — cash sufficiency
-    cash_floor = portfolio_value * OPERATING_CASH_FLOOR_PCT
-    cash_avail = max(0.0, cash - cash_floor)
-    gates.append({
-        "gate":   "CASH_SUFFICIENCY",
-        "layer":  "Kaladan L2",
-        "status": "PASS" if cash_avail >= notional else "FAIL",
-        "detail": (f"Available: ${cash_avail:,.0f} ≥ Notional: ${notional:,.0f}"
-                   if cash_avail >= notional
-                   else f"Available: ${cash_avail:,.0f} < Notional: ${notional:,.0f} — insufficient cash"),
-    })
-
-    # Gate 3 — position concentration
-    class_value = sum(
-        pos["shares"] * prices.get(pos["symbol"], pos.get("cost", 0))
-        for pos in positions if pos.get("asset_class") == asset_class
-    )
-    class_pct = (class_value / portfolio_value * 100) if portfolio_value > 0 else 0.0
-    warn_pct  = RISK_MANAGER_POLICY.get("position_warn_pct", 10.0)
-    fail_pct  = RISK_MANAGER_POLICY.get("position_fail_pct", 15.0)
-    pos_status = "FAIL" if class_pct >= fail_pct else "WARN" if class_pct >= warn_pct else "PASS"
-    gates.append({
-        "gate":   "POSITION_CONCENTRATION",
-        "layer":  "Mentat L1",
-        "status": pos_status,
-        "detail": f"{asset_class} at {class_pct:.1f}% — {'exceeds hard limit' if pos_status == 'FAIL' else 'approaching limit' if pos_status == 'WARN' else 'within limits'} {fail_pct:.0f}%",
-    })
-
-    # Gate 4 — drawdown limit
-    dd_warn = RISK_MANAGER_POLICY.get("drawdown_warn_pct", 5.0)
-    dd_fail = RISK_MANAGER_POLICY.get("drawdown_fail_pct", 8.0)
-    dd_status = "FAIL" if drawdown >= dd_fail else "WARN" if drawdown >= dd_warn else "PASS"
-    gates.append({
-        "gate":   "DRAWDOWN_LIMIT",
-        "layer":  "Mentat L1",
-        "status": dd_status,
-        "detail": f"Drawdown {drawdown:.2f}% — {'exceeds hard limit' if dd_status == 'FAIL' else 'approaching limit' if dd_status == 'WARN' else 'within policy'} {dd_fail:.0f}%",
-    })
-
-    # Gate 5 — OFAC screening
-    isin = SYMBOL_TO_ISIN.get(symbol)
-    gates.append({
-        "gate":   "OFAC_SDN_SCREEN",
-        "layer":  "Verana L0",
-        "status": "FAIL" if (isin and isin in OFAC_BLOCKED_ISINS) else "PASS",
-        "detail": f"BLOCKED — {OFAC_BLOCKED_ISINS[isin]}" if (isin and isin in OFAC_BLOCKED_ISINS) else "No SDN / sanctions match",
-    })
-
-    # Gate 6 — macro stress (cached values only)
-    ofr_stress = aureon_state.get("ofr_stress_index", 0.0)
-    macro_status = "WARN" if ofr_stress > 0.7 else "PASS"
-    gates.append({
-        "gate":   "MACRO_STRESS_OVERLAY",
-        "layer":  "Verana L0",
-        "status": macro_status,
-        "detail": f"OFR stress score {ofr_stress:.2f} — {'elevated systemic risk' if macro_status == 'WARN' else 'normal'} (cached)",
-    })
-
-    return gates
-
-
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+
+
+def _evaluate_pretrade(decision_id, *, macro_snapshot_fn):
+    """The one pre-trade evaluation. Every call persists a bound policy record."""
+    return evaluate_pretrade_decision(
+        state=aureon_state,
+        lock=_lock,
+        decision_id=decision_id,
+        market_is_open=_market_is_open,
+        macro_snapshot_fn=macro_snapshot_fn,
+        # Cache-only: market_loop keeps _ofr_cache warm. Gate 6 must not
+        # fetch financialresearch.gov inside the request; an empty cache
+        # makes the gate INDETERMINATE instead.
+        ofr_snapshot_fn=lambda _macro: _ofr_cache.get("data"),
+        operating_cash_floor_pct=OPERATING_CASH_FLOOR_PCT,
+        risk_policy=RISK_MANAGER_POLICY,
+        symbol_to_isin=SYMBOL_TO_ISIN,
+        ofac_blocked_isins=OFAC_BLOCKED_ISINS,
+        # WS-P4: append the ThifurJ asset-class gates (MiFIR / tokenized
+        # eligibility) so the live modal is asset-class-aware. Equities
+        # get no extra gates — identical behavior to before.
+        asset_class_gate_fn=_agent_j.asset_class_gates,
+    )
 
 
 @app.route("/api/decisions/<decision_id>/pretrade", methods=["GET"])
 def api_pretrade_check(decision_id):
     """
     Pre-trade compliance check for a pending decision.
-    Called before the human clicks final APPROVE to ensure all
-    pre-trade gates pass (market status, cash, position limits, drawdown).
+    Called before the human clicks final APPROVE. The result is persisted as a
+    policy record bound to the decision's digest; approval consumes it.
     Hard ceiling: 8 seconds via ThreadPoolExecutor — never hangs, never crashes.
-    """
-    def _run_pretrade_checks():
-        payload = evaluate_pretrade_decision(
-            state=aureon_state,
-            lock=_lock,
-            decision_id=decision_id,
-            market_is_open=_market_is_open,
-            macro_snapshot_fn=_get_fred_macro_snapshot,
-            # Cache-only: market_loop keeps _ofr_cache warm. Gate 6 must not
-            # fetch financialresearch.gov inside the request; an empty cache
-            # HOLDs the gate instead.
-            ofr_snapshot_fn=lambda _macro: _ofr_cache.get("data"),
-            operating_cash_floor_pct=OPERATING_CASH_FLOOR_PCT,
-            risk_policy=RISK_MANAGER_POLICY,
-            symbol_to_isin=SYMBOL_TO_ISIN,
-            ofac_blocked_isins=OFAC_BLOCKED_ISINS,
-            # WS-P4: append the ThifurJ asset-class gates (MiFIR / tokenized
-            # eligibility) so the live modal is asset-class-aware. Equities
-            # get no extra gates — identical behavior to before.
-            asset_class_gate_fn=_agent_j.asset_class_gates,
-        )
-        return payload
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_run_pretrade_checks)
+    On timeout the same engine runs again without the FRED macro fetch (the
+    only network call; gate 6 reads the OFR cache either way), so the fallback
+    returns exactly what the primary path would (AUR-I-09). If evaluation
+    itself fails, the result is INDETERMINATE and approval is refused.
+    """
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(
+        _evaluate_pretrade, decision_id, macro_snapshot_fn=_get_fred_macro_snapshot
+    )
+    try:
+        payload = future.result(timeout=8)
+        message = None
+    except FuturesTimeout:
+        print(f"[AUREON] Pretrade check timed out for {decision_id} — evaluating without the macro fetch")
+        payload = None
+        message = "Pretrade check timed out — evaluated without the FRED macro fetch"
+    except Exception as exc:
+        print(f"[AUREON] Pretrade check error for {decision_id}: {exc}")
+        executor.shutdown(wait=False)
+        return jsonify({
+            "status":      "error",
+            "message":     f"Pretrade check error: {exc}",
+            "decision_id": decision_id,
+            "overall":     "INDETERMINATE",
+            "disposition": "INDETERMINATE",
+            "gates":       [],
+        }), 200
+    executor.shutdown(wait=False)
+
+    if message is not None:
         try:
-            payload = future.result(timeout=8)
-            if payload is None:
-                return jsonify({"error": "decision not found"}), 404
-            return jsonify(payload)
-        except FuturesTimeout:
-            print(f"[AUREON] Pretrade check timed out for {decision_id} — returning cached data")
-            checks = _build_pretrade_checks_from_cache(decision_id)
-            if not checks:
-                return jsonify({"error": "decision not found"}), 404
-            statuses = [g["status"] for g in checks]
-            overall = ("FAIL" if ("FAIL" in statuses or "BLOCKED" in statuses)
-                       else "HOLD" if "HOLD" in statuses
-                       else "WARN" if "WARN" in statuses else "PASS")
-            with _lock:
-                decision = next(
-                    (d for d in aureon_state.get("pending_decisions", []) if d["id"] == decision_id),
-                    {},
-                )
-            return jsonify({
-                "status":      "WARN",
-                "message":     "Pretrade check timed out — using cached data",
-                "decision_id": decision_id,
-                "symbol":      decision.get("symbol", ""),
-                "action":      decision.get("action", ""),
-                "notional":    decision.get("notional", 0),
-                "overall":     overall,
-                "gates":       checks,
-                "ts":          datetime.now(timezone.utc).isoformat(),
-            }), 200
+            payload = _evaluate_pretrade(decision_id, macro_snapshot_fn=dict)
         except Exception as exc:
-            print(f"[AUREON] Pretrade check error for {decision_id}: {exc}")
-            checks = _build_pretrade_checks_from_cache(decision_id)
+            print(f"[AUREON] Pretrade fallback error for {decision_id}: {exc}")
             return jsonify({
-                "status":  "WARN",
-                "message": f"Pretrade check error: {exc}",
-                "checks":  checks,
+                "status":      "error",
+                "message":     f"Pretrade check error: {exc}",
+                "decision_id": decision_id,
+                "overall":     "INDETERMINATE",
+                "disposition": "INDETERMINATE",
+                "gates":       [],
             }), 200
+    if payload is None:
+        return jsonify({"error": "decision not found"}), 404
+    if message is not None:
+        payload["message"] = message
+    return jsonify(payload)
 
 
 # ── Operational Journal (DA-1594) ────────────────────────────────────────────
@@ -7527,6 +7539,7 @@ def api_atrox_promote(rec_id):
             "financing_relevant":  False,
             "signal_brief":        rec.get("signal_brief", {}),
         }
+        decision["required_approvals"] = routed_required_approvals(decision)
 
         aureon_state["pending_decisions"].append(decision)
         rec["status"] = "PROMOTED"

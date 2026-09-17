@@ -3955,11 +3955,10 @@ async function openPretradeModal(id) {
     const r = await fetch(API.pretrade(id));
     data = await r.json();
   } catch(e) {
-    subtitleEl.textContent = 'Backend offline — using local simulation';
-    // Simulate all PASS if offline
+    // No server result means no policy evidence: nothing can be approved.
     data = {
-      overall: 'PASS', settlement: 'T+2',
-      checks: gateNames.map(g => ({ ...g, status:'PASS', detail:'Simulated check — backend offline' }))
+      overall: 'INDETERMINATE', disposition: 'INDETERMINATE',
+      checks: gateNames.map(g => ({ ...g, status:'INDETERMINATE', detail:'Backend offline — not evaluated' }))
     };
   }
 
@@ -3986,8 +3985,9 @@ async function openPretradeModal(id) {
   for (let i = 0; i < checks.length; i++) {
     await new Promise(res => setTimeout(res, 80));
     const c = checks[i];
-    const dotClass = c.status === 'PASS' ? 'PASS' : c.status === 'WARN' ? 'WARN'
-                   : c.status === 'HOLD' ? 'HOLD' : 'FAIL';
+    const shown = c.disposition === 'INDETERMINATE' ? 'INDETERMINATE' : c.status;
+    const dotClass = shown === 'PASS' ? 'PASS' : shown === 'WARN' ? 'WARN'
+                   : shown === 'HOLD' ? 'HOLD' : 'FAIL';
     const rows = checksEl.querySelectorAll('.pretrade-check-row');
     if (rows[i]) {
       rows[i].innerHTML = `
@@ -3997,26 +3997,32 @@ async function openPretradeModal(id) {
           <div class="check-layer">${c.layer}</div>
           <div class="check-detail">${c.detail}</div>
         </div>
-        <div class="check-badge ${dotClass}">${c.status}</div>`;
+        <div class="check-badge ${dotClass}">${shown}</div>`;
     }
   }
 
-  // Update subtitle and enable/block execute button based on overall status
-  const overall = data.overall || 'PASS';
+  // Update subtitle and enable/block execute button. The server's kernel
+  // disposition binds approval; a missing one is treated as INDETERMINATE.
+  const disposition = data.disposition || 'INDETERMINATE';
+  const overall = data.overall || disposition;
   const dec = state.decisions.find(d => d.id === id);
   const symbol = dec ? dec.symbol : '—';
   const notional = dec ? '$' + (dec.notional||0).toLocaleString() : '';
 
-  if (overall === 'FAIL' || overall === 'BLOCKED') {
+  if (disposition === 'INDETERMINATE') {
+    subtitleEl.textContent = `⛔ Pre-trade INDETERMINATE — required evidence unavailable. Approval refused; retry when the data is back.`;
+    execBtn.disabled = true;
+    execBtn.textContent = 'INDETERMINATE';
+  } else if (overall === 'FAIL' || overall === 'BLOCKED' || disposition === 'BLOCK') {
     subtitleEl.textContent = `⛔ Pre-trade check FAILED — execution blocked`;
     execBtn.disabled = true;
     execBtn.textContent = 'BLOCKED';
-  } else if (overall === 'HOLD') {
+  } else if (overall === 'HOLD' || disposition === 'HOLD') {
     // A HOLD is fail-safe: a gate is held pending capability, transparency,
     // or authorization (e.g. MiFIR transparency not evidenced, tokenized
     // issuer authorization pending). Execution must NOT be enabled — the
     // operator resolves the held gate first. Distinct from a hard block.
-    subtitleEl.textContent = `⏸ Pre-trade HELD — a gate is pending (transparency / eligibility / capability). Resolve before executing ${symbol} ${notional}.`;
+    subtitleEl.textContent = `⏸ Pre-trade HELD — a gate is pending (transparency / eligibility / capability). Resolve it, or the role the policy names must record a typed exception, before executing ${symbol} ${notional}.`;
     execBtn.disabled = true;
     execBtn.textContent = 'HELD';
   } else if (overall === 'WARN') {
@@ -4072,6 +4078,9 @@ async function confirmExecute() {
       const dec = state.decisions.find(x => x.id === id) ||
                   { action:'BUY', symbol:'—', shares:0, price:0, notional:0, asset_class:'—' };
       showPosttradeModal(dec, d, settlement);
+    } else if (d.status === 'refused') {
+      toast(`⛔ Approval refused — ${d.error}`);
+      await fetchDecisions();
     } else {
       toast('⚠ Execution error — check server logs');
     }
