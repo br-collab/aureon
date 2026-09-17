@@ -2,7 +2,7 @@
 
 Institutional KYC compliance agent — React front end + Express proxy, single deployable service.
 
-Part of the Aureon / The Grid 3 doctrine stack. Conducts structured Know Your Customer intake under SR 11-7 / FinCEN / BSA framing, with per-step audit logging and a closing compliance summary.
+Part of the Aureon / The Grid 3 doctrine stack. Conducts structured Know Your Customer intake under the National Institute of Standards and Technology AI Risk Management Framework (NIST AI RMF) 1.0 plus Aureon doctrine / FinCEN / BSA framing, with per-step audit logging and a closing compliance summary.
 
 ## Architecture
 
