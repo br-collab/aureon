@@ -53,6 +53,8 @@ RULES = pretrade_rules_digest(risk_policy=RISK, operating_cash_floor_pct=FLOOR, 
 T0 = datetime(2026, 9, 17, 14, 0, tzinfo=timezone.utc)
 # Fix F1: a reading must say where it came from; an unlabelled one is fabricated.
 GOOD_OFR = {"fsi_value": 0.2, "source": "ofr", "provenance": "FACT_EXTERNAL"}
+LIVE_MACRO = {"source": "fred", "provenance": "FACT_EXTERNAL", "macro_regime": "balanced",
+              "vix": 18.0, "hy_oas": 3.4, "curve_spread_bps": -10.0, "as_of": "2026-09-17"}
 
 
 def _decision(**overrides):
@@ -422,7 +424,11 @@ def server_client(monkeypatch):  # type: ignore[no-untyped-def]
     monkeypatch.setattr(server._session_protocol, "is_session_open", lambda: True)
     monkeypatch.setattr(server, "_is_instrument_tradeable", lambda *_a: (True, "open"))
     monkeypatch.setattr(server, "_market_is_open", lambda: True)
-    monkeypatch.setattr(server, "_get_fred_macro_snapshot", dict)
+    # A labelled live-like macro: patching this to an empty dict would make the
+    # trade report's own refresh write a fabricated snapshot into _ofr_cache and
+    # leak into later tests (fix F1).
+    monkeypatch.setattr(server, "_get_fred_macro_snapshot", lambda: dict(LIVE_MACRO))
+    monkeypatch.setattr(server, "_get_ofr_stress_snapshot", lambda _macro: dict(GOOD_OFR))
     monkeypatch.setattr(server, "_send_trade_confirmation_email", lambda *_a: None)
     monkeypatch.setattr(server, "_save_state", lambda: None)
     monkeypatch.setitem(server._ofr_cache, "data", dict(GOOD_OFR))
