@@ -344,15 +344,21 @@ function statusesFor(s){
   if(s.halt){const h=PIDX[s.halt];
     for(let i=0;i<PHASES.length;i++){
       if(i<h)out[i]='pass'; else if(i===h)out[i]=(s.halt==='quorum')?'quorum':'hold';
-      else if(i===PIDX['dsor'])out[i]='pass'; else out[i]='idle';}}
+      // A quorum halt issues no instruction, so nothing is written to the DSOR.
+      // Every other halt persists its escalation. Same rule as the live path.
+      else if(i===PIDX['dsor'])out[i]=(s.halt==='quorum')?'na':'pass'; else out[i]='idle';}}
   return out;
 }
 function clearStage(){PHASES.forEach(p=>{const el=document.getElementById('ph-'+p.id);el.classList.remove('on','pass','hold','quorum');const st=document.getElementById('st-'+p.id);st.className='stat';st.textContent='';});}
 function applyPhase(i,statuses,s){
   const p=PHASES[i],el=document.getElementById('ph-'+p.id),st=document.getElementById('st-'+p.id),k=statuses[i];
   el.classList.add('on'); if(k!=='idle')el.classList.add(k==='pass'?'pass':k);
-  st.className='stat '+k;
-  st.textContent=k==='pass'?(p.id==='dsor'?'recorded':'clear'):k==='hold'?('hold · '+(s.gate||'gate')):k==='quorum'?'quorum required':'not reached';
+  st.className='stat '+(k==='na'?'':k);
+  st.textContent=k==='pass'?(p.id==='dsor'?'recorded':'clear')
+    :k==='hold'?('hold · '+(s.gate||'gate'))
+    :k==='quorum'?'quorum required'
+    :k==='na'?'— nothing recorded · no instruction issued'
+    :'not reached';
 }
 function finish(s,statuses){
   const cls=s.out==='SETTLED'?'settled':(s.out==='QUORUM REQUIRED'?'quorum':'escalated');
@@ -570,9 +576,14 @@ async function runLiveCycle(body){
     } else if(disp==='quorum_required_hold'){
       st[PIDX['quorum']]='quorum'; lb[PIDX['quorum']]='quorum required';
       st[PIDX['settle']]='pass';   lb[PIDX['settle']]='clear';
-      st[PIDX['dsor']]='pass';     lb[PIDX['dsor']]='recorded';
+      // A quorum hold issues no instruction, so Atreides writes no DSOR record
+      // (emit_instruction_package: "A quorum hold persists nothing, because no
+      // instruction was issued"). Claiming one here asserted evidence that does
+      // not exist. Verified against v0.4.0: dsor_record_id is None on this
+      // disposition alone.
+      st[PIDX['dsor']]='na';       lb[PIDX['dsor']]='— nothing recorded · no instruction issued';
       outLabel='QUORUM REQUIRED'; cls='quorum'; kind='quorum_required';
-      dd='Gates cleared but magnitude is material → routed to quorum. Quorum is unavailable under CAOM-001, so the release HOLDS and surfaces a CAOM-transition trigger. No package emitted.';
+      dd='Gates cleared but magnitude is material → routed to quorum. Quorum is unavailable under CAOM-001, so the release HOLDS and surfaces a CAOM-transition trigger. No package emitted, and nothing is written to the DSOR: there is no instruction to record.';
     } else {
       st[PIDX['quorum']]='pass'; lb[PIDX['quorum']]='sub-material · cleared';
       st[PIDX['settle']]='pass'; lb[PIDX['settle']]='clear';
@@ -584,9 +595,12 @@ async function runLiveCycle(body){
     const empty=ledger.querySelector('.ledempty'); if(empty)empty.remove();
     // Atreides v0.4.0 (ATR-I-02): validation writes nothing, so the DSOR record
     // reference is on the emitted package, not the gate result.
+    // Omit the DSOR segment entirely when no record was written, rather than
+    // printing "DSOR " with nothing after it beside a claim that one exists.
     const rid=(pkg.dsor_record_id||'').slice(0,8), oid=(op||'').slice(0,8);
+    const dsorSeg=rid?` · DSOR ${rid}`:' · no DSOR record';
     const li=document.createElement('li');
-    li.innerHTML=`<span class="dtg">${dtg()}</span> · op ${oid} · <span class="k">${kind}</span> · ${(body.rail||'').toUpperCase()} · DSOR ${rid} · <span class="r ${cls}">${outLabel}</span>`;
+    li.innerHTML=`<span class="dtg">${dtg()}</span> · op ${oid} · <span class="k">${kind}</span> · ${(body.rail||'').toUpperCase()}${dsorSeg} · <span class="r ${cls}">${outLabel}</span>`;
     ledger.insertBefore(li, ledger.firstChild);
     const rbf=document.getElementById('rbform'); if(rbf) rbf.style.display='block';
     return op;
@@ -720,7 +734,10 @@ async function syncLiveBreaks(){
       BREAKS.push({id:t.break_id||'BRK', sev:(t.leg==='clearing_fund_break'||t.leg==='funding_break')?'high':'med',
         cls:leg||'break', expo:'—', age:'live', rail:'live', kind:'settlement_escalation',
         sym:'Live break · '+leg, prox:'operator readback diverged from expected',
-        orig:'DSOR '+((t.dsor_record_id||'').slice(0,8))+' · op '+((t.operation_id||'').slice(0,8)),
+        // BreakTicket.dsor_record_id is UUID | None: a ticket raised against a
+        // package that wrote no record carries none. Say so rather than
+        // printing "DSOR " with nothing after it.
+        orig:(t.dsor_record_id?'DSOR '+String(t.dsor_record_id).slice(0,8):'no DSOR record')+' · op '+((t.operation_id||'').slice(0,8)),
         liaison:['FICC','Ops control'], res:['Investigate','Reconcile to expected','Resolve & close'],
         status:'OPEN', actions:[]});
     });
