@@ -1,204 +1,120 @@
-# Project Aureon — Deployment Guide
-## Railway (Backend) + Vercel (Frontend) — Crawl Phase
+# Project Aureon — deployment
+
+How the service is deployed, what it needs, and how to change or rebuild it.
+
+This describes the deployment **as it stands**. It is not a migration guide: the
+Railway service exists, the configuration files are committed, and the patches
+the previous version of this document told you to apply were applied long ago.
+The [history](#history) section at the end says what changed and when.
+
+Acronyms on first use: SMTP = Simple Mail Transfer Protocol. OFR = Office of
+Financial Research. MCP = Model Context Protocol. DSOR = Decision System of Record.
 
 ---
 
-## Architecture
+## What runs where
 
 ```
-Browser → Vercel (index.html, static dashboard)
-             ↓ /api/* proxied to Railway
-         Railway (Flask + market_loop + doctrine stack, persistent)
+Browser ──► Railway service (Flask + gunicorn)
+              ├─ serves index.html and the cockpit dashboard
+              ├─ /api/*            the governed surface
+              ├─ /mcp              Model Context Protocol endpoint (read-only by default)
+              └─ background threads: market loop, Atrox refresh, scheduled reports
+                      │
+                      └─► Railway volume at /data — persisted state
 ```
 
-Railway runs continuously — market loop ticks every 5s, paper trades accumulate.
-Vercel serves the dashboard — free, global CDN, auto-deploys on git push.
+**One service, one worker.** `gunicorn.conf.py` starts the background threads in
+`post_fork`, so they begin only after gunicorn is bound and serving. The worker
+count is 1 deliberately: the market loop, the Atrox refresh and the in-memory
+state are per process, and a second worker would run a second copy of each.
 
----
+`vercel.json` is committed and configures a static frontend that proxies `/api/*`
+to Railway. **The live dashboard is served by Flask from the Railway service**,
+not from Vercel. Treat `vercel.json` as an available alternative rather than a
+description of what is running.
 
-## Step 1 — Add deployment files to your repo
+## The configuration files, and what each one decides
 
-Copy these four files into the ROOT of your GitHub repo (same level as server.py):
+| File | What it sets |
+|---|---|
+| `railway.json` | Builder **NIXPACKS**; the gunicorn start command; health check `/api/snapshot` with a 30-second timeout; restart `ON_FAILURE`, up to 3 retries |
+| `Procfile` | The same gunicorn line, for any platform that reads a Procfile rather than `railway.json` |
+| `runtime.txt` | `python-3.11.9` |
+| `requirements.txt` | **What the build installs.** Nixpacks reads this file |
+| `requirements.lock.txt` | **Not installed by the deploy.** It is the pinned set CI resolves against, so tests run on a fixed dependency set. `scripts/compile_lock.py` generates it |
+| `gunicorn.conf.py` | A 120-second worker timeout (XRPL work in the request path can take ~60s) and the `post_fork` hook that starts the background threads |
 
-- `railway.json`
-- `requirements.txt`  ← replace existing if one exists
-- `Procfile`
-- `runtime.txt`
+**Changing a dependency:** edit `requirements.txt`, then run
+`python scripts/compile_lock.py` and commit both. CI fails if they disagree.
 
-Commit and push to main.
+## Environment variables
 
-```bash
-git add railway.json requirements.txt Procfile runtime.txt
-git commit -m "Add Railway deployment config"
-git push origin main
-```
+Set in Railway → the service → **Variables**. Railway redeploys on save.
 
----
+### Required for the service to be usable
 
-## Step 2 — Apply server.py patches
+| Variable | Without it |
+|---|---|
+| `AUREON_ADMIN_KEY` | **Every authority mutation is refused with 403.** Approving or rejecting a decision, opening the session, doctrine, MMF, Atrox promote and dismiss, the cockpit steps, halt and resume — all of it fails closed. The dashboard will prompt for the key and then be told no key is configured |
+| `FRED_API_KEY` | The systemic-stress reading falls back to fixed constants. Since W2B-3 that is recorded as `FABRICATED_DEFAULT`, the pre-trade gate returns `INDETERMINATE`, and **every approval is refused**. This is intended — an absent reading must not read as clear — but it means an unset key stops trading, not just monitoring |
+| `RAILWAY_VOLUME_MOUNT_PATH` | Injected automatically when a volume is attached (`/data`). Without a volume, state resets on every redeploy: positions, trades, the authority log, **and pending decisions** (AUR-I-17) |
 
-Apply the four patches from `server_railway_patch.py` to server.py:
+### Shapes behaviour
 
-**Patch 1** — Port binding (5 seconds):
-```python
-# FIND:
-port = int(os.environ.get("AUREON_PORT", "5001"))
-# REPLACE:
-port = int(os.environ.get("PORT", os.environ.get("AUREON_PORT", "5001")))
-```
+| Variable | Effect |
+|---|---|
+| `TWELVE_DATA_API_KEY` | Primary market-data feed. Unset, prices come from yfinance, and when that is unreachable from a random walk. Since W2-ADD-03 each fill records which, and a simulated price is labelled as one rather than passing as a market fact |
+| `AUREON_EMAIL`, `AUREON_EMAIL_PW`, `AUREON_EMAIL_RECIPIENT` | Gmail SMTP for scheduled reports and trade confirmations. `AUREON_EMAIL_PW` is an app password, not the account password |
+| `KRAKEN_API_KEY`, `KRAKEN_API_SECRET` | The Thifur-H live path. Absent, that path has no exchange |
+| `ALPACA_API_KEY`, `ALPACA_API_SECRET` | The Alpaca data pipe |
+| `AUREON_MCP_WRITE_ENABLED` | **Leave unset.** `true` registers the MCP approval tool, which lets an MCP client approve a decision. Agents never authorize (charter §7, JUM-D-07); this exists for a human who deliberately turns it on for a session |
+| `AUREON_ENV`, `AUREON_PORT` | Local development only. Railway supplies `PORT` |
 
-**Patch 2** — State file path. Open `aureon/config/settings.py` and update
-STATE_FILE and LOG_FILE to use RAILWAY_VOLUME_MOUNT_PATH env var.
+**Rotating `AUREON_ADMIN_KEY`** takes effect on the redeploy that follows the
+save. Anyone mid-session on the dashboard is prompted again on their next
+authority action.
 
-**Patch 3** — Background thread startup. Replace the `if __name__ == "__main__":`
-block at the bottom of server.py per the patch file instructions.
+## Deploying
 
-**Patch 4** — Add flask-cors to requirements.txt and add CORS(app) after
-`app = Flask(...)`.
+Merging to `main` deploys. There is no separate release step, so **a merge is a
+production deploy** and the pull request that precedes it should say what an
+operator will see change.
 
-Commit patches:
-```bash
-git add server.py aureon/config/settings.py requirements.txt
-git commit -m "Railway compatibility patches"
-git push origin main
-```
+After a deploy:
 
----
+1. `GET /api/snapshot` returns 200 and carries `deploy_sha`. That value is the
+   merge commit now serving traffic — check it rather than assuming.
+2. During the container swap the endpoint may briefly answer without a
+   `deploy_sha` field at all. That is the old container going away, not a
+   regression. Read it again.
+3. The session protocol auto-completes at boot; `GET /api/session/status`
+   should report `OPEN`.
 
-## Step 3 — Create Railway account and deploy
+## Recreating the service
 
-1. Go to https://railway.app
-2. Sign up with GitHub (use the same account that owns br-collab/aureon)
-3. Click **New Project** → **Deploy from GitHub repo**
-4. Select **br-collab/aureon** (Railway will request private repo access — grant it)
-5. Railway detects `railway.json` and `Procfile` automatically
-6. Click **Deploy** — build takes ~2 minutes
+If the Railway service is lost, this is what to recreate, in order:
 
----
+1. New project → deploy from GitHub → `br-collab/aureon`, branch `main`. Railway
+   reads `railway.json`, so the builder, start command and health check come with
+   the repository.
+2. Attach a **volume** mounted at `/data` before the first real use, or state will
+   not survive a redeploy.
+3. Set the variables above, at minimum `AUREON_ADMIN_KEY`, `FRED_API_KEY` and the
+   mail credentials.
+4. Generate a domain under **Networking**.
+5. Confirm `/api/snapshot` is 200, `deploy_sha` matches the commit you deployed,
+   and the build log shows `atreides` and `cannae-kernel` installed from their
+   pinned tags.
 
-## Step 4 — Set environment variables in Railway
+## History
 
-Railway Dashboard → Your Project → Variables → Add:
-
-| Variable | Value |
-|----------|-------|
-| `AUREON_EMAIL` | aureonfsos@gmail.com |
-| `AUREON_EMAIL_PW` | your Gmail app password |
-| `FRED_API_KEY` | your FRED key — **required**: powers live SOFR and OFR STLFSI4 for the Cato and CATO-F stress gates. Unset, both gates evaluate stress on fallback values. |
-| `RAILWAY_VOLUME_MOUNT_PATH` | /data |
-| `PYTHON_VERSION` | 3.11.9 |
-
-Railway redeploys automatically after saving variables.
-
----
-
-## Step 5 — Add a Railway Volume (persistent state)
-
-Without a volume, `aureon_state_persist.json` resets on every redeploy.
-For the paper trade crawl phase you want positions to persist.
-
-Railway Dashboard → Your Project → **+ New** → **Volume**
-- Mount path: `/data`
-- Size: 1GB (free tier)
-
-Railway automatically injects `RAILWAY_VOLUME_MOUNT_PATH=/data`.
-Your state file now survives redeploys.
-
----
-
-## Step 6 — Get your Railway URL
-
-Railway Dashboard → Your Project → Settings → **Domains**
-- Click **Generate Domain** → Railway gives you:
-  `https://aureon-production.up.railway.app`
-  (or similar — copy the exact URL)
-
-Test it:
-```
-https://aureon-production.up.railway.app/api/snapshot
-```
-You should see the Aureon JSON snapshot. Paper trades are live.
-
----
-
-## Step 7 — Deploy Vercel frontend
-
-**Update vercel.json first:**
-Replace `https://aureon-production.up.railway.app` with your actual Railway URL
-in two places in `vercel.json`.
-
-1. Go to https://vercel.com
-2. Sign up with GitHub (same account)
-3. Click **Add New Project** → Import `br-collab/aureon`
-4. Framework Preset: **Other**
-5. Root Directory: `.` (repo root)
-6. Click **Deploy**
-
-Vercel builds in ~30 seconds. You get:
-`https://aureon-xxxx.vercel.app`
-
----
-
-## Step 8 — Update CORS in server.py
-
-Replace the placeholder Vercel URL in the CORS config with your actual URL:
-```python
-CORS(app, origins=[
-    "https://aureon-xxxx.vercel.app",   # ← your actual Vercel URL
-    "http://localhost:3000",
-    "http://localhost:5001",
-])
-```
-Commit and push — Railway redeploys automatically.
-
----
-
-## What you have after Step 8
-
-| Component | Status |
-|-----------|--------|
-| Railway backend | Running 24/7 — market loop, paper trades, doctrine stack |
-| State persistence | Survives redeploys via Railway Volume |
-| Vercel dashboard | Auto-deploys on every git push to main |
-| Paper trade data | Accumulating — positions, P&L, decisions, compliance alerts |
-| Email reports | Pre-market briefing, EOD digest, weekly P&L hitting your inbox |
-| API endpoints | `/api/snapshot`, `/api/portfolio`, `/api/decisions`, etc. |
-
----
-
-## Crawl Phase Data Collection
-
-Once live, Railway collects:
-- Paper trade signal quality (Thifur-H REBALANCE vs OPPORTUNISTIC)
-- Approval latency (time from signal to human decision)
-- Drawdown behavior under simulated market conditions
-- Compliance alert frequency and type
-- Doctrine version stability across market cycles
-- C2 handoff log and unified lineage records (once patch is applied)
-
-This is the testbed data that feeds the Walk phase positioning.
-
----
-
-## Troubleshooting
-
-**Build fails:** Check Railway build logs. Most common issue is a missing
-dependency in requirements.txt. Add it and push.
-
-**App crashes on start:** Check Railway deploy logs for import errors.
-Usually a missing `aureon/` module or settings.py path issue.
-
-**CORS error in browser:** Vercel URL not in the CORS allowlist in server.py.
-Update and redeploy.
-
-**State resets on redeploy:** Volume not mounted. Check
-RAILWAY_VOLUME_MOUNT_PATH is set and Volume is attached to the project.
-
-**Email not sending:** AUREON_EMAIL_PW must be a Gmail App Password,
-not your Gmail account password. Generate one at:
-https://myaccount.google.com/apppasswords
-
----
-
-*Project Aureon · Guillermo "Bill" Ravelo · Columbia University MS Technology Management*
-*Crawl Phase — Paper Trade Data Collection · Railway + Vercel*
+- **Sep 2026 —** this document was rewritten. The previous version was the
+  original migration narrative: copy four files in, apply four patches to
+  `server.py`, create the Railway project, then deploy a Vercel frontend. All of
+  that had been done; the files and patches are in the repository. It also
+  omitted `AUREON_ADMIN_KEY`, so following it produced a service where every
+  approval returned 403.
+- **Sep 2026 —** `requirements.lock.txt` stopped being described as mirroring
+  what Railway installs. It never did: Nixpacks installs `requirements.txt`.
+- **Apr 2026 —** initial Railway deployment.

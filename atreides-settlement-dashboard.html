@@ -100,8 +100,10 @@
   .phase.pass{border-left:2px solid var(--olive)}
   .phase.hold{border-left:2px solid var(--ochre);background:var(--card-hi)}
   .phase.quorum{border-left:2px solid var(--rust);background:var(--card-hi)}
+  .phase.na{border-left:2px solid var(--mute)}
   .pnum{font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:30px;color:var(--sand-dim);line-height:1}
   .phase.pass .pnum{color:var(--olive)} .phase.hold .pnum{color:var(--ochre)} .phase.quorum .pnum{color:var(--rust)}
+  .phase.na .pnum{color:var(--mute)}
   .pbody .pt{font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:18px;text-transform:uppercase;color:var(--bone);line-height:1.05}
   .pbody .pl{color:var(--sand-dim);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin:2px 0 3px}
   .pbody .pc{color:var(--bone-dim);font-size:12px}
@@ -113,6 +115,9 @@
   .build.roadmap{color:var(--mute);border-color:rgba(90,84,70,.6)}
   .stat{font-size:11px;letter-spacing:.1em;text-transform:uppercase;min-height:14px}
   .stat.pass{color:var(--olive)} .stat.hold{color:var(--ochre)} .stat.quorum{color:var(--rust)} .stat.idle{color:var(--mute)}
+  /* `na` is a phase that recorded nothing — the DSOR on a quorum hold. It is a
+     stated absence, not a result, so it reads as muted as `idle` does. */
+  .stat.na{color:var(--mute)}
 
   .out{display:grid;grid-template-columns:1fr 1.25fr;gap:16px;margin-top:18px}
   @media(max-width:880px){.out{grid-template-columns:1fr}}
@@ -349,11 +354,11 @@ function statusesFor(s){
       else if(i===PIDX['dsor'])out[i]=(s.halt==='quorum')?'na':'pass'; else out[i]='idle';}}
   return out;
 }
-function clearStage(){PHASES.forEach(p=>{const el=document.getElementById('ph-'+p.id);el.classList.remove('on','pass','hold','quorum');const st=document.getElementById('st-'+p.id);st.className='stat';st.textContent='';});}
+function clearStage(){PHASES.forEach(p=>{const el=document.getElementById('ph-'+p.id);el.classList.remove('on','pass','hold','quorum','na');const st=document.getElementById('st-'+p.id);st.className='stat';st.textContent='';});}
 function applyPhase(i,statuses,s){
   const p=PHASES[i],el=document.getElementById('ph-'+p.id),st=document.getElementById('st-'+p.id),k=statuses[i];
-  el.classList.add('on'); if(k!=='idle')el.classList.add(k==='pass'?'pass':k);
-  st.className='stat '+(k==='na'?'':k);
+  el.classList.add('on'); if(k!=='idle')el.classList.add(k);
+  st.className='stat '+k;
   st.textContent=k==='pass'?(p.id==='dsor'?'recorded':'clear')
     :k==='hold'?('hold · '+(s.gate||'gate'))
     :k==='quorum'?'quorum required'
@@ -540,8 +545,8 @@ function liveRender(st, lb, disp, dd, cls){
   PHASES.forEach((p,i)=>{
     const el=document.getElementById('ph-'+p.id), sd=document.getElementById('st-'+p.id), k=st[i];
     el.classList.add('on');
-    if(k==='pass')el.classList.add('pass'); else if(k==='hold')el.classList.add('hold'); else if(k==='quorum')el.classList.add('quorum');
-    sd.className='stat '+(k==='na'?'':k); sd.textContent=lb[i];
+    if(k!=='idle')el.classList.add(k);
+    sd.className='stat '+k; sd.textContent=lb[i];
   });
   dispV.className='dv '+cls; dispV.textContent=disp; dispD.textContent=dd;
 }
