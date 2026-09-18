@@ -22,6 +22,12 @@ the failure paths must not call anything that mutates operator-visible state,
 and no evidence field may be filled with a generated number. The same fallback
 form AMD1 WP-6 item 3 allowed, and AMD3-1 asked to be used again.
 
+The same property is asserted below for the other controls the WP-7 sweep found:
+halt, resume, the doctrine proposal, and the price ticker. A halt that did not
+reach the server has not frozen anything, and a resume that did not reach it has
+not restarted anything — reporting either is worse than a wrong label, because
+those two are how an operator stops and starts execution.
+
 Run: pytest -q test_offline_fallback_fabrication.py
 """
 
@@ -148,3 +154,57 @@ def test_the_post_trade_modal_does_not_invent_an_authority_hash(source) -> None:
     assert re.search(r"hash\s*\|\|\s*'[^']*not returned", modal), (
         "the modal does not say when the server returned no hash"
     )
+
+
+# ── The other controls the WP-7 sweep found ─────────────────────────────────────
+
+#: Halt state the browser must not set on its own: the server decides whether
+#: execution is frozen, and the banner is what tells the operator it is.
+HALT_MARKERS = ("state.haltActive", "banner.classList", "haltBtn.textContent")
+
+
+@pytest.mark.parametrize("func", ["confirmHalt", "resumeFromHalt"])
+def test_a_failed_halt_control_changes_nothing(source, func) -> None:
+    for body in _catch_bodies(_function(source, func)):
+        for marker in HALT_MARKERS:
+            assert marker not in body, (
+                f"{func}: a catch block sets {marker}, so a control that never reached "
+                f"the server still changes what the operator is shown"
+            )
+        assert "offline mode" not in body, (
+            f"{func}: the failure path still reports the control as having taken effect"
+        )
+        assert "reportControlFailure" in body, f"{func}: the failure is not surfaced"
+
+
+def test_the_control_failure_report_changes_no_state(source) -> None:
+    report = _function(source, "reportControlFailure")
+    assert "console.error" in report, "the exception is swallowed"
+    assert "nothing changed" in report, "the operator is not told nothing changed"
+    for marker in HALT_MARKERS + FABRICATION_MARKERS:
+        assert marker not in report, f"the failure report itself sets {marker}"
+
+
+def test_the_doctrine_proposal_failure_does_not_claim_a_submission(source) -> None:
+    submit = _function(source, "doctrinePropose") if "function doctrinePropose(" in source else None
+    block = submit or source
+    assert "Proposal submitted (backend offline" not in block, (
+        "the failure path still claims the proposal was submitted"
+    )
+    assert "will sync on reconnect" not in block, (
+        "the failure path promises a reconnect sync that does not exist"
+    )
+    assert "NOT submitted" in block
+
+
+def test_simulated_prices_are_visible_as_simulated(source) -> None:
+    portfolio = _function(source, "fetchPortfolio")
+    catches = _catch_bodies(portfolio)
+    assert catches, "fetchPortfolio has no catch block"
+    body = catches[0]
+    assert "markPricesSimulated" in body, (
+        "the browser falls back to simulated prices without saying so"
+    )
+    assert "state.liveMode = false" in body, "liveMode is not cleared when the backend is gone"
+    marker = _function(source, "markPricesSimulated")
+    assert "SIMULATED" in marker, "the header does not name the prices as simulated"

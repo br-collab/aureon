@@ -3227,7 +3227,7 @@ async function fetchPortfolio() {
     const aumLabel = document.getElementById('alloc-aum-label');
     if (aumLabel) aumLabel.textContent = '$100M AUM';
     state.cycleCount     = d.cycle_count  || state.cycleCount + 1;
-    state.liveMode       = true;
+    state.liveMode       = true;   // a real snapshot answered; prices below are the server's
     // Update market status header pill
     const lbl   = document.getElementById('market-status-label');
     const pulse = document.getElementById('market-pulse');
@@ -3244,9 +3244,21 @@ async function fetchPortfolio() {
       if (pos.price) prices[pos.symbol] = pos.price;
     }
   } catch(e) {
-    // Backend not running — use simulated fallback
+    // Backend not running. The chart keeps moving on simulated prices, which is
+    // fine for a dead screen — but simulated prices must never be mistaken for
+    // market ones, so the header says which it is showing (WP-7 sweep, W2-ADD-03).
+    console.error('[AUREON] portfolio fetch failed; showing simulated prices:', e);
+    state.liveMode = false;
     tickSimulated();
+    markPricesSimulated();
   }
+}
+
+function markPricesSimulated() {
+  const label = document.getElementById('market-status-label');
+  const pulse = document.getElementById('market-pulse');
+  if (label) label.textContent = '⚠ Backend unreachable · prices are SIMULATED';
+  if (pulse) pulse.classList.add('pulse-off');
 }
 
 async function fetchCompliance() {
@@ -4256,6 +4268,25 @@ function tickSimulated() {
   state.cycleCount++;
 }
 
+function reportControlFailure(action, err, refresh) {
+  // A control call that did not reach the server changed nothing on the server.
+  // Saying otherwise is worse here than anywhere else: halt and resume are how
+  // an operator stops and starts execution, and a screen that reports the wrong
+  // one produces false confidence in a safety control (WP-7 sweep).
+  console.error(`[AUREON] ${action} request failed:`, err);
+  const why = (err && err.message) ? err.message : 'the request failed';
+  toast(`⚠ ${action} did not reach the server — nothing changed (${why}). ` +
+        `Execution stays in whatever state the server holds; use the Leto console or retry.`);
+  if (typeof refresh === 'function') {
+    Promise.resolve()
+      .then(refresh)
+      .catch(refreshErr => {
+        console.error(`[AUREON] could not refresh after the failed ${action}:`, refreshErr);
+        toast('⚠ Cannot reach the server to confirm the current state — this screen may be stale');
+      });
+  }
+}
+
 function reportResolveFailure(id, resolution, err) {
   // The approve/reject call did not reach the server, or did not come back.
   // The decision's real state is whatever the server holds, which is unchanged:
@@ -4373,18 +4404,10 @@ async function confirmHalt() {
       toast('⚠ Halt failed — check server logs');
     }
   } catch(e) {
-    // Offline fallback: activate halt locally
-    state.haltActive    = true;
-    state.haltReason    = reason;
-    state.haltAuthority = 'bill@billravelo.com (offline)';
+    // The halt did not reach the server, so execution is NOT frozen. Showing the
+    // halt banner here would tell the operator the opposite of what is true.
     closeHaltModal();
-    const banner = document.getElementById('halt-banner');
-    const bannerReason = document.getElementById('halt-banner-reason');
-    if (banner)       banner.classList.add('active');
-    if (bannerReason) bannerReason.textContent = `Reason: ${reason}`;
-    const haltBtn = document.getElementById('halt-header-btn');
-    if (haltBtn) { haltBtn.textContent = '✓ SYSTEM HALTED'; }
-    toast('⛔ HALT ACTIVATED (offline mode)');
+    reportControlFailure('Halt', e, async () => { await fetchGovernance(); renderGovernance(); });
   }
 }
 
@@ -4408,13 +4431,9 @@ async function resumeFromHalt() {
       toast('⚠ Resume failed — check server logs');
     }
   } catch(e) {
-    // Offline fallback
-    state.haltActive = false;
-    const banner = document.getElementById('halt-banner');
-    if (banner) banner.classList.remove('active');
-    const haltBtn = document.getElementById('halt-header-btn');
-    if (haltBtn) { haltBtn.textContent = '⛔ EMERGENCY HALT'; }
-    toast('✓ System resumed (offline mode)');
+    // The resume did not reach the server, so execution may still be frozen.
+    // Clearing the banner here would claim a resume that did not happen.
+    reportControlFailure('Resume', e, async () => { await fetchGovernance(); renderGovernance(); });
   }
 }
 
@@ -4542,7 +4561,8 @@ async function submitDoctrineProposal() {
     }
   } catch(e) {
     prog.style.display = 'none';
-    toast('⚠ Proposal submitted (backend offline — will sync on reconnect)');
+    // It was not submitted, and nothing syncs on reconnect: there is no queue.
+    toast('⚠ Proposal NOT submitted — the server did not accept it. Nothing was recorded; retry when the backend is reachable.');
   }
 }
 
