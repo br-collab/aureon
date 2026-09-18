@@ -4124,6 +4124,17 @@ function showPosttradeModal(dec, serverResp, settlement) {
   // say so — never generate a number to fill an evidence field (WP-7).
   const hash     = serverResp.hash || null;
   const decId    = serverResp.decision_id || dec.id || '—';
+  // W2-ADD-03: where the fill's price came from. A simulated price is a paper
+  // number, not a market fact, and the operator is told which they are looking at.
+  const priceSource = (serverResp.execution || {}).price_source || null;
+  const priceSimulated = priceSource === 'simulation' || priceSource === 'carried_forward'
+                         || priceSource === 'unrecorded' || priceSource === null;
+  const priceSourceLabel = priceSource === 'twelve_data' ? 'Twelve Data (market reading)'
+    : priceSource === 'yfinance' ? 'Yahoo Finance (market reading)'
+    : priceSource === 'cached_nudged' ? 'cached market reading, micro-nudged'
+    : priceSource === 'carried_forward' ? '⚠ carried forward — no new reading'
+    : priceSource === 'simulation' ? '⚠ simulated — not a market price'
+    : '⚠ not recorded';
   const reportId = serverResp.report_id || null;
 
   document.getElementById('posttrade-content').innerHTML = `
@@ -4158,6 +4169,10 @@ function showPosttradeModal(dec, serverResp, settlement) {
     <div class="posttrade-row">
       <span class="posttrade-label">Execution Time</span>
       <span class="posttrade-value" style="font-size:11px">${tsStr}</span>
+    </div>
+    <div class="posttrade-row">
+      <span class="posttrade-label">Price Source</span>
+      <span class="posttrade-value" style="${priceSimulated ? 'color:var(--amber, #f0b429)' : ''}">${priceSourceLabel}</span>
     </div>
     <div class="posttrade-row">
       <span class="posttrade-label">Decision ID</span>
