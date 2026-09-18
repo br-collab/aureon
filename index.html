@@ -1974,8 +1974,8 @@ main {
     </div>
     <div class="card" style="cursor:pointer" onclick="showReport('audit')">
       <div class="card-label">Audit Report</div>
-      <div class="card-value" style="font-size:18px;color:var(--cyan)">PASS</div>
-      <div class="card-sub">Full stack integrity · 10 checks · All green</div>
+      <div class="card-value" style="font-size:14px;color:var(--muted)">DESIGN MOCK</div>
+      <div class="card-sub">Illustrative — the ten checks are not computed</div>
     </div>
     <div class="card" style="cursor:pointer" onclick="showReport('replay')">
       <div class="card-label">Regulatory Replay Engine</div>
@@ -2051,6 +2051,14 @@ main {
   <!-- AUDIT REPORT -->
   <div id="report-audit" class="report-block" style="display:none">
     <h3 style="color:var(--cyan)">Full Cycle Audit Report — <span id="audit-cycle-id"></span></h3>
+    <div style="border:1px solid var(--amber, #f0b429);border-radius:4px;padding:10px 12px;
+                margin-bottom:14px;font-size:11px;line-height:1.7;color:var(--muted)">
+      <strong style="color:var(--amber, #f0b429)">Design mock.</strong>
+      The ten doctrine-integrity checks below are a fixed list, not a computed result: nothing
+      evaluates them at runtime, and they would read the same if the property they name were
+      violated. They show the shape of the audit report this system is being built to produce.
+      The report hash is real but signs the doctrine seed string, not an execution trace.
+    </div>
     <div class="grid g2" style="margin-bottom:16px">
       <div>
         <div class="card-label">Report Hash</div>
@@ -2805,6 +2813,12 @@ main {
     <div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.7;
                 border-top:1px solid var(--border);padding-top:12px">
       Frameworks mapped: SR 26-2 / OCC 2026-13 · NIST AI RMF 1.0 · OCC 2023-17 · BCBS 239 · MiFID II Art.17/RTS 6 · DORA · EU AI Act
+      <br><br>
+      <strong>Provenance:</strong> static figures summarising a regulatory alignment review, present
+      in this file since it was first committed on 4 April 2026 and unchanged since. They are not a
+      live measurement, nothing recomputes them, and they predate the Wave 2 amendments. The review
+      they summarise is not identified in the repository; read them as an April 2026 snapshot until
+      it is.
     </div>
   </div>
 
@@ -4933,7 +4947,9 @@ function renderTrading() {
         <td>${t.action || '—'}</td>
         <td><span class="layer-tag tag-blue" style="font-size:9px">${t.release_target || 'OMS'}</span></td>
         <td>${(t.final_approvals || []).length ? rolePills(t.final_approvals, 'done') : '<span class="dim-t">—</span>'}</td>
-        <td><span class="readiness-badge readiness-ready">${t.release_outcome || 'RELEASED'}</span></td>
+        <td>${t.release_outcome
+              ? `<span class="readiness-badge readiness-ready">${t.release_outcome}</span>`
+              : '<span class="dim-t">—</span>'}</td>
         <td class="hash">${(t.hash || '').slice(0,16).toUpperCase()}</td>
       </tr>
     `).join('');
