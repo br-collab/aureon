@@ -151,3 +151,47 @@ def test_the_ledger_line_omits_the_identifier_when_there_is_no_record() -> None:
     assert re.search(r"\brid\s*\?", segment), (
         f"the DSOR segment is not conditional on a record: {segment.strip()}"
     )
+
+
+# --- The `na` state, once introduced, has to be a state everywhere -------------
+#
+# WP-6 gave the DSOR phase a fourth status, `na`, for the quorum hold that records
+# nothing. Both renderers suppressed it — `'stat '+(k==='na'?'':k)` — so it fell
+# through to the base `.stat` colour, which is *brighter* than `.stat.idle`: a
+# phase that recorded nothing read louder than one not yet reached. AMD3-1 noted
+# the missing rule. These tests make the vocabulary and the styling agree, so the
+# next status added is caught rather than silently unstyled.
+
+
+def _status_vocabulary(source: str) -> set[str]:
+    """The statuses `applyPhase` distinguishes — the surface's own definition."""
+    body = source[source.index("function applyPhase("):]
+    body = body[: body.index("\nfunction ", 1)]
+    return set(re.findall(r"k===\s*'([a-z]+)'", body))
+
+
+def test_every_status_the_surface_can_set_is_styled() -> None:
+    source = DASHBOARD.read_text(encoding="utf-8")
+    vocabulary = _status_vocabulary(source) | {"idle"}
+    assert "na" in vocabulary, "the not-applicable status is gone; update this test"
+    missing = [k for k in sorted(vocabulary) if f".stat.{k}{{" not in source]
+    assert missing == [], f"statuses with no .stat rule, so they render at base contrast: {missing}"
+
+
+def test_the_status_reaches_the_element_as_a_class() -> None:
+    """A rule is no use if the renderer drops the class before it is applied."""
+    source = DASHBOARD.read_text(encoding="utf-8")
+    assignments = re.findall(r"className\s*=\s*'stat '\s*\+\s*(.+?);", source)
+    assert assignments, "no status class is assigned; update this test"
+    for expression in assignments:
+        assert "?" not in expression, (
+            f"the status is filtered before it becomes a class: 'stat '+{expression}"
+        )
+
+
+def test_a_cleared_stage_drops_every_status_class() -> None:
+    """Otherwise a status survives into the next run and mislabels it."""
+    source = DASHBOARD.read_text(encoding="utf-8")
+    cleared = set(re.search(r"classList\.remove\(([^)]*)\)", source).group(1).replace("'", "").split(","))
+    for status in _status_vocabulary(source):
+        assert status in cleared, f"clearStage leaves {status!r} on the phase element"
