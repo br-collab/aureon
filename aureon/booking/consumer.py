@@ -155,6 +155,9 @@ def book_fill(
         "fill_id":            fill.fill_id,
         "venue":              fill.venue,
         "provenance":         fill.provenance.value,
+        # How the price was obtained, not only when (W2-ADD-03). A trade booked
+        # at a simulated price says so on the record.
+        "price_source":       fill.price_source,
         "price_observed_at":  fill.price_observed_at.isoformat(),
         "reconciliation":     "MATCHED" if not reconciliation else "DISCREPANCY",
         "ts":                 fill.filled_at.isoformat(),
