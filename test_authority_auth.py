@@ -61,6 +61,10 @@ COVERED = [
     ("cockpit_readback", "/api/cockpit/readback", {"operation_id": str(uuid.uuid4())}),
     ("cockpit_reconcile", "/api/cockpit/reconcile", {"operation_id": str(uuid.uuid4())}),
     ("cockpit_break", "/api/cockpit/break", {"operation_id": str(uuid.uuid4())}),
+    # Both send real mail through the operator's account; the first sends the
+    # portfolio report itself. Gated after the W2B-2 sweep recommended it.
+    ("api_email_test", "/api/email/test", {}),
+    ("api_test_email", "/api/test/email", {}),
 ]
 
 #: POST routes reviewed and deliberately left without the operator key, with why.
@@ -78,8 +82,6 @@ REVIEWED_UNGUARDED = {
     "api_atrox_packet", "api_tradier_stress_packet", "api_alpaca_packet",
     "api_edgar_institutional_packet", "api_atrox_scan", "api_blockscout_onchain_packet",
     "cashleg_funding", "cashleg_gate", "cashleg_instruction",
-    # Sends a test email; no state change. Listed in the W2B report as an abuse risk.
-    "api_email_test", "api_test_email",
 }
 
 

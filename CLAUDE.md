@@ -175,7 +175,9 @@ happen before the handler runs. A success is written to `authority_log` with the
 deterministic boot service. Logic lives in `aureon/approval_service/operator_auth.py`.
 
 **Adding a POST route:** decorate it (below `@app.route`) or add it, with the reason, to
-`REVIEWED_UNGUARDED` in `test_authority_auth.py`. That test fails on any POST route in neither.
+`REVIEWED_UNGUARDED` in `test_authority_auth.py`. That test fails on any POST route in neither. The
+two email test routes were gated after the W2B-2 sweep: they send mail through the operator's
+account, and `/api/email/test` sends the portfolio report itself.
 The dashboards send both headers through `authorityFetch` (`index.html`) and `api()`
 (`atreides-settlement-dashboard.html`).
 
