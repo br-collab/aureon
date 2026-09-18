@@ -3826,7 +3826,7 @@ async function resolveDecision(id, resolution, approvalRole = 'TRADER') {
         renderTrading();
         renderGovernance();
       }
-    } catch(e) { resolveDecisionLocal(id, 'REJECTED'); }
+    } catch(e) { reportResolveFailure(id, 'REJECTED', e); }
     return;
   }
 
@@ -4095,7 +4095,7 @@ async function confirmExecute() {
     }
   } catch(e) {
     document.getElementById('pretrade-modal').classList.remove('active');
-    resolveDecisionLocal(id, 'APPROVED');
+    reportResolveFailure(id, 'APPROVED', e);
   }
   _pendingDecisionId = null;
   _pendingResolution = null;
@@ -4106,7 +4106,9 @@ function showPosttradeModal(dec, serverResp, settlement) {
   const now      = new Date();
   const tsStr    = now.toISOString().replace('T', ' ').slice(0, 23) + ' UTC';
   const price    = (state.prices || {})[dec.symbol] || dec.price || 0;
-  const hash     = serverResp.hash || Math.random().toString(16).slice(2,18).toUpperCase();
+  // The authority hash is the server's to issue. If the response carries none,
+  // say so — never generate a number to fill an evidence field (WP-7).
+  const hash     = serverResp.hash || null;
   const decId    = serverResp.decision_id || dec.id || '—';
   const reportId = serverResp.report_id || null;
 
@@ -4153,7 +4155,7 @@ function showPosttradeModal(dec, serverResp, settlement) {
     </div>
     <div class="posttrade-row">
       <span class="posttrade-label">Authority Hash</span>
-      <span class="posttrade-value hash">${hash}</span>
+      <span class="posttrade-value hash">${hash || '— not returned by the server'}</span>
     </div>
     <div class="posttrade-row">
       <span class="posttrade-label">Executed By</span>
@@ -4225,32 +4227,30 @@ function tickSimulated() {
   state.cycleCount++;
 }
 
-function resolveDecisionLocal(id, resolution) {
+function reportResolveFailure(id, resolution, err) {
+  // The approve/reject call did not reach the server, or did not come back.
+  // The decision's real state is whatever the server holds, which is unchanged:
+  // still pending. Say that, change nothing, and never simulate the outcome.
+  //
+  // This replaces resolveDecisionLocal, which on any backend failure wrote a
+  // Tier 1 authority entry attributed to a real person with Math.random() in
+  // the hash field, pushed a position, added a trade marked human_approved and
+  // RELEASED, and told the operator the trade had executed — in the one
+  // circumstance where the surface knows least (WP-7, AMD3-2).
+  console.error(`[AUREON] ${resolution} request failed for ${id}:`, err);
   const dec = state.decisions.find(d => d.id === id);
-  if (!dec) return;
-  state.decisions = state.decisions.filter(d => d.id !== id);
-  state.authorityLog.unshift({
-    ts: new Date().toISOString(), tier: 'Tier 1',
-    type: `Trade ${resolution}: ${dec.action} ${dec.symbol}`,
-    authority: 'br@ravelobizdev.com', outcome: resolution,
-    hash: Math.random().toString(16).slice(2,18).toUpperCase(),
-  });
-  if (resolution === 'APPROVED') {
-    const price = prices[dec.symbol] || dec.price;
-    state.positions.push({ symbol: dec.symbol, asset_class: dec.asset_class,
-      shares: dec.shares, cost: price, agent: 'THIFUR_H' });
-    state.trades.unshift({ ts: new Date().toISOString(), action: dec.action,
-      symbol: dec.symbol, asset_class: dec.asset_class,
-      notional: dec.notional, agent: 'THIFUR_H', human_approved: true,
-      release_target: dec.release_target || 'OMS',
-      final_approvals: dec.current_approvals || ['TRADER'],
-      release_outcome: 'RELEASED',
-      hash: Math.random().toString(16).slice(2,18).toUpperCase() });
-  }
-  toast(resolution === 'APPROVED' ? `✓ ${dec.action} ${dec.symbol} executed` : `✗ ${dec.action} ${dec.symbol} rejected`);
-  renderTrading();
-  renderGovernance();
-  document.getElementById('gov-overrides').textContent = state.authorityLog.length;
+  const what = dec ? `${dec.action} ${dec.symbol}` : id;
+  const why = (err && err.message) ? err.message : 'the request failed';
+  toast(`⚠ ${resolution === 'APPROVED' ? 'Approval' : 'Rejection'} did not reach the server — ` +
+        `${what} is unchanged and still pending (${why})`);
+
+  // Show the server's actual state rather than this screen's guess at it.
+  fetchDecisions()
+    .then(() => { renderTrading(); renderGovernance(); })
+    .catch(refreshErr => {
+      console.error('[AUREON] could not refresh decisions after the failure:', refreshErr);
+      toast('⚠ Cannot reach the server to confirm the decision state — this screen may be stale');
+    });
 }
 
 function rolePills(roles = [], type = 'neutral') {
