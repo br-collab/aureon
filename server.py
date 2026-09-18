@@ -6633,8 +6633,15 @@ def api_errors():
 
 
 @app.route("/api/email/test", methods=["POST"])
+@_authority_required("EMAIL_TEST_REPORT")
 def api_email_test():
-    """Send a test weekly P&L report email immediately."""
+    """Send a test weekly P&L report email immediately.
+
+    Gated (AUR-I-03 follow-up): unauthenticated, this let anyone who could reach
+    the service send the portfolio report — real position and valuation figures —
+    to the configured recipient, as often as they liked, through the operator's
+    own mail account.
+    """
     ET       = zoneinfo.ZoneInfo("America/New_York")
     date_str = datetime.now(ET).strftime("%B %d, %Y")
     ok = _send_email(
@@ -6649,8 +6656,13 @@ def api_email_test():
 
 
 @app.route("/api/test/email", methods=["POST"])
+@_authority_required("EMAIL_TEST_SMTP")
 def api_test_email():
-    """Send a test email to confirm SMTP credentials and routing."""
+    """Send a test email to confirm SMTP credentials and routing.
+
+    Gated for the same reason as /api/email/test: it sends mail through the
+    operator's account, and sending is not something an anonymous caller does.
+    """
     try:
         import smtplib
         from email.mime.text import MIMEText
