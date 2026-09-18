@@ -1580,6 +1580,22 @@ _YAHOO_MAP = {
 # 12 network calls per minute — too slow and too noisy.
 _price_cache    = {}   # symbol → last known real price
 _price_cache_ts = 0.0  # Unix timestamp of the last successful fetch
+
+# W2-ADD-03: how each symbol's current price was obtained, per symbol, because a
+# single tick can mix sources — a fetch that returns some symbols carries the
+# rest forward. {symbol: {"source": str, "observed_at": iso|None}}.
+#
+#   twelve_data / yfinance  a reading from that publisher, observed when fetched
+#   cached_nudged           a real reading, perturbed by a micro-nudge so the
+#                           chart keeps moving; observed when the cache was filled
+#   carried_forward         the last known value, no new reading
+#   simulation              a random walk from the last value. Not a reading at
+#                           all: observed_at is None
+#
+# A price is what a fill is booked at, so a fill priced from a simulation must
+# never be recorded as if it were priced from the market.
+_price_provenance: dict = {}
+SIMULATED_PRICE_SOURCES = frozenset({"simulation", "carried_forward"})
 _sim_fallback_logged = False  # print the simulation fallback message only once
 
 
@@ -1671,10 +1687,14 @@ def _simulated_prices():
          On failure → fall through to full random-walk simulation.
       3. Fallback: pure simulated random walk from the last known price.
     """
-    global _price_cache, _price_cache_ts
+    global _price_cache, _price_cache_ts, _price_provenance
 
     now   = time.time()
     prices = {}
+    provenance = {}
+
+    def record(symbol, source, observed_at):
+        provenance[symbol] = {"source": source, "observed_at": observed_at}
 
     # ── Step 1: cache hit — apply micro-nudge to real prices ────────────────
     if _price_cache and (now - _price_cache_ts) < 60:
@@ -1688,25 +1708,37 @@ def _simulated_prices():
             else:
                 nudge = 0.0001      # equities/commodities: ±0.01%
             prices[symbol] = last * (1 + (random.random() - 0.5) * nudge)
+            record(symbol, "cached_nudged",
+                   datetime.fromtimestamp(_price_cache_ts, timezone.utc).isoformat())
+        _price_provenance = provenance
         return prices
 
     # ── Step 2: cache is stale — try Twelve Data (primary) then Yahoo Finance (fallback) ──
     fresh = _fetch_twelve_data_prices()
     source = "Twelve Data"
+    source_id = "twelve_data"
 
     if not fresh and _YFINANCE_AVAILABLE:
         fresh = _fetch_yahoo_prices()
         source = "Yahoo Finance"
+        source_id = "yfinance"
 
     if fresh:
         # Merge: real prices for symbols we got, last-known for the rest
+        fetched_at = datetime.fromtimestamp(now, timezone.utc).isoformat()
         for symbol, base in BASE_PRICES.items():
             if symbol in fresh:
                 prices[symbol] = fresh[symbol]
+                record(symbol, source_id, fetched_at)
             else:
+                # No reading for this symbol in this fetch: the last value is
+                # carried forward, and saying so is the point of this record.
                 prices[symbol] = aureon_state["prices"].get(symbol, base)
+                carried = _price_provenance.get(symbol, {})
+                record(symbol, "carried_forward", carried.get("observed_at"))
         _price_cache    = dict(prices)
         _price_cache_ts = now
+        _price_provenance = provenance
         print(f"[AUREON] Real prices loaded from {source} ({len(fresh)} symbols)")
         return prices
 
@@ -1725,6 +1757,9 @@ def _simulated_prices():
         else:
             vol = 0.002      # equities & commodities: 0.2%
         prices[symbol] = current * (1 + (random.random() - 0.5) * vol)
+        # A random walk is not an observation, so it has no observation time.
+        record(symbol, "simulation", None)
+    _price_provenance = provenance
     return prices
 
 
@@ -4519,6 +4554,8 @@ def market_loop():
             with _lock:
                 aureon_state["prices"]          = prices
                 aureon_state["prices_observed_at"] = datetime.now(timezone.utc).isoformat()
+                # W2-ADD-03: how each price was obtained travels with it.
+                aureon_state["price_provenance"] = dict(_price_provenance)
                 aureon_state["portfolio_value"] = total
                 aureon_state["pnl"]             = pnl
                 aureon_state["pnl_pct"]         = pnl_pct
@@ -5436,7 +5473,15 @@ _PAPER_PRICE_MAX_AGE_SECONDS = 300
 
 
 def _market_cache_price(symbol: str):
-    """The paper venue's price source: the market-data cache, with its own observation time."""
+    """The paper venue's price source: the market-data cache, with its own observation time.
+
+    The source is the symbol's own provenance (W2-ADD-03), not a generic label.
+    Railway has no TWELVE_DATA_API_KEY, and yfinance is unreachable on a closed
+    market, so a fill here can be priced from a random walk. That is allowed —
+    this is a paper venue — but it is never recorded as if it came from the
+    market: `simulation` and `carried_forward` say so, and the booked trade
+    carries the same word.
+    """
     observed_raw = aureon_state.get("prices_observed_at")
     value = (aureon_state.get("prices") or {}).get(symbol)
     if not observed_raw or value is None:
@@ -5444,7 +5489,17 @@ def _market_cache_price(symbol: str):
     observed_at = datetime.fromisoformat(observed_raw)
     if (datetime.now(timezone.utc) - observed_at).total_seconds() > _PAPER_PRICE_MAX_AGE_SECONDS:
         return None
-    return PriceObservation(price=str(value), observed_at=observed_at, source="aureon market-data cache")
+    provenance = (aureon_state.get("price_provenance") or {}).get(symbol) or {}
+    source = provenance.get("source", "unrecorded")
+    # For a real reading, the observation time is when the publisher was read,
+    # not when this tick ran. A simulated price has no observation time.
+    reading_at = provenance.get("observed_at")
+    if reading_at:
+        try:
+            observed_at = datetime.fromisoformat(reading_at)
+        except ValueError:
+            pass
+    return PriceObservation(price=str(value), observed_at=observed_at, source=source)
 
 
 _paper_venue = PaperVenue(price_source=_market_cache_price, clock=lambda: _approval_clock())
@@ -5478,6 +5533,9 @@ def _deliver_release_to_venue(release, decision) -> dict:
         "fill_id":        outcome.fill_id,
         "venue":          outcome.venue,
         "provenance":     outcome.provenance.value,
+        # W2-ADD-03: how the price was obtained travels to the operator too.
+        "price_source":   outcome.price_source,
+        "price_observed_at": outcome.price_observed_at.isoformat(),
         "exec_price":     float(outcome.price),
         "quantity":       outcome.quantity,
         "reconciliation": booking.reconciliation,
