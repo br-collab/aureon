@@ -32,8 +32,27 @@ are release tags on repositories we control, and the resolved commits are in the
 comments. The alternative — spelling the SHA in `requirements.txt` — was
 rejected: that file is the deploy path and is meant to be read by a person.
 
+Why the existing lock is seeded before compiling (second finding, 19 Sep).
+
+`uv pip compile` reuses the versions pinned in **an existing output file** unless
+told to upgrade. The first version of this script compiled into a fresh temporary
+directory, so there was never an existing output file and every run re-resolved
+every unpinned transitive dependency to whatever was newest on the index that
+minute.
+
+That made `--check` a test of the *index*, not of the repository. It went red on
+an unrelated pull request the day after it landed, because `platformdirs`
+published 4.11.11 — nothing in aureon had changed. A gate that fails for reasons
+outside the commit trains people to ignore it, which is worse than not having it.
+
+So the current lock is copied to the output path first, and uv keeps those pins.
+`--check` now answers "does this lock still satisfy `requirements.txt`", which is
+the question worth gating. Moving a transitive dependency is a deliberate act:
+`--upgrade`.
+
 Usage:
-    python scripts/compile_lock.py            # rewrite requirements.lock.txt
+    python scripts/compile_lock.py            # refresh, keeping existing pins
+    python scripts/compile_lock.py --upgrade  # allow transitive upgrades
     python scripts/compile_lock.py --check    # fail if the lock is out of date
 """
 
@@ -97,16 +116,21 @@ def restore_refs(lock: str, refs: dict[str, tuple[str, str]]) -> str:
     return "\n".join(out) + "\n"
 
 
-def compile_lock() -> str:
+def compile_lock(*, upgrade: bool = False) -> str:
     # uv writes a new file at the path rather than into an open handle, so the
     # output is read back from disk after the run, not from a file object.
     with tempfile.TemporaryDirectory() as tmpdir:
         out = Path(tmpdir) / "lock.txt"
-        subprocess.run(
-            ["uv", "pip", "compile", "requirements.txt", "--python-version", "3.11",
-             "-o", str(out)],
-            check=True, cwd=ROOT, stdout=subprocess.DEVNULL,
-        )
+        # Seed the output with the current lock so uv keeps its pins. Without
+        # this the resolution is against whatever the index holds right now,
+        # and --check fails on upstream releases rather than on our changes.
+        if LOCK.exists() and not upgrade:
+            out.write_text(LOCK.read_text(encoding="utf-8"), encoding="utf-8")
+        command = ["uv", "pip", "compile", "requirements.txt",
+                   "--python-version", "3.11", "-o", str(out)]
+        if upgrade:
+            command.append("--upgrade")
+        subprocess.run(command, check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
         compiled = out.read_text(encoding="utf-8")
     if not compiled.strip():
         raise SystemExit("uv produced an empty lock; refusing to write it")
@@ -119,9 +143,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true",
                         help="fail if requirements.lock.txt is not what this would write")
+    parser.add_argument("--upgrade", action="store_true",
+                        help="allow transitive dependencies to move to newer releases")
     args = parser.parse_args()
 
-    expected = compile_lock()
+    expected = compile_lock(upgrade=args.upgrade)
     if not args.check:
         LOCK.write_text(expected, encoding="utf-8")
         print(f"wrote {LOCK.relative_to(ROOT)}")
@@ -133,6 +159,8 @@ def main() -> int:
         return 0
     print("requirements.lock.txt is out of date; run: python scripts/compile_lock.py",
           file=sys.stderr)
+    print("(if this is an upstream release rather than a change here, that is a bug "
+          "in this script — pins should be held; see the module docstring)", file=sys.stderr)
     return 1
 
 
