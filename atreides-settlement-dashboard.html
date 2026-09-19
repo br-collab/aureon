@@ -362,7 +362,7 @@ function applyPhase(i,statuses,s){
   st.textContent=k==='pass'?(p.id==='dsor'?'recorded':'clear')
     :k==='hold'?('hold · '+(s.gate||'gate'))
     :k==='quorum'?'quorum required'
-    :k==='na'?'— nothing recorded · no instruction issued'
+    :k==='na'?'— nothing recorded · no instruction was issued'
     :'not reached';
 }
 function finish(s,statuses){
@@ -586,7 +586,7 @@ async function runLiveCycle(body){
       // instruction was issued"). Claiming one here asserted evidence that does
       // not exist. Verified against v0.4.0: dsor_record_id is None on this
       // disposition alone.
-      st[PIDX['dsor']]='na';       lb[PIDX['dsor']]='— nothing recorded · no instruction issued';
+      st[PIDX['dsor']]='na';       lb[PIDX['dsor']]='— nothing recorded · no instruction was issued';
       outLabel='QUORUM REQUIRED'; cls='quorum'; kind='quorum_required';
       dd='Gates cleared but magnitude is material → routed to quorum. Quorum is unavailable under CAOM-001, so the release HOLDS and surfaces a CAOM-transition trigger. No package emitted, and nothing is written to the DSOR: there is no instruction to record.';
     } else {
