@@ -67,22 +67,83 @@ COVERED = [
     ("api_test_email", "/api/test/email", {}),
 ]
 
-#: POST routes reviewed and deliberately left without the operator key, with why.
-REVIEWED_UNGUARDED = {
-    # Already gated inline by the same key before Wave 2.
-    "api_halt_activate", "api_halt_resume", "api_admin_reset_state",
-    "thifur_h_start_session", "thifur_h_generate_signal", "thifur_h_approve_signal",
-    "thifur_h_rollback", "thifur_h_auto_close_arm",
-    # Reduce exposure by design: stopping must never wait for a key.
-    "thifur_h_kill_switch", "thifur_h_auto_close_disarm",
-    # Advisory analysis, pure computations or data-pipe reads: no authority,
-    # position or doctrine change.
-    "api_thesis_analyze", "api_thesis_register", "api_thesis_upload",
-    "api_cato_compare_rails", "api_aml_screen", "api_surveillance_screen",
-    "api_atrox_packet", "api_tradier_stress_packet", "api_alpaca_packet",
-    "api_edgar_institutional_packet", "api_atrox_scan", "api_blockscout_onchain_packet",
-    "cashleg_funding", "cashleg_gate", "cashleg_instruction",
+#: POST routes reviewed and deliberately left without the operator key.
+#:
+#: W3 § R4 re-read every entry against a different question. The W2B-2 sweep asked
+#: "does this mutate application state"; R4 asks **"is anything irreversible outside
+#: this process"** — sends, pays, submits, publishes, or writes to anything the
+#: process does not own. That is the question #34 failed: two routes that send real
+#: mail change no application state at all.
+#:
+#: Each entry is now classified rather than listed. `()` is a claim of containment.
+#: `UNCONTAINED_ACCEPTED` below carries the ones that reach outside and are still
+#: ungated, with the reason — so the exposure is stated, not hidden, and a new
+#: uncontained route cannot join the list without a decision.
+#:
+#: The effect names mirror cannae_kernel.effects.ExternalEffect. They are spelled
+#: locally because aureon pins the kernel by tag and v0.5.0 is not tagged yet;
+#: swapping to the kernel type is a follow-up once it is.
+SENDS = "SENDS"
+WRITES_FOREIGN_STORE = "WRITES_FOREIGN_STORE"
+CONSUMES_CREDENTIALED_QUOTA = "CONSUMES_CREDENTIALED_QUOTA"
+
+REVIEWED_UNGUARDED_EFFECTS: dict[str, tuple[tuple[str, ...], str]] = {
+    # --- Already gated inline by the same operator key before Wave 2 -------------
+    "api_halt_activate":          ((), "gated inline by X-Admin-Key"),
+    "api_halt_resume":            ((), "gated inline by X-Admin-Key"),
+    "api_admin_reset_state":      ((), "gated inline by X-Admin-Key"),
+    "thifur_h_start_session":     ((), "gated inline by X-Admin-Key"),
+    "thifur_h_generate_signal":   ((), "gated inline by X-Admin-Key"),
+    "thifur_h_approve_signal":    ((), "gated inline by X-Admin-Key"),
+    "thifur_h_rollback":          ((), "gated inline by X-Admin-Key"),
+    "thifur_h_auto_close_arm":    ((), "gated inline by X-Admin-Key"),
+
+    # --- Reduce exposure by design: stopping must never wait for a key ----------
+    "thifur_h_kill_switch":       ((), "stopping must not require a credential"),
+    "thifur_h_auto_close_disarm": ((), "disarming must not require a credential"),
+
+    # --- Contained: computed from the request and returned ----------------------
+    "api_thesis_analyze":     ((), "parses the supplied memo and returns the analysis; registers nothing"),
+    "api_aml_screen":         ((), "read-only screening of a supplied counterparty"),
+    "api_surveillance_screen": ((), "read-only screening of a supplied record"),
+    "api_cato_compare_rails": ((), "ranks rails from cached SOFR, OFR stress and prices; no outbound call"),
+    "cashleg_funding":        ((), "intraday funding projection; pure computation"),
+    "cashleg_gate":           ((), "CATO-F decision; deterministic and replayable"),
+    "cashleg_instruction":    ((), "prepares an ISO 20022 artefact for the member to submit under their "
+                                   "own credentials; is_submission is Literal[False] and no submit path exists"),
+    "api_edgar_institutional_packet": ((), "served from the 60s background cache; the request body is ignored, "
+                                           "so a caller drives no outbound traffic"),
+
+    # --- Uncontained: they reach outside this process ---------------------------
+    "api_thesis_register": ((WRITES_FOREIGN_STORE,),
+                            "registers a durable source document; source_documents is persisted to the "
+                            "Railway volume, so an anonymous caller writes storage this process does not own"),
+    "api_thesis_upload":   ((WRITES_FOREIGN_STORE,),
+                            "as api_thesis_register, and it accepts an uploaded file"),
+    "api_atrox_scan":      ((WRITES_FOREIGN_STORE, CONSUMES_CREDENTIALED_QUOTA),
+                            "resets the scan cooldown and forces a scan: outbound calls on our credentials, "
+                            "and recommendations written to persisted state. Bounded by ATROX_MAX_RECS and "
+                            "refused under halt"),
+    "api_alpaca_packet":   ((CONSUMES_CREDENTIALED_QUOTA,),
+                            "calls Alpaca on ALPACA_API_KEY with a caller-supplied symbol list and bar_limit"),
+    "api_tradier_stress_packet": ((CONSUMES_CREDENTIALED_QUOTA,),
+                            "calls Tradier on our credentials with caller-supplied parameters"),
+    "api_atrox_packet":    ((CONSUMES_CREDENTIALED_QUOTA,),
+                            "calls the Atrox feed on our credentials with a caller-supplied symbol list"),
+    "api_blockscout_onchain_packet": ((CONSUMES_CREDENTIALED_QUOTA,),
+                            "calls Blockscout on our credentials with caller-supplied parameters"),
 }
+
+#: Uncontained and still ungated. Each one is an accepted exposure, not an oversight.
+#: Gating them is a decision for Bill, recorded in _reports/W3-report.md § R4; until
+#: it is taken, this set is what stops the exposure being forgotten.
+UNCONTAINED_ACCEPTED = {
+    "api_thesis_register", "api_thesis_upload", "api_atrox_scan",
+    "api_alpaca_packet", "api_tradier_stress_packet", "api_atrox_packet",
+    "api_blockscout_onchain_packet",
+}
+
+REVIEWED_UNGUARDED = set(REVIEWED_UNGUARDED_EFFECTS)
 
 
 def _state() -> str:
@@ -217,3 +278,48 @@ def test_nonce_cache_refuses_a_flood_rather_than_forgetting_early() -> None:
     assert cache.first_use("b" * 16, 0.0)
     assert not cache.first_use("c" * 16, 1.0)
     assert cache.first_use("c" * 16, 61.0)
+
+
+# --- W3 § R4: is anything irreversible outside this process? --------------------
+
+
+def test_every_reviewed_route_is_classified_with_a_reason() -> None:
+    """A verdict with no reasoning is the kind nobody can disagree with.
+
+    #34's entry said "no authority, position or doctrine change", which was true,
+    and the routes sent real mail.
+    """
+    for endpoint, (effects, reason) in REVIEWED_UNGUARDED_EFFECTS.items():
+        assert reason.strip(), f"{endpoint} is classified with no reason"
+        assert len(reason) > 25, f"{endpoint}: the reason is too short to be checkable"
+        for effect in effects:
+            assert effect in (SENDS, WRITES_FOREIGN_STORE, CONSUMES_CREDENTIALED_QUOTA)
+
+
+def test_an_uncontained_route_is_either_gated_or_an_accepted_exposure() -> None:
+    """The point of the classification: nothing reaches outside by accident.
+
+    A new ungated route that writes, sends or spends has to be added to
+    UNCONTAINED_ACCEPTED deliberately, which is a decision someone makes rather
+    than a line someone forgets.
+    """
+    uncontained = {e for e, (effects, _) in REVIEWED_UNGUARDED_EFFECTS.items() if effects}
+    undeclared = uncontained - UNCONTAINED_ACCEPTED
+    assert undeclared == set(), (
+        f"these reach outside this process and nobody has accepted the exposure: {undeclared}"
+    )
+    stale = UNCONTAINED_ACCEPTED - uncontained
+    assert stale == set(), (
+        f"accepted as exposures but now classified as contained; remove them: {stale}"
+    )
+
+
+def test_a_gated_route_is_not_also_listed_as_ungated() -> None:
+    assert REVIEWED_UNGUARDED.isdisjoint(server.AUTHORITY_ENDPOINTS)
+
+
+def test_the_email_routes_left_the_reviewed_list_when_they_were_gated() -> None:
+    """The regression #34 fixed, held in place."""
+    for endpoint in ("api_email_test", "api_test_email"):
+        assert endpoint not in REVIEWED_UNGUARDED_EFFECTS
+        assert endpoint in server.AUTHORITY_ENDPOINTS
