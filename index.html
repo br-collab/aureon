@@ -5719,7 +5719,7 @@ async function registerCurrentMemo() {
   }
   try {
     const firstLine = memo.split('\n').map(s => s.trim()).find(Boolean) || 'Pasted Investment Thesis';
-    const r = await fetch(API.thesisRegister, {
+    const r = await authorityFetch(API.thesisRegister, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ memo, title: firstLine }),
@@ -5745,7 +5745,7 @@ async function uploadThesisFile(event) {
   const form = new FormData();
   form.append('file', file);
   try {
-    const r = await fetch(API.thesisUpload, { method: 'POST', body: form });
+    const r = await authorityFetch(API.thesisUpload, { method: 'POST', body: form });
     const data = await r.json();
     if (!r.ok) {
       toast(data.error || 'Upload failed.');

@@ -4691,8 +4691,14 @@ def api_thesis_analyze():
 
 
 @app.route("/api/thesis/register", methods=["POST"])
+@_authority_required("THESIS_REGISTER")
 def api_thesis_register():
-    """Register a pasted thesis memo as a durable source document."""
+    """Register a pasted thesis memo as a durable source document.
+
+    Gated (W3 R4). The document is persisted to STATE_FILE, which on Railway is
+    the mounted volume, so an unauthenticated caller was writing storage this
+    process does not own — and it survives redeploys.
+    """
     data = request.get_json() or {}
     memo = (data.get("memo") or "").strip()
     if not memo:
@@ -4782,8 +4788,12 @@ def api_source_document_by_id(document_id: str):
 
 
 @app.route("/api/thesis/upload", methods=["POST"])
+@_authority_required("THESIS_UPLOAD")
 def api_thesis_upload():
-    """Upload a thesis document and extract best-effort text for analysis."""
+    """Upload a thesis document and extract best-effort text for analysis.
+
+    Gated (W3 R4). As api_thesis_register, and it accepts a file.
+    """
     uploaded = request.files.get("file")
     if not uploaded or not uploaded.filename:
         return jsonify({"error": "file is required"}), 400
@@ -7728,8 +7738,14 @@ def api_atrox_recommendations():
 
 
 @app.route("/api/atrox/recommendations/scan", methods=["POST"])
+@_authority_required("ATROX_SCAN")
 def api_atrox_scan():
-    """Force an immediate Atrox scan (bypasses interval cooldown)."""
+    """Force an immediate Atrox scan (bypasses interval cooldown).
+
+    Gated (W3 R4). It resets the cooldown and forces outbound calls on our
+    credentials, then writes recommendations to persisted state. The cooldown
+    exists for a reason and this route exists to bypass it.
+    """
     global _atrox_last_scan
     _atrox_last_scan = 0.0  # reset cooldown
     try:
