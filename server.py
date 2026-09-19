@@ -88,6 +88,7 @@ from aureon.mcp.cato_client import (
 from aureon.persistence.store import load_state as persistence_load_state, save_state as persistence_save_state
 from aureon.policy_engine.service import evaluate_pretrade_decision
 from aureon.policy_engine.evidence import EvidenceProvenance, is_fabricated as _is_fabricated
+from aureon.policy_engine.regulatory_register import REGISTER_NOTE, frameworks_summary
 from aureon.policy_engine.binding import (
     PolicyBindingError,
     grant_hold_exception,
@@ -4835,17 +4836,12 @@ def api_compliance():
             "risk_manager":  risk_snapshot,
             "macro":         macro_snapshot,
             "ofr":           ofr_snapshot,
-            "frameworks": [
-                # Alignment, not compliance: SR 26-2 / OCC 2026-13 superseded SR 11-7 on
-                # 17 Apr 2026 and excludes agentic AI, which NIST AI RMF 1.0 covers (W2-ADD-02).
-                {"name": "SR 26-2 / OCC 2026-13 — alignment (quantitative models)", "status": "ALIGNMENT"},
-                {"name": "NIST AI RMF 1.0 — alignment (agentic components)",        "status": "ALIGNMENT"},
-                {"name": "OCC 2023-17 — Third-Party Risk",        "status": "SATISFIED"},
-                {"name": "BCBS 239 — Risk Data Aggregation",      "status": "SATISFIED"},
-                {"name": "MiFID II Art. 17 / RTS 6",              "status": "SATISFIED"},
-                {"name": "DORA — Digital Operational Resilience", "status": "SATISFIED"},
-                {"name": "EU AI Act — High-Risk AI Systems",      "status": "SATISFIED"},
-            ],
+            # Every row's status and the evidence behind it come from the register,
+            # which is the only place entitled to say what a regime's status is.
+            # Five of these read SATISFIED as literals until AMD4-1; nothing
+            # computed any of them. See aureon/policy_engine/regulatory_register.py.
+            "frameworks":      frameworks_summary(),
+            "frameworks_note": REGISTER_NOTE,
             "ts": datetime.now(timezone.utc).isoformat(),
         })
 
