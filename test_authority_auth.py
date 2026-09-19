@@ -64,6 +64,10 @@ COVERED = [
     # Both send real mail through the operator's account; the first sends the
     # portfolio report itself. Gated after the W2B-2 sweep recommended it.
     ("api_email_test", "/api/email/test", {}),
+    # W3 R4: durable writes this process does not own, and a cooldown bypass.
+    ("api_thesis_register", "/api/thesis/register", {"memo": "m"}),
+    ("api_thesis_upload", "/api/thesis/upload", {}),
+    ("api_atrox_scan", "/api/atrox/recommendations/scan", {}),
     ("api_test_email", "/api/test/email", {}),
 ]
 
@@ -115,15 +119,6 @@ REVIEWED_UNGUARDED_EFFECTS: dict[str, tuple[tuple[str, ...], str]] = {
                                            "so a caller drives no outbound traffic"),
 
     # --- Uncontained: they reach outside this process ---------------------------
-    "api_thesis_register": ((WRITES_FOREIGN_STORE,),
-                            "registers a durable source document; source_documents is persisted to the "
-                            "Railway volume, so an anonymous caller writes storage this process does not own"),
-    "api_thesis_upload":   ((WRITES_FOREIGN_STORE,),
-                            "as api_thesis_register, and it accepts an uploaded file"),
-    "api_atrox_scan":      ((WRITES_FOREIGN_STORE, CONSUMES_CREDENTIALED_QUOTA),
-                            "resets the scan cooldown and forces a scan: outbound calls on our credentials, "
-                            "and recommendations written to persisted state. Bounded by ATROX_MAX_RECS and "
-                            "refused under halt"),
     "api_alpaca_packet":   ((CONSUMES_CREDENTIALED_QUOTA,),
                             "calls Alpaca on ALPACA_API_KEY with a caller-supplied symbol list and bar_limit"),
     "api_tradier_stress_packet": ((CONSUMES_CREDENTIALED_QUOTA,),
@@ -135,10 +130,15 @@ REVIEWED_UNGUARDED_EFFECTS: dict[str, tuple[tuple[str, ...], str]] = {
 }
 
 #: Uncontained and still ungated. Each one is an accepted exposure, not an oversight.
-#: Gating them is a decision for Bill, recorded in _reports/W3-report.md § R4; until
-#: it is taken, this set is what stops the exposure being forgotten.
+#:
+#: The three that wrote — api_thesis_register, api_thesis_upload and api_atrox_scan —
+#: were gated and have moved into COVERED. These four remain, and the reason is a
+#: trade rather than an oversight: they are read-only against third parties, bounded
+#: by those providers' own rate limits, and the dashboard calls all four automatically
+#: to populate panels. Gating them would put an operator-key prompt on page load in
+#: exchange for quota that a rate limit already caps. Revisit if a provider bills by
+#: call or the panels stop being load-bearing.
 UNCONTAINED_ACCEPTED = {
-    "api_thesis_register", "api_thesis_upload", "api_atrox_scan",
     "api_alpaca_packet", "api_tradier_stress_packet", "api_atrox_packet",
     "api_blockscout_onchain_packet",
 }
