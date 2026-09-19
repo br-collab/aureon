@@ -40,7 +40,8 @@ def test_mcp_sr_26_2_is_alignment() -> None:
     result = _framework_tool("SR_26_2")
     assert result["framework"] == "SR_26_2"
     assert result["status"] == "ALIGNMENT"
-    assert "not of compliance" in result["detail"]
+    assert "No row is a compliance determination" in result["note"]
+    assert result["basis"], "the alignment claim is published with no basis"
     assert "deprecation" not in result
 
 

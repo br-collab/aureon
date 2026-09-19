@@ -24,6 +24,13 @@ import os
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, Response
 
+from aureon.policy_engine.regulatory_register import (
+    REGISTER_NOTE,
+    REGULATORY_FRAMEWORKS,
+    framework_labels,
+    frameworks_registry,
+)
+
 # ── MCP Server Identity ───────────────────────────────────────────────────────
 MCP_SERVER_NAME    = "aureon-verana"
 MCP_SERVER_VERSION = "1.0.0"
@@ -172,10 +179,10 @@ RESOURCES = [
         "uri":         RESOURCE_REG_FRAMEWORKS,
         "name":        "Regulatory Frameworks Status",
         "description": (
-            "Current compliance status for all regulatory frameworks "
-            "Verana L0 monitors: SR 26-2 / OCC 2026-13, OCC 2023-17, BCBS 239, "
-            "MiFID II Art. 17 / RTS 6, DORA, EU AI Act. "
-            "Each framework includes status and last-verified timestamp."
+            "Self-reported alignment and assessment status for the regimes this system "
+            "was built against: SR 26-2 / OCC 2026-13, NIST AI RMF 1.0, OCC 2023-17, "
+            "BCBS 239, MiFID II Art. 17 / RTS 6, DORA, EU AI Act. Each row carries the "
+            "basis behind it. None is a compliance determination and none is computed."
         ),
         "mimeType":    "application/json",
     },
@@ -242,11 +249,12 @@ TOOLS = [
     {
         "name":        "verana_framework_status",
         "description": (
-            "Check the compliance status of a specific regulatory framework "
-            "monitored by Verana L0. Returns status (SATISFIED/BREACHED/MONITORING, or "
-            "ALIGNMENT for SR 26-2, which is a statement of alignment, not compliance) "
-            "and detail. Valid frameworks: SR_26_2, OCC_2023_17, BCBS_239, "
-            "MIFID_II, DORA, EU_AI_ACT."
+            "The self-reported status of one regulatory regime, with the basis behind it. "
+            "Returns ALIGNMENT (a control exists here, built against this regime — a "
+            "statement of design intent, not of compliance) or UNASSESSED (not even "
+            "alignment established). No regime returns a compliance determination, and "
+            "none is computed. Valid frameworks: SR_26_2, NIST_AI_RMF, OCC_2023_17, "
+            "BCBS_239, MIFID_II, DORA, EU_AI_ACT."
         ),
         "inputSchema": {
             "type": "object",
@@ -256,8 +264,8 @@ TOOLS = [
                     "description": ("Framework identifier. One of: SR_26_2, OCC_2023_17, BCBS_239, "
                                     "MIFID_II, DORA, EU_AI_ACT. SR_11_7 is a deprecated alias of "
                                     "SR_26_2 and returns its content with a deprecation note."),
-                    "enum":        ["SR_26_2", "OCC_2023_17", "BCBS_239", "MIFID_II", "DORA", "EU_AI_ACT",
-                                    "SR_11_7"],
+                    "enum":        ["SR_26_2", "NIST_AI_RMF", "OCC_2023_17", "BCBS_239",
+                                    "MIFID_II", "DORA", "EU_AI_ACT", "SR_11_7"],
                 },
             },
             "required": ["framework"],
@@ -334,62 +342,21 @@ def _read_network_registry() -> dict:
 
 
 def _read_regulatory_frameworks() -> dict:
+    """The regulatory register, as the register states it.
+
+    Until AMD4-1 this returned five regimes marked SATISFIED with prose asserting
+    assessments that had not been carried out ("All vendor integrations assessed",
+    "Full HITL architecture ... satisfy EU AI Act requirements"), under a
+    doctrine_ref reading "All frameworks satisfied". Nothing computed any of it,
+    and an MCP client has no way to tell a literal from a finding.
+    """
     return {
         "registry_id":  "VERANA-REG-FW-001",
         "ts":           datetime.now(timezone.utc).isoformat(),
-        "frameworks": [
-            {
-                "id":          "SR_26_2",
-                "name":        SR_26_2_LABEL,
-                "status":      "ALIGNMENT",
-                "description": SR_26_2_DETAIL,
-                "authority":   "Federal Reserve Board · Office of the Comptroller of the Currency · FDIC",
-                "supersedes":  "SR 11-7 / OCC 2011-12 (superseded 17 April 2026)",
-            },
-            {
-                "id":          "OCC_2023_17",
-                "name":        "OCC 2023-17 — Third-Party Risk",
-                "status":      "SATISFIED",
-                "description": "OCC guidance on third-party relationships and risk management. "
-                               "All vendor integrations (yFinance, TwelveData, Railway) assessed.",
-                "authority":   "Office of the Comptroller of the Currency",
-            },
-            {
-                "id":          "BCBS_239",
-                "name":        "BCBS 239 — Risk Data Aggregation",
-                "status":      "SATISFIED",
-                "description": "Basel Committee principles for effective risk data aggregation and reporting. "
-                               "Single aureon_state source of truth with full lineage.",
-                "authority":   "Bank for International Settlements",
-            },
-            {
-                "id":          "MIFID_II",
-                "name":        "MiFID II Art. 17 / RTS 6 — Algorithmic Trading",
-                "status":      "SATISFIED",
-                "description": "EU algorithmic trading governance requirements. "
-                               "All signals require human authority approval — zero autonomous execution.",
-                "authority":   "European Securities and Markets Authority (ESMA)",
-            },
-            {
-                "id":          "DORA",
-                "name":        "DORA — Digital Operational Resilience Act",
-                "status":      "SATISFIED",
-                "description": "EU DORA Article 28 absorbed. 4 nodes flagged during absorption event. "
-                               "Doctrine updated to v1.1. Operational resilience maintained.",
-                "authority":   "European Parliament / Council",
-                "doctrine_event": "Doctrine v1.0 → v1.1 triggered by Verana L0 DORA absorption",
-            },
-            {
-                "id":          "EU_AI_ACT",
-                "name":        "EU AI Act — High-Risk AI Systems",
-                "status":      "SATISFIED",
-                "description": "Aureon qualifies as high-risk AI in financial services. "
-                               "Full HITL architecture, audit trail, and human authority chain "
-                               "satisfy EU AI Act transparency and oversight requirements.",
-                "authority":   "European Parliament / Council",
-            },
-        ],
-        "doctrine_ref": "Verana L0 — Regulatory Absorption · All frameworks satisfied",
+        "frameworks":   frameworks_registry(),
+        "note":         REGISTER_NOTE,
+        "doctrine_ref": "Verana L0 — Regulatory Register · alignment and assessment status, "
+                        "self-reported, not a compliance determination",
     }
 
 
@@ -506,14 +473,9 @@ SR_11_7_DEPRECATION = (
     "This response is the SR_26_2 content. Use SR_26_2."
 )
 
-FRAMEWORK_LABELS = {
-    "SR_26_2":     SR_26_2_LABEL,
-    "OCC_2023_17": "OCC 2023-17 — Third-Party Risk",
-    "BCBS_239":    "BCBS 239 — Risk Data Aggregation",
-    "MIFID_II":    "MiFID II Art. 17 / RTS 6 — Algorithmic Trading",
-    "DORA":        "DORA — Digital Operational Resilience Act",
-    "EU_AI_ACT":   "EU AI Act — High-Risk AI Systems",
-}
+#: Names come from the register, so a regime cannot be named one way here and
+#: another way in the registry read (AMD4-1).
+FRAMEWORK_LABELS = framework_labels()
 
 
 def _tool_verana_screen_ofac(params: dict) -> dict:
@@ -565,46 +527,48 @@ def _tool_verana_screen_ofac(params: dict) -> dict:
 
 
 def _tool_verana_framework_status(params: dict) -> dict:
+    """One regime's status, from the register.
+
+    Until AMD4-1 this computed the status as ``"BREACHED" if halt else "SATISFIED"``.
+    The Tier 0 emergency halt is not a regulatory finding: engaging it does not
+    breach DORA, and leaving it disengaged does not satisfy MiFID II. That
+    expression made every regime's reported compliance a function of an unrelated
+    boolean, and it reported SATISFIED for five regimes nothing had assessed.
+
+    The halt state is still returned, because a caller asking about operating
+    posture wants it — but as its own field, not as a compliance conclusion.
+    """
     fw_id = params.get("framework", "").strip().upper()
     deprecated_alias = fw_id == "SR_11_7"
     if deprecated_alias:
         fw_id = "SR_26_2"
-    if fw_id not in FRAMEWORK_LABELS:
+    framework = next((f for f in REGULATORY_FRAMEWORKS if f.id == fw_id), None)
+    if framework is None:
         return {
             "isError": True,
             "content": [{"type": "text", "text": f"Unknown framework: {fw_id}. "
                           f"Valid values: {', '.join(FRAMEWORK_LABELS.keys())}"}],
         }
 
-    # All frameworks satisfied — reflect current doctrine state
     with _lock:
         doctrine = _state.get("doctrine_version", "unknown")
         halt     = _state.get("halt_active", False)
-
-    detail_map = {
-        "SR_26_2":     SR_26_2_DETAIL,
-        "OCC_2023_17": "All third-party integrations assessed and governed.",
-        "BCBS_239":    "Single aureon_state source of truth. Full lineage via authority_log.",
-        "MIFID_II":    "Zero autonomous execution. All signals require HITL approval.",
-        "DORA":        f"DORA absorption triggered doctrine v1.1 update. Currently v{doctrine}.",
-        "EU_AI_ACT":   "Full HITL architecture. Audit trail and human authority chain active.",
-    }
 
     return {
         "content": [{
             "type": "text",
             "text": json.dumps({
-                "framework":       fw_id,
-                "name":            FRAMEWORK_LABELS[fw_id],
-                # SR 26-2 is reported as alignment, never as satisfied (W2-ADD-02).
-                "status":          ("ALIGNMENT" if fw_id == "SR_26_2"
-                                    else "BREACHED" if halt else "SATISFIED"),
-                "detail":          detail_map[fw_id],
+                "framework":        fw_id,
+                "name":             framework.name,
+                "status":           framework.status.value,
+                "basis":            framework.basis,
+                "authority":        framework.authority,
+                "note":             REGISTER_NOTE,
                 "doctrine_version": doctrine,
-                "halt_active":     halt,
+                "halt_active":      halt,
                 **({"requested": "SR_11_7", "deprecation": SR_11_7_DEPRECATION}
                    if deprecated_alias else {}),
-                "ts":              datetime.now(timezone.utc).isoformat(),
+                "ts":               datetime.now(timezone.utc).isoformat(),
             }, indent=2),
         }],
     }
