@@ -21,6 +21,7 @@ import pytest
 os.environ.setdefault("RAILWAY_VOLUME_MOUNT_PATH", tempfile.mkdtemp(prefix="aureon-auth-test-"))
 
 import server  # noqa: E402
+from cannae_kernel.effects import ExternalEffect  # noqa: E402
 from aureon.approval_service.operator_auth import (  # noqa: E402
     BOOT_SERVICE_ACTOR,
     OPERATOR_ACTOR,
@@ -84,14 +85,16 @@ COVERED = [
 #: ungated, with the reason — so the exposure is stated, not hidden, and a new
 #: uncontained route cannot join the list without a decision.
 #:
-#: The effect names mirror cannae_kernel.effects.ExternalEffect. They are spelled
-#: locally because aureon pins the kernel by tag and v0.5.0 is not tagged yet;
-#: swapping to the kernel type is a follow-up once it is.
-SENDS = "SENDS"
-WRITES_FOREIGN_STORE = "WRITES_FOREIGN_STORE"
-CONSUMES_CREDENTIALED_QUOTA = "CONSUMES_CREDENTIALED_QUOTA"
+#: The effects come from the kernel now. They were spelled locally when this
+#: classification was written, because aureon pinned a kernel that predated
+#: `cannae_kernel.effects` and the tags to reach it did not exist. Both are fixed,
+#: so the strings are gone: a typo is a construction error rather than a route
+#: that quietly classifies itself as something no other repository recognises.
+SENDS = ExternalEffect.SENDS
+WRITES_FOREIGN_STORE = ExternalEffect.WRITES_FOREIGN_STORE
+CONSUMES_CREDENTIALED_QUOTA = ExternalEffect.CONSUMES_CREDENTIALED_QUOTA
 
-REVIEWED_UNGUARDED_EFFECTS: dict[str, tuple[tuple[str, ...], str]] = {
+REVIEWED_UNGUARDED_EFFECTS: dict[str, tuple[tuple[ExternalEffect, ...], str]] = {
     # --- Already gated inline by the same operator key before Wave 2 -------------
     "api_halt_activate":          ((), "gated inline by X-Admin-Key"),
     "api_halt_resume":            ((), "gated inline by X-Admin-Key"),
@@ -293,7 +296,9 @@ def test_every_reviewed_route_is_classified_with_a_reason() -> None:
         assert reason.strip(), f"{endpoint} is classified with no reason"
         assert len(reason) > 25, f"{endpoint}: the reason is too short to be checkable"
         for effect in effects:
-            assert effect in (SENDS, WRITES_FOREIGN_STORE, CONSUMES_CREDENTIALED_QUOTA)
+            assert isinstance(effect, ExternalEffect), (
+                f"{endpoint} declares {effect!r}, which is not a kernel effect"
+            )
 
 
 def test_an_uncontained_route_is_either_gated_or_an_accepted_exposure() -> None:
@@ -323,3 +328,24 @@ def test_the_email_routes_left_the_reviewed_list_when_they_were_gated() -> None:
     for endpoint in ("api_email_test", "api_test_email"):
         assert endpoint not in REVIEWED_UNGUARDED_EFFECTS
         assert endpoint in server.AUTHORITY_ENDPOINTS
+
+
+def test_every_declared_effect_is_one_the_kernel_knows() -> None:
+    """The classification and the frozen taxonomy are one vocabulary.
+
+    These were plain strings when the sweep was written, because aureon pinned a
+    kernel that predated `cannae_kernel.effects` and there was no tag to reach it
+    with. A local string cannot be mistyped into a name the other repositories
+    recognise — it just quietly becomes a category of one.
+    """
+    known = set(ExternalEffect)
+    for endpoint, (effects, _) in REVIEWED_UNGUARDED_EFFECTS.items():
+        unknown = set(effects) - known
+        assert unknown == set(), f"{endpoint} declares effects the kernel does not know: {unknown}"
+
+
+def test_an_uncontained_route_declares_at_least_one_kernel_effect() -> None:
+    """`UNCONTAINED_ACCEPTED` and the effect declarations must agree on which routes reach out."""
+    for endpoint in UNCONTAINED_ACCEPTED:
+        effects, reason = REVIEWED_UNGUARDED_EFFECTS[endpoint]
+        assert effects, f"{endpoint} is an accepted exposure but declares no effect: {reason}"
