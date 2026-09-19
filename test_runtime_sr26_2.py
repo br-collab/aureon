@@ -72,6 +72,11 @@ def test_no_runtime_string_still_cites_sr_11_7_as_current() -> None:
         "aureon/mcp/server.py": ("SR_11_7", "supersedes SR 11-7", "SR 11-7 was superseded",
                                  "SR 11-7 / OCC 2011-12"),
         "aureon/doctrine/risk_thresholds_fixture.json": ("SR 11-7 risk monitoring",),  # versioned; errata
+        # AMD4-1 moved the SR 26-2 statement out of the MCP surface and into the
+        # register. Both mentions here are the same historical form this sweep
+        # allows: SR 11-7 named as the thing that was superseded, never as current.
+        "aureon/policy_engine/regulatory_register.py": ("superseded SR 11-7",
+                                                        "SR 11-7 / OCC 2011-12"),
     }
     out = subprocess.run(
         ["git", "grep", "-n", "-e", "SR 11-7", "-e", "SR_11_7", "--", ":!*.md", ":!CATO DEMO",
