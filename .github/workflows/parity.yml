@@ -29,22 +29,22 @@ permissions:
 
 jobs:
   parity:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check out the Node decision core (Cato-FICC-MCP)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: br-collab/Cato-FICC-MCP
           ref: ${{ inputs.cato_ref || 'main' }}
           path: cato-mcp
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -55,11 +55,11 @@ jobs:
   # installs requirements.txt; the lock is what CI proves installs cleanly.
   core:
     name: Core (Python 3.11)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
