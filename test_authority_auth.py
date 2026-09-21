@@ -70,6 +70,13 @@ COVERED = [
     ("api_thesis_upload", "/api/thesis/upload", {}),
     ("api_atrox_scan", "/api/atrox/recommendations/scan", {}),
     ("api_test_email", "/api/test/email", {}),
+    # W3 R4 remainder: metered third-party calls on the operator's credentials,
+    # at a volume the caller chooses. Gated 21 Sep — see the note on
+    # UNCONTAINED_ACCEPTED for why the reason to leave them open did not hold.
+    ("api_atrox_packet", "/api/atrox/packet", {"symbols": ["SPY"]}),
+    ("api_tradier_stress_packet", "/api/atrox/tradier/stress-packet", {"symbols": ["SPY"]}),
+    ("api_alpaca_packet", "/api/atrox/alpaca/packet", {"symbols": ["SPY"]}),
+    ("api_blockscout_onchain_packet", "/api/atrox/blockscout/onchain-packet", {"chain": "1"}),
 ]
 
 #: POST routes reviewed and deliberately left without the operator key.
@@ -90,6 +97,11 @@ COVERED = [
 #: `cannae_kernel.effects` and the tags to reach it did not exist. Both are fixed,
 #: so the strings are gone: a typo is a construction error rather than a route
 #: that quietly classifies itself as something no other repository recognises.
+#: The vocabulary a new entry is written in. Every entry in the table below now
+#: declares `()` — since 21 Sep 2026 no ungated route reaches outside this process —
+#: so these three are currently unused. They are kept because the next person adding
+#: an entry should reach for the kernel's names without rediscovering the convention
+#: the paragraph above spent a page establishing.
 SENDS = ExternalEffect.SENDS
 WRITES_FOREIGN_STORE = ExternalEffect.WRITES_FOREIGN_STORE
 CONSUMES_CREDENTIALED_QUOTA = ExternalEffect.CONSUMES_CREDENTIALED_QUOTA
@@ -120,31 +132,34 @@ REVIEWED_UNGUARDED_EFFECTS: dict[str, tuple[tuple[ExternalEffect, ...], str]] = 
                                    "own credentials; is_submission is Literal[False] and no submit path exists"),
     "api_edgar_institutional_packet": ((), "served from the 60s background cache; the request body is ignored, "
                                            "so a caller drives no outbound traffic"),
-
-    # --- Uncontained: they reach outside this process ---------------------------
-    "api_alpaca_packet":   ((CONSUMES_CREDENTIALED_QUOTA,),
-                            "calls Alpaca on ALPACA_API_KEY with a caller-supplied symbol list and bar_limit"),
-    "api_tradier_stress_packet": ((CONSUMES_CREDENTIALED_QUOTA,),
-                            "calls Tradier on our credentials with caller-supplied parameters"),
-    "api_atrox_packet":    ((CONSUMES_CREDENTIALED_QUOTA,),
-                            "calls the Atrox feed on our credentials with a caller-supplied symbol list"),
-    "api_blockscout_onchain_packet": ((CONSUMES_CREDENTIALED_QUOTA,),
-                            "calls Blockscout on our credentials with caller-supplied parameters"),
 }
 
-#: Uncontained and still ungated. Each one is an accepted exposure, not an oversight.
+#: Uncontained and still ungated. **Empty, and that is the claim**: no route reaches
+#: outside this process without the operator key.
 #:
-#: The three that wrote — api_thesis_register, api_thesis_upload and api_atrox_scan —
-#: were gated and have moved into COVERED. These four remain, and the reason is a
-#: trade rather than an oversight: they are read-only against third parties, bounded
-#: by those providers' own rate limits, and the dashboard calls all four automatically
-#: to populate panels. Gating them would put an operator-key prompt on page load in
-#: exchange for quota that a rate limit already caps. Revisit if a provider bills by
-#: call or the panels stop being load-bearing.
-UNCONTAINED_ACCEPTED = {
-    "api_alpaca_packet", "api_tradier_stress_packet", "api_atrox_packet",
-    "api_blockscout_onchain_packet",
-}
+#: It is kept rather than deleted because an empty set is a stronger statement than a
+#: missing one — a new ungated route that writes, sends or spends has to be added here
+#: deliberately, and `test_no_uncontained_route_is_ungated` fails until somebody does.
+#:
+#: **How it emptied, 21 September 2026.** Three routes that wrote —
+#: `api_thesis_register`, `api_thesis_upload`, `api_atrox_scan` — were gated in W3.
+#: The four `CONSUMES_CREDENTIALED_QUOTA` routes were left, on this recorded reason:
+#:
+#:     "they are read-only against third parties, bounded by those providers' own rate
+#:      limits, and the dashboard calls all four automatically to populate panels.
+#:      Gating them would put an operator-key prompt on page load."
+#:
+#: **The last part was checked and is false.** Nothing in this repository calls any of
+#: the four. `index.html` declares `atroxBsPacket` in its API map at line 3133 and
+#: never invokes it; the other three appear nowhere outside their own route
+#: definitions. The panels are populated by the status and stats routes, not by these.
+#: So the cost side of the trade was zero and the four were gated.
+#:
+#: Recorded at length rather than deleted, because the defect is not the exposure —
+#: it is that a plausible reason was written down, never re-checked, and then
+#: load-bearing. That is #34's shape exactly: "no authority, position or doctrine
+#: change" was true of the email routes, and they sent real mail.
+UNCONTAINED_ACCEPTED: set[str] = set()
 
 REVIEWED_UNGUARDED = set(REVIEWED_UNGUARDED_EFFECTS)
 
@@ -317,6 +332,54 @@ def test_an_uncontained_route_is_either_gated_or_an_accepted_exposure() -> None:
     assert stale == set(), (
         f"accepted as exposures but now classified as contained; remove them: {stale}"
     )
+
+
+def test_no_uncontained_route_is_ungated() -> None:
+    """Today's posture, stated so that changing it is visible in a diff.
+
+    `UNCONTAINED_ACCEPTED` is empty: every route that reaches outside this
+    process requires the operator key. Re-opening one is a decision somebody
+    makes on purpose, and this test is where they record it.
+    """
+    assert UNCONTAINED_ACCEPTED == set(), (
+        "a route that reaches outside this process has been left ungated. If that is "
+        "deliberate, say why here and in the comment on UNCONTAINED_ACCEPTED — and "
+        "check the reason, rather than writing a plausible one. The four quota routes "
+        "were left open on the reason that the dashboard called them, and nothing did: "
+        f"{UNCONTAINED_ACCEPTED}"
+    )
+
+
+def test_the_quota_routes_left_the_reviewed_list_when_they_were_gated() -> None:
+    """The W3 R4 remainder, held in place the way #34's email routes are.
+
+    Each spent a metered third-party allowance on the operator's credentials, at a
+    volume the caller chose, from an unauthenticated request.
+    """
+    for endpoint in (
+        "api_alpaca_packet",
+        "api_tradier_stress_packet",
+        "api_atrox_packet",
+        "api_blockscout_onchain_packet",
+    ):
+        assert endpoint not in REVIEWED_UNGUARDED_EFFECTS
+        assert endpoint not in UNCONTAINED_ACCEPTED
+        assert endpoint in server.AUTHORITY_ENDPOINTS
+
+
+def test_the_blockscout_packet_is_gated_on_its_get_route_too() -> None:
+    """It answers GET as well as POST, and the effect does not depend on the method.
+
+    The POST inventory above cannot see this one, so it is asserted by name: a
+    quota spent through a GET is spent just the same.
+    """
+    rule = next(
+        r for r in server.app.url_map.iter_rules()
+        if r.endpoint == "api_blockscout_onchain_packet"
+    )
+    assert "GET" in (rule.methods or set())
+    response = server.app.test_client().get("/api/atrox/blockscout/onchain-packet?chain=1")
+    assert response.status_code in (401, 403)
 
 
 def test_a_gated_route_is_not_also_listed_as_ungated() -> None:
