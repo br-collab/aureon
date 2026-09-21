@@ -7353,6 +7353,7 @@ def api_atrox_market_tide():
 
 
 @app.route("/api/atrox/packet", methods=["POST"])
+@_authority_required("ATROX_PACKET")
 def api_atrox_packet():
     """
     Full Atrox ingestion packet — pulls flow, dark pool, and market tide
@@ -7443,6 +7444,7 @@ def api_tradier_iv_surface():
 
 
 @app.route("/api/atrox/tradier/stress-packet", methods=["POST"])
+@_authority_required("TRADIER_STRESS_PACKET")
 def api_tradier_stress_packet():
     """
     Thifur stress-test data packet. Body: {"symbols": ["AAPL","NVDA"]}
@@ -7537,6 +7539,7 @@ def api_alpaca_news():
 
 
 @app.route("/api/atrox/alpaca/packet", methods=["POST"])
+@_authority_required("ALPACA_PACKET")
 def api_alpaca_packet():
     """
     Full Alpaca Atrox packet. Body: {"symbols": ["SPY","QQQ","NVDA"]}
@@ -7937,6 +7940,7 @@ def api_blockscout_search():
 
 
 @app.route("/api/atrox/blockscout/onchain-packet", methods=["GET", "POST"])
+@_authority_required("BLOCKSCOUT_ONCHAIN_PACKET")
 def api_blockscout_onchain_packet():
     """
     Full Atrox on-chain intelligence packet.
