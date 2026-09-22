@@ -412,12 +412,12 @@ The current implementation is still technically compressed. The backend is cente
 
 ```text
 repository root/
-  server.py                            backend orchestration, state, governance, HTTP surface
+  server.py                            sole Flask app entrypoint; orchestration, state, governance, HTTP
   index.html                           Phase 1 pre-trade operator dashboard
   atreides-settlement-dashboard.html   Settlement & Custody Console, served at /cockpit
   requirements.txt                     declares `atreides` as a pinned git dependency
   gunicorn.conf.py  Procfile  railway.json  runtime.txt
-  scripts/  evidence/  parity/  Thought notes/
+  scripts/  evidence/  parity/
 
   aureon/
     thifur/            CANONICAL Thifur-H code path — advisory mode, live Kraken account
