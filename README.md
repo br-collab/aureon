@@ -43,6 +43,31 @@ In that deployment model, Aureon:
 
 Aureon augments OMS/EMS. It does not replace order staging, venue routing, parent-order lifecycle management, execution algorithms, broker connectivity, or legal books and records.
 
+### Public API
+
+The supported public interface is the deployed Aureon application boundary:
+
+- the HTTP API and operator surfaces served by `server:app`, including the
+  governed `/api/*` routes, `/cockpit`, and the dashboard at `/`; and
+- the Verana L0 MCP endpoint at `/mcp`, which exposes the documented resources
+  and tools over JSON-RPC 2.0 without bypassing the same governance controls.
+
+Callers should integrate through those transport surfaces. The top-level
+`aureon` package exports no Python symbols, and its subpackages are internal
+implementation boundaries rather than a supported library SDK. In particular,
+`aureon.agents` currently exports agent classes and registries used by the
+development-only `aureon-agent` CLI and `aureon-agents-mcp` stdio server. Those
+surfaces instantiate role classes directly, use minimal in-memory state, and do
+not represent the deployed application's authority, persistence, or evidence
+path; they are compatibility and inspection tooling, not a second production
+API.
+
+New integrations should therefore call the HTTP or Verana MCP boundary, not
+construct `ThifurC2`, `ThifurJ`, `SettlementOps`, or `ThifurHAgent` directly.
+The canonical live Thifur-H session engine remains
+`aureon.thifur.thifur_h.ThifurH` behind `/api/thifur-h/*`; it is distinct from
+the agent-framework `ThifurHAgent` retained for current CLI/MCP compatibility.
+
 ### Why Equities Now, eFICC as the Doctrine Target
 
 Equities is the first pilot surface because it offered the cleanest validation harness for the governance pattern. **The institutional doctrine target is eFICC post-trade** — where simultaneous regulatory deadline pressure is forcing every broker-dealer and asset manager to rebuild post-trade infrastructure at the same time:
