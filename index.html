@@ -1093,7 +1093,7 @@ main {
 </style>
 </head>
 <body>
-  <div id="stack-banner" style="background:#0B1220;border-bottom:1px solid #1E3A5F;color:#9FB8D0;font:12px/1.6 system-ui,sans-serif;text-align:center;padding:8px 14px">Synthetic environment · paper trading · no real capital at risk — the Aureon stack: Aureon platform · <a href="https://github.com/br-collab/Project-Atreides" target="_blank" rel="noopener" style="color:#38BDF8;font-weight:600">Atreides </a> settlement &amp; custody engine · <a href="https://github.com/br-collab/Cato-FICC-MCP" target="_blank" rel="noopener" style="color:#38BDF8;font-weight:600">Cato </a> settlement-doctrine gate · <a href="/cockpit" style="color:#38BDF8;font-weight:600">Leto</a> operator console </div>
+  <div id="stack-banner" style="background:#0B1220;border-bottom:1px solid #1E3A5F;color:#9FB8D0;font:12px/1.6 system-ui,sans-serif;text-align:center;padding:8px 14px">Synthetic environment · paper trading · no real capital at risk — the Aureon stack: Aureon platform · <a href="https://github.com/br-collab/Project-Atreides" target="_blank" rel="noopener" style="color:#38BDF8;font-weight:600">Atreides </a> settlement &amp; custody engine · <a href="https://github.com/br-collab/Cato-FICC-MCP" target="_blank" rel="noopener" style="color:#38BDF8;font-weight:600">Cato Sec </a> settlement-doctrine gate · <a href="/cockpit" style="color:#38BDF8;font-weight:600">Leto</a> operator console </div>
 
 <!-- ── EMERGENCY HALT BANNER (fixed top, shown when halted) ── -->
 <div class="halt-banner" id="halt-banner">
@@ -2534,7 +2534,7 @@ main {
   </div>
 
   <!-- ── CATO — VERANA L0 SETTLEMENT GATE ───────────── -->
-  <div class="atrox-section-label">Cato — Verana L0 Settlement Gate</div>
+  <div class="atrox-section-label">Cato Sec — Verana L0 Settlement Gate</div>
   <div class="card" style="padding:20px 24px;margin-bottom:20px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap">
       <div class="card-label" style="margin-bottom:0">Tokenized Settlement Doctrine Gate</div>
@@ -2630,7 +2630,7 @@ main {
     </div>
     <!-- Footer -->
     <div style="font-size:10px;color:var(--dim);border-top:1px solid var(--border2);padding-top:10px;margin-top:8px;letter-spacing:.3px">
-      <span id="cato-doctrine">Verana L0 — Cato settlement gate</span> · ESCALATE &gt; 1.0 OFR · HOLD &gt; 0.5 OFR OR &gt; 50 gwei · PROCEED otherwise
+      <span id="cato-doctrine">Verana L0 — Cato Sec settlement gate</span> · ESCALATE &gt; 1.0 OFR · HOLD &gt; 0.5 OFR OR &gt; 50 gwei · PROCEED otherwise
     </div>
   </div>
 
@@ -3103,7 +3103,7 @@ const API = {
   macro:            '/api/macro',
   decisionJournal:  '/api/decision-journal',
   cascadePreview:   (id) => `/api/cascade-preview/${id}`,
-  // Cato — Verana L0 tokenized-settlement doctrine gate (v0.2.1 live prices)
+  // Cato Sec — Verana L0 tokenized-settlement doctrine gate (v0.2.1 live prices)
   catoGate:              '/api/cato/gate',
   catoSettlementCtx:     '/api/cato/settlement-context',
   catoCompareRails:      '/api/cato/compare-rails',
@@ -3184,7 +3184,7 @@ const state = {
   atroxRecs: [],
   atroxBlockscout: null,
   atroxMcp: null,
-  // Cato — Verana L0 tokenized-settlement doctrine gate
+  // Cato Sec — Verana L0 tokenized-settlement doctrine gate
   catoGate: null,
   catoContext: null,
 };
@@ -5779,8 +5779,8 @@ async function tick() {
 }
 
 async function fetchCato() {
-  // Cato — Verana L0 tokenized-settlement doctrine gate.
-  // All Cato endpoints are pure in-memory reads (cache populated by
+  // Cato Sec — Verana L0 tokenized-settlement doctrine gate.
+  // All Cato Sec endpoints are pure in-memory reads (cache populated by
   // _atrox_refresh_loop on the backend), so this is always fast.
   try {
     const [gateR, ctxR] = await Promise.all([
@@ -5789,7 +5789,7 @@ async function fetchCato() {
     ]);
     if (gateR.ok) state.catoGate = await gateR.json();
     if (ctxR.ok) state.catoContext = await ctxR.json();
-  } catch (e) { /* silent — Cato is advisory, never blocks */ }
+  } catch (e) { /* silent — Cato Sec is advisory, never blocks */ }
 }
 
 function renderCato() {

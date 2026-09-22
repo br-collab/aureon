@@ -1953,8 +1953,8 @@ _atrox_data_cache = {
 _atrox_data_cache_lock = threading.Lock()
 ATROX_DATA_CACHE_REFRESH_SECONDS = 60
 
-# ── Cato doctrine-gate input cache ───────────────────────────────────────────
-# Cato needs three scalars: SOFR, OFR stress, and ETH gas (gwei). All three
+# ── Cato Sec doctrine-gate input cache ───────────────────────────────────────────
+# Cato Sec needs three scalars: SOFR, OFR stress, and ETH gas (gwei). All three
 # are already being refreshed by other loops (_get_fred_macro_snapshot,
 # _get_ofr_stress_snapshot, and the blockscout client respectively) — this
 # cache just holds the extracted scalars so /api/cato/gate is a pure
@@ -1969,8 +1969,8 @@ _cato_input_cache = {
 }
 _cato_input_cache_lock = threading.Lock()
 
-# Cato v0.2.1 multi-chain endpoints — mirror of BLOCKSCOUT_CHAINS in the
-# Cato MCP server (cato-mcp/index.js). Fetched from inside
+# Cato Sec v0.2.1 multi-chain endpoints — mirror of BLOCKSCOUT_CHAINS in the
+# Cato Sec MCP server (cato-mcp/index.js). Fetched from inside
 # _atrox_refresh_loop every 60 seconds, cached into _cato_input_cache,
 # and served from cache to /api/cato/* endpoints with zero network I/O
 # in the request path.
@@ -2038,7 +2038,7 @@ def _fred_series_latest(series_id: str):
 def _fred_series_recent(series_id: str, count: int = 2):
     """
     Return the N most recent non-null observations for a FRED series as
-    a list of {"date", "value"} dicts, newest first. Used by Cato v0.2.2
+    a list of {"date", "value"} dicts, newest first. Used by Cato Sec v0.2.2
     for the SOFR 1-day delta check — needs 2 observations to compute
     the day-over-day move. Over-fetches by 3x to handle FRED missing-
     value markers ('.', '', None).
@@ -2262,7 +2262,7 @@ def _atrox_data_cache_set(key, data):
 def _cato_fetch_coingecko_prices():
     """
     Live ETH and SOL USD prices from the free CoinGecko public API.
-    No auth required. Mirrors the Cato MCP server getLivePrices() function.
+    No auth required. Mirrors the Cato Sec MCP server getLivePrices() function.
 
     v0.2.3: sticky last-known-good cache. Three possible result states:
 
@@ -2288,7 +2288,7 @@ def _cato_fetch_coingecko_prices():
     try:
         req = urllib.request.Request(
             url,
-            headers={"User-Agent": "Aureon-Cato/0.2.3 (in-process)"},
+            headers={"User-Agent": "Aureon-Cato-Sec/0.2.3 (in-process)"},
         )
         with urllib.request.urlopen(req, timeout=5) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
@@ -2341,14 +2341,14 @@ def _cato_fetch_coingecko_prices():
         "source": "static_fallback",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "fallback_used": True,
-        "note": "CoinGecko unreachable and no sticky cache (cold boot). Using Cato static fallback prices.",
+        "note": "CoinGecko unreachable and no sticky cache (cold boot). Using Cato Sec static fallback prices.",
     }
 
 
 def _cato_fetch_blockscout_stats(url):
     """
     Direct HTTP fetch of a Blockscout /api/v2/stats endpoint. Used for the
-    Cato multi-chain refresh (Base and Arbitrum don't have dedicated client
+    Cato Sec multi-chain refresh (Base and Arbitrum don't have dedicated client
     modules in aureon/mcp — only Ethereum does via blockscout_client).
     Returns {"gas_gwei", "coin_price_usd"} or None on any failure.
     5-second timeout. All errors swallowed and logged.
@@ -2356,7 +2356,7 @@ def _cato_fetch_blockscout_stats(url):
     try:
         req = urllib.request.Request(
             url,
-            headers={"User-Agent": "Aureon-Cato/0.2.0 (in-process)"},
+            headers={"User-Agent": "Aureon-Cato-Sec/0.2.0 (in-process)"},
         )
         with urllib.request.urlopen(req, timeout=5) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
@@ -2393,7 +2393,7 @@ def _cato_fetch_solana_fees(sol_price_usd=None):
             data=body,
             headers={
                 "Content-Type": "application/json",
-                "User-Agent": "Aureon-Cato/0.2.1 (in-process)",
+                "User-Agent": "Aureon-Cato-Sec/0.2.1 (in-process)",
             },
             method="POST",
         )
@@ -2425,7 +2425,7 @@ def _cato_fetch_solana_fees(sol_price_usd=None):
 
 def _cato_build_chain_state(prices=None):
     """
-    Assemble the Cato v0.2.1 chain_state dict from live network queries.
+    Assemble the Cato Sec v0.2.1 chain_state dict from live network queries.
     Takes a prices dict ({"eth", "sol", ...}) so the Solana fee_usd_estimate
     reflects the live CoinGecko SOL price. Each fetch is isolated so one
     slow/broken chain can never block the others. Returns the full
@@ -2474,7 +2474,7 @@ def _cato_build_chain_state(prices=None):
 
 def _cato_refresh_inputs():
     """
-    Refresh Cato gate inputs (SOFR today + prior day, OFR stress, live
+    Refresh Cato Sec gate inputs (SOFR today + prior day, OFR stress, live
     prices, full multi-chain state) into _cato_input_cache. v0.2.2
     fetches two SOFR observations so the gate can compute the 1-day
     delta (funding-market shock detector — restored from v0.1.0 spec
@@ -2510,7 +2510,7 @@ def _cato_refresh_inputs():
     # OFR stress — read from the market_loop-maintained _ofr_cache.
     try:
         ofr_data = _ofr_cache.get("data")
-        # A fabricated default is not a reading: leave ofr_stress None so Cato's
+        # A fabricated default is not a reading: leave ofr_stress None so Cato Sec's
         # own fail-closed path holds rather than scoring a constant (fix F1).
         if ofr_data and ofr_data.get("fsi_value") is not None and not _is_fabricated(ofr_data):
             ofr_stress = float(ofr_data["fsi_value"])
@@ -2538,15 +2538,15 @@ def _cato_refresh_inputs():
 
 def _atrox_refresh_loop():
     """
-    Background refresh of Atrox data feeds and Cato gate inputs. Each
+    Background refresh of Atrox data feeds and Cato Sec gate inputs. Each
     fetch is isolated so one slow/broken upstream cannot block the others.
     Runs forever; sleeps ATROX_DATA_CACHE_REFRESH_SECONDS between cycles.
     The first iteration fires immediately so caches are warm before the
     dashboard polls.
     """
     # One-time boot check. Without FRED_API_KEY the SOFR and OFR fetches
-    # 400 and Cato falls back to cached/None values — the gate still
-    # answers, but on stale macro inputs. CATO-F (atreides.rails.cato_f)
+    # 400 and Cato Sec falls back to cached/None values — the gate still
+    # answers, but on stale macro inputs. Cato Cash (atreides.rails.cato_f)
     # reuses the same OFR STLFSI4 band deliberately, so BOTH the securities
     # and cash legs degrade together and silently. Surface it at boot, once,
     # rather than only as a per-fetch WARN buried in the refresh loop.
@@ -2554,14 +2554,14 @@ def _atrox_refresh_loop():
         _log_error(
             "WARN",
             "boot:fred_api_key",
-            "FRED_API_KEY is unset — Cato and CATO-F will evaluate systemic "
+            "FRED_API_KEY is unset — Cato Sec and Cato Cash will evaluate systemic "
             "stress on fallback values, not live SOFR/OFR. A stress gate "
             "reading a stale input will not fire when it matters. Set it in "
             "Railway service variables (see DEPLOY.md).",
         )
 
     while True:
-        # Refresh Cato gate inputs first — these are fast (cache reads
+        # Refresh Cato Sec gate inputs first — these are fast (cache reads
         # + one FRED SOFR fetch) and power /api/cato/gate.
         try:
             _cato_refresh_inputs()
@@ -4309,7 +4309,7 @@ def _register_canonical_architecture_v1_1() -> None:
         "supersedes":                       [],
         "synthesizes_from": [
             "server.py as of April 17, 2026",
-            "Framework Brief v2 (April 2026, Doctrine v1.3, Cato v0.2.2)",
+            "Framework Brief v2 (April 2026, Doctrine v1.3, Cato Sec v0.2.2)",
             "Agent Specification Draft 2.0",
             "CAOM-001 (effective April 6, 2026)",
         ],
@@ -4318,7 +4318,7 @@ def _register_canonical_architecture_v1_1() -> None:
             "Resolves Project Arcadia → Aureon renaming, "
             "Neptune Spear → Atrox naming, four-layer canonical architecture, "
             "Axiom 9 Tier 0 Emergency Halt formalization. Open conflicts tracked "
-            "in Appendix A (Cato version parity, CAOM-001 Tier 0 addendum, "
+            "in Appendix A (Cato Sec version parity, CAOM-001 Tier 0 addendum, "
             "Framework Brief republication, Thifur-H activation gate, SVB calibration limit)."
         ),
     }
@@ -4857,14 +4857,14 @@ def api_compliance():
 
 
 # ─────────────────────────────────────────────────────────────────
-# Cato doctrine gate — Verana L0 pre-settlement check
+# Cato Sec doctrine gate — Verana L0 pre-settlement check
 # Served from in-memory cache (_cato_input_cache) populated by
 # _atrox_refresh_loop. No network I/O in the request path.
 # ─────────────────────────────────────────────────────────────────
 @app.route("/api/cato/gate")
 def api_cato_gate():
     """
-    Cato atomic settlement gate — Verana L0 doctrine check (v0.2.1
+    Cato Sec atomic settlement gate — Verana L0 doctrine check (v0.2.1
     multi-chain with live CoinGecko prices).
 
     Returns PROCEED / HOLD / ESCALATE + recommended_chain + price_sources
@@ -4891,7 +4891,7 @@ def api_cato_gate():
 @app.route("/api/cato/settlement-context")
 def api_cato_settlement_context():
     """
-    Cato tokenized-settlement context — settlement_posture signal for
+    Cato Sec tokenized-settlement context — settlement_posture signal for
     dashboard display. favorable / monitor / elevated based on the same
     cached inputs as /api/cato/gate.
     """
@@ -4911,7 +4911,7 @@ def api_cato_settlement_context():
 @app.route("/api/cato/compare-rails", methods=["GET", "POST"])
 def api_cato_compare_rails():
     """
-    Cato multi-chain rail comparison (v0.2.1) — ranks FICC, Ethereum L1,
+    Cato Sec multi-chain rail comparison (v0.2.1) — ranks FICC, Ethereum L1,
     Base, Arbitrum, and Solana by all-in cost for a given notional, and
     returns a notional-aware recommended_rail. Uses cached SOFR + OFR
     stress + live ETH/SOL prices + chain_state so the request path makes
@@ -4964,7 +4964,7 @@ def api_cato_compare_rails():
 @app.route("/api/cato/multichain-gas")
 def api_cato_multichain_gas():
     """
-    Raw multi-chain gas/fee state + live prices from the Cato input cache.
+    Raw multi-chain gas/fee state + live prices from the Cato Sec input cache.
     Useful for dashboard visualizations that need the per-chain numbers
     directly (ETH, Base, Arbitrum gas in gwei; Solana fee in lamports and
     USD) and the live ETH/SOL prices via price_sources.
@@ -4992,8 +4992,8 @@ def api_cato_multichain_gas():
 @app.route("/api/cato/prices")
 def api_cato_prices():
     """
-    Live ETH / SOL USD prices from the Cato input cache (mirror of
-    Cato MCP server v0.2.1 `get_onchain_prices` tool). Served from
+    Live ETH / SOL USD prices from the Cato Sec input cache (mirror of
+    Cato Sec MCP server v0.2.1 `get_onchain_prices` tool). Served from
     cache — _cato_refresh_inputs hits CoinGecko every 60s.
     """
     with _cato_input_cache_lock:
@@ -5154,7 +5154,7 @@ def api_mmf_digital_status():
 
 
 # Test-only route for Phase 1 Prompt 6 break testing — toggles the
-# Cato gate override in subscription_engine. Body: {decision: "HOLD"|
+# Cato Sec gate override in subscription_engine. Body: {decision: "HOLD"|
 # "PROCEED"|"ESCALATE"|null}. Null restores normal fetch.
 #
 # Phase 2 P2-4 hardening: gated behind AUREON_MMF_TEST_HOOKS_ENABLED
@@ -5299,7 +5299,7 @@ def api_mmf_circuit_reset():
 @app.route("/api/mmf/hitl/resolve", methods=["POST"])
 @_authority_required("MMF_HITL_RESOLVE")
 def api_mmf_hitl_resolve():
-    """Resolve a pending KYC exception or Cato HOLD. The originating
+    """Resolve a pending KYC exception or Cato Sec HOLD. The originating
     event remains in the DSOR log (append-only); this endpoint stamps
     a companion record — KYC_EXCEPTION_HITL_GATE_RESOLVED or
     CATO_HOLD_OPERATOR_DECISION — with the operator's decision and
@@ -8492,7 +8492,7 @@ def framework_brief():
         </div>
         <div class="meta-cell">
           <div class="meta-label">Version</div>
-          <div class="meta-value">April 2026 &middot; Doctrine v1.3 &middot; Cato v0.2.2</div>
+          <div class="meta-value">April 2026 &middot; Doctrine v1.3 &middot; Cato Sec v0.2.2</div>
         </div>
         <div class="meta-cell">
           <div class="meta-label">Live</div>
@@ -8585,7 +8585,7 @@ def framework_brief():
             <tr>
               <td class="lbl" data-label="Layer">Atrox</td>
               <td class="mono" data-label="Altitude">50,000 ft</td>
-              <td data-label="Role">Alpha origination &mdash; advisory only, never executes. Cato lives here as the Verana L0 settlement gate.</td>
+              <td data-label="Role">Alpha origination &mdash; advisory only, never executes. Cato Sec lives here as the Verana L0 settlement gate.</td>
             </tr>
             <tr>
               <td class="lbl" data-label="Layer">Mentat</td>
@@ -8610,7 +8610,7 @@ def framework_brief():
             <tr>
               <td class="lbl" data-label="Layer">Verana L0</td>
               <td class="mono" data-label="Altitude">Ground</td>
-              <td data-label="Role">Network registry, compliance enforcement, MCP server, session control, Cato doctrine gate.</td>
+              <td data-label="Role">Network registry, compliance enforcement, MCP server, session control, Cato Sec doctrine gate.</td>
             </tr>
           </tbody>
         </table>
@@ -8655,21 +8655,21 @@ def framework_brief():
       </div>
     </section>
 
-    <!-- ── Cato ───────────────────────────────────────────── -->
+    <!-- ── Cato Sec ───────────────────────────────────────────── -->
     <section class="section">
       <div class="section-header">
         <span class="section-eyebrow">Live Proof Point &middot; Atrox / Verana L0</span>
-        <h2>Cato &mdash; Tokenized Settlement Doctrine Gate</h2>
+        <h2>Cato Sec &mdash; Tokenized Settlement Doctrine Gate</h2>
       </div>
       <p class="lead">The Verana L0 pre-settlement gate for tokenized institutional repo.</p>
       <p>
-        Cato answers one question before every settlement: <strong>is atomic on-chain DvP
+        Cato Sec answers one question before every settlement: <strong>is atomic on-chain DvP
         (Delivery versus Payment) viable right now, or should this trade route to FICC?</strong>
         The gate runs four deterministic checks and emits PROCEED / HOLD / ESCALATE plus a
         recommended settlement rail.
       </p>
       <p>
-        Cato exists in two implementations that must produce bit-for-bit identical decisions
+        Cato Sec exists in two implementations that must produce bit-for-bit identical decisions
         for identical inputs: an external open-source MCP (Model Context Protocol) server
         (Node.js, MIT license, 23 tools) and an in-process Python twin inside Aureon.
         <strong>The deterministic parity is what lets regulators trust the gate regardless
@@ -8760,13 +8760,13 @@ def framework_brief():
       </div>
       <div class="callout">
         <strong>The governance gate &mdash; not the rail &mdash; is the product.</strong>
-        When the Fed issues tokenized reserves or PORTS ships, Cato routes there.
+        When the Fed issues tokenized reserves or PORTS ships, Cato Sec routes there.
         The doctrine doesn&rsquo;t change. The rail does.
       </div>
 
       <div class="sub-label">SR 11-7 Tier 1 Historical Backtest</div>
       <p>
-        Cato v0.2.2 was validated against three canonical stress events using daily SOFR and
+        Cato Sec v0.2.2 was validated against three canonical stress events using daily SOFR and
         weekly OFR STLFSI4 from FRED. The backtest is deterministic and fully reproducible.
       </p>
       <div class="tbl-wrap">
@@ -8801,7 +8801,7 @@ def framework_brief():
         was closed in v0.2.2 by restoring the SOFR 1-day delta trigger dropped in the v0.2.0
         refactor. SVB is a documented calibration limitation: it requires counterparty-credit
         signals (HY OAS, bank equity) not currently in the doctrine.
-        <strong>Cato is a market-regime gate, not a counterparty-credit gate.</strong>
+        <strong>Cato Sec is a market-regime gate, not a counterparty-credit gate.</strong>
         That is an explicit design choice, not a gap.
       </p>
       <div class="callout">
@@ -8872,10 +8872,10 @@ def framework_brief():
         <h2>Duffie (2025) &mdash; &ldquo;The Case for PORTS&rdquo;, Brookings Institution</h2>
       </div>
       <p>
-        Cato&rsquo;s tokenized settlement architecture is a working reference implementation
+        Cato Sec&rsquo;s tokenized settlement architecture is a working reference implementation
         of the governance layer Duffie proposes in this paper. The
         <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--gold-soft)">fed_l1</span>
-        placeholder slot in every Cato
+        placeholder slot in every Cato Sec
         <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--gold-soft)">chain_state</span>
         response is reserved for the sovereign tokenized reserve rail Duffie&rsquo;s PORTS
         framework describes. <strong>The doctrine doesn&rsquo;t change when PORTS ships.
@@ -8898,7 +8898,7 @@ def framework_brief():
       <span>Project Aureon &middot; The Grid 3 &middot; Framework Brief &middot; April 2026</span>
       <div class="foot-links">
         <a href="https://aureon-production.up.railway.app">aureon-production.up.railway.app</a>
-        <a href="https://github.com/br-collab/Cato---FICC-MCP">Cato MCP on GitHub</a>
+        <a href="https://github.com/br-collab/Cato---FICC-MCP">Cato Sec MCP on GitHub</a>
       </div>
     </footer>
 
@@ -9657,7 +9657,7 @@ def cockpit_workbench():
 
 
 # ---------------------------------------------------------------------------
-# Cash leg — CATO-F rail gate, intraday funding model, ISO 20022 emit
+# Cash leg — Cato Cash rail gate, intraday funding model, ISO 20022 emit
 #
 # AUR-CUSTODY-CASH-001 v0.2. These surface the atreides cash-leg modules that
 # were previously reachable only from the test suite. All three are PURE —
@@ -9672,6 +9672,9 @@ from atreides.messaging import (                                     # noqa: E40
     emit_instruction_artifact as _cl_emit,
     settlement_method_for_rail as _cl_method_for_rail,
 )
+# The immutable v0.5.0 dependency pin predates Atreides' cato_cash module
+# rename. Keep this internal import until a tagged Atreides release carries
+# the new path; Cato Cash is the component's canonical public identity now.
 from atreides.rails.cato_f import (                                  # noqa: E402
     CashRail as _ClRail,
     FinalityClass as _ClFinality,
@@ -9788,9 +9791,9 @@ def cashleg_funding():
 
 @app.route("/api/cashleg/gate", methods=["POST"])
 def cashleg_gate():
-    """CATO-F — the cash settlement-rail gate (CASH-001 SV).
+    """Cato Cash — the cash settlement-rail gate (CASH-001 SV).
 
-    Cato's twin for the money leg. Emits PROCEED / HOLD / ESCALATE plus a
+    Cato Sec's twin for the money leg. Emits PROCEED / HOLD / ESCALATE plus a
     recommended rail AND its finality class. Deterministic and replayable:
     every evaluated input is returned on the decision.
     """
@@ -9930,7 +9933,7 @@ def cashleg_demo():
     on_queued = _cl_gate_evaluate(operation=op, funding=queued.to_gate_input(),
                                    rails=rails, ofr_stlfsi4=0.12)
     stages.append({
-        "stage": "2. CATO-F — which rail, how final?",
+        "stage": "2. Cato Cash — which rail, how final?",
         "module": "atreides/rails/cato_f.py",
         "doctrine": "AUR-CUSTODY-CASH-001 SV",
         "headline": f"{cleared.decision.value} — {cleared.recommended_rail.value} "
@@ -10016,4 +10019,3 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", os.environ.get("AUREON_PORT", "5001")))
     _start_background_threads()
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
-
