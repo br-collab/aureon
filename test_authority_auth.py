@@ -127,7 +127,7 @@ REVIEWED_UNGUARDED_EFFECTS: dict[str, tuple[tuple[ExternalEffect, ...], str]] = 
     "api_surveillance_screen": ((), "read-only screening of a supplied record"),
     "api_cato_compare_rails": ((), "ranks rails from cached SOFR, OFR stress and prices; no outbound call"),
     "cashleg_funding":        ((), "intraday funding projection; pure computation"),
-    "cashleg_gate":           ((), "CATO-F decision; deterministic and replayable"),
+    "cashleg_gate":           ((), "Cato Cash decision; deterministic and replayable"),
     "cashleg_instruction":    ((), "prepares an ISO 20022 artefact for the member to submit under their "
                                    "own credentials; is_submission is Literal[False] and no submit path exists"),
     "api_edgar_institutional_packet": ((), "served from the 60s background cache; the request body is ignored, "

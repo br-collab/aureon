@@ -126,7 +126,7 @@ Started via `_start_background_threads()` in `server.py`. On Railway, triggered 
 
 Required in `.env` (local) or Railway service variables (production):
 - `TWELVE_DATA_API_KEY` — market data
-- `FRED_API_KEY` — live SOFR + OFR STLFSI4; powers the Cato and CATO-F stress gates. Unset, both degrade to fallback values silently
+- `FRED_API_KEY` — live SOFR + OFR STLFSI4; powers the Cato Sec and Cato Cash stress gates. Unset, both degrade to fallback values silently
 - `AUREON_EMAIL`, `AUREON_EMAIL_PW`, `AUREON_EMAIL_RECIPIENT` — Gmail SMTP reporting
 - `ALPACA_API_KEY`, `ALPACA_API_SECRET` — paper trading
 - `RAILWAY_VOLUME_MOUNT_PATH` — production state persistence directory
@@ -143,7 +143,7 @@ Required in `.env` (local) or Railway service variables (production):
 - `/api/authority` — Authority log + approval lineage
 - `/api/decision-journal` — HITL decisions + outcomes
 - `/api/operational-journal` — DTG-stamped operational record
-- `/api/cato/gate` — Cato atomic settlement gate (PROCEED / HOLD / ESCALATE)
+- `/api/cato/gate` — Cato Sec atomic settlement gate (PROCEED / HOLD / ESCALATE)
 - `/api/cato/settlement-context` — Tokenized-settlement posture (favorable/monitor/elevated)
 - `/api/cato/compare-rails` — Multi-chain rail cost comparison (FICC / ETH L1 / Base / Arbitrum / Solana / Fed L1)
 - `/api/cato/multichain-gas` — Live per-chain gas/fee state + live CoinGecko prices
@@ -152,7 +152,7 @@ Required in `.env` (local) or Railway service variables (production):
   — AUR-COCKPIT-001 operator cycle. There is no submit route and there never will be.
 - `/api/cashleg/funding` — funding-state disposition (FUNDED / WILL_QUEUE / WILL_FAIL /
   CAP_BREACH / CLEARING_FUND_DEFICIENT / INDETERMINATE). WILL_QUEUE is **not** a failure.
-- `/api/cashleg/gate` — CATO-F cash settlement-rail gate (PROCEED / HOLD / ESCALATE + finality class)
+- `/api/cashleg/gate` — Cato Cash cash settlement-rail gate (PROCEED / HOLD / ESCALATE + finality class)
 - `/api/cashleg/instruction` — ISO 20022 `pacs.009.001.13` emission with `head.001.001.04` header
 - `/api/cashleg/demo` — the full four-stage cash-leg path, computed server-side per request
 - `/api/thifur-h/{session/start,signal,approve,rollback,kill-switch,session,state,dsor,balance,auto-close/arm,auto-close/disarm}`
@@ -181,7 +181,7 @@ account, and `/api/email/test` sends the portfolio report itself.
 The dashboards send both headers through `authorityFetch` (`index.html`) and `api()`
 (`atreides-settlement-dashboard.html`).
 
-## Cato — Verana L0 Tokenized Settlement Doctrine Gate
+## Cato Sec (`cato_sec`) — Verana L0 Tokenized Settlement Doctrine Gate
 
 **Status:** external MCP server **v0.3.1** · in-process Python twin **v0.2.3** — paper
 trading, approaching institutional-testing readiness. The two are *not* at the same version:
@@ -193,14 +193,18 @@ the chain and rail pickers differ, and none of the 16 vectors exercises the XRPL
 is why `parity/run_parity.py` passes against the v0.3.1 Node core despite the divergence.
 **Reference:** Duffie (2025) *"The Case for PORTS"* — Brookings Institution.
 
-Cato is the Verana L0 pre-settlement doctrine gate. It takes live SOFR (FRED), OFR financial stress (FRED STLFSI4), multi-chain gas/fee state (Blockscout + Solana RPC), and live ETH/SOL prices (CoinGecko), and emits a deterministic `PROCEED / HOLD / ESCALATE` decision plus a `recommended_chain` for tokenized repo settlement.
+Cato Sec is the Verana L0 pre-settlement doctrine gate. It takes live SOFR (FRED), OFR financial stress (FRED STLFSI4), multi-chain gas/fee state (Blockscout + Solana RPC), and live ETH/SOL prices (CoinGecko), and emits a deterministic `PROCEED / HOLD / ESCALATE` decision plus a `recommended_chain` for tokenized repo settlement.
+
+The cash-leg rail and finality counterpart is Cato Cash (`cato_cash`). The
+existing `/api/cato/*` and `/api/cashleg/*` paths are stable transport
+namespaces, not component identities.
 
 ### Dual implementation — keep them deterministically identical
 
-Cato exists in **two forms** that must produce bit-for-bit identical decisions:
+Cato Sec exists in **two forms** that must produce bit-for-bit identical decisions:
 
 1. **External MCP server** — https://github.com/br-collab/Cato-FICC-MCP
-   Node.js, 23 tools, `@modelcontextprotocol/sdk ^1.0.0`. Exposes Cato to LLM callers (Claude Desktop, Agent SDK apps) over JSON-RPC stdio. GitHub Actions CI asserts exactly 23 tools on every push.
+   Node.js, 23 tools, `@modelcontextprotocol/sdk ^1.0.0`. Exposes Cato Sec to LLM callers (Claude Desktop, Agent SDK apps) over JSON-RPC stdio. GitHub Actions CI asserts exactly 23 tools on every push.
 
 2. **Aureon in-process Python twin** — `aureon/mcp/cato_client.py`
    Pure Python, no I/O. Called directly from `server.py` for the `/api/cato/*` endpoints. Data fetching (FRED, Blockscout, Solana RPC, CoinGecko) happens in `server.py` inside `_cato_refresh_inputs()` and flows into the twin via scalar parameters.
@@ -257,7 +261,7 @@ All `/api/cato/*` handlers read from `_cato_input_cache` and never make a networ
 
 ### Historical backtest — SR 11-7 Tier 1 validation artifact
 
-`scripts/cato_backtest.py` replays Cato against March 2020 COVID, September 2019 repo spike, and March 2023 SVB. Results in `scripts/cato_backtest_results.md`:
+`scripts/cato_backtest.py` replays Cato Sec against March 2020 COVID, September 2019 repo spike, and March 2023 SVB. Results in `scripts/cato_backtest_results.md`:
 
 | Event | v0.2.1 (before fix) | v0.2.2 (current) | Peak OFR | Peak SOFR Δ | Verdict |
 |---|---|---|---|---|---|
@@ -265,9 +269,9 @@ All `/api/cato/*` handlers read from `_cato_input_cache` and never make a networ
 | September 2019 repo spike | 0% (0/5) | **80% (4/5)** | -0.155 | 282 bps | ✅ caught after v0.2.2 fix |
 | March 2023 SVB | 45.5% (5/11) | 45.5% (5/11) | 1.097 | 25 bps | ⚠️ calibration limit |
 
-**v0.2.2 closed the September 2019 gap** by restoring the SOFR 1-day delta trigger that was silently dropped in the v0.2.0 refactor. Peak SOFR 1-day move was 282 bps (crisis-level) while OFR FSI was *negative* during the event — a pure funding-market liquidity crunch that broad financial-stress indices don't capture. Cato now flags these in real time.
+**v0.2.2 closed the September 2019 gap** by restoring the SOFR 1-day delta trigger that was silently dropped in the v0.2.0 refactor. Peak SOFR 1-day move was 282 bps (crisis-level) while OFR FSI was *negative* during the event — a pure funding-market liquidity crunch that broad financial-stress indices don't capture. Cato Sec now flags these in real time.
 
-**March 2023 SVB is a documented calibration limitation**, not a bug. Peak OFR STLFSI4 was 1.097 (only barely above the 1.0 ESCALATE threshold, and only for one day). Peak SOFR delta was 25 bps (only exceeded the 10 bps threshold on one day, which was already tripping ESCALATE on OFR). SVB was a slow-moving regional-banking credit event that didn't produce the signal shapes Cato v0.2.2 watches for. To catch events of this class would require additional doctrine inputs (HY OAS delta, VIX percentile, or bank equity performance) — explicitly deferred to avoid over-calibrating to slow-moving credit moves. Documented in `scripts/cato_backtest_results.md`.
+**March 2023 SVB is a documented calibration limitation**, not a bug. Peak OFR STLFSI4 was 1.097 (only barely above the 1.0 ESCALATE threshold, and only for one day). Peak SOFR delta was 25 bps (only exceeded the 10 bps threshold on one day, which was already tripping ESCALATE on OFR). SVB was a slow-moving regional-banking credit event that didn't produce the signal shapes Cato Sec v0.2.2 watches for. To catch events of this class would require additional doctrine inputs (HY OAS delta, VIX percentile, or bank equity performance) — explicitly deferred to avoid over-calibrating to slow-moving credit moves. Documented in `scripts/cato_backtest_results.md`.
 
 Run the backtest with:
 
