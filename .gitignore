@@ -29,12 +29,17 @@ Git Repository/
 # SECURITY (2026-08-21): a Wells Fargo financial PDF and two Fidelity/FMR
 # PDFs were committed to this public repo and had to be purged from
 # history. PDFs are not source; they should never have been tracked.
-# "Thought notes/" is exempted because it holds the operator's own
-# briefs, not third-party material.
 *.pdf
 *.PDF
-!Thought notes/
-!Thought notes/**
+
+# Personal working notes, runtime-state repair snapshots, and superseded
+# paste-in patch artifacts are archival material, not application source.
+Thought notes/
+aureon_state_persist*.json
+/REFACTOR_NOTES.md
+/server_c2_patch.py
+/server_railway_patch.py
+/thifur_h_routes.py
 
 # cato-mcp/ is where the parity harness expects a checkout of
 # br-collab/Cato-FICC-MCP. It is deliberately NOT a submodule: the dangling
