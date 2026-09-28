@@ -23,8 +23,8 @@ def build_execution_release(decision, authority_hash: str, approved_intent: dict
     authority_hash : str
         SHA-256 authority hash stamped at approval.
     approved_intent : dict, optional
-        The sealed ApprovedIntentEnvelope (JSON form), carried unchanged with
-        its digest (W2B-5).
+        The frozen envelope, Aureon payload and exact canonical payload bytes,
+        carried unchanged with their digest binding.
 
     Returns
     -------
@@ -52,7 +52,7 @@ def build_execution_release(decision, authority_hash: str, approved_intent: dict
     }
     if approved_intent is not None:
         packet["approved_intent"]        = approved_intent
-        packet["approved_intent_digest"] = approved_intent["digest"]
+        packet["approved_intent_digest"] = approved_intent["envelope"]["payload_digest"]
 
     print(
         f"[EMS] Execution release — {packet['action']} {packet['symbol']} "

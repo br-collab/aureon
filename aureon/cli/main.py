@@ -211,7 +211,7 @@ def cmd_call(args):
 
 
 def resolve_decision(decision_id, resolution, *, role="TRADER", server="http://localhost:5001",
-                     admin_key=None, hold_exception=None, transport=None):
+                     admin_key=None, hold_exception=None, session_context=None, transport=None):
     """Send one decision resolution to the server. Returns (status, payload).
 
     ``transport(url, body_bytes, headers) -> (status, payload)`` defaults to an
@@ -226,6 +226,8 @@ def resolve_decision(decision_id, resolution, *, role="TRADER", server="http://l
     body = {"resolution": resolution.upper(), "approval_role": role.upper()}
     if hold_exception is not None:
         body["hold_exception"] = hold_exception
+    if session_context is not None:
+        body["session_context"] = session_context
     headers = {
         "Content-Type": "application/json",
         "X-Admin-Key": key,

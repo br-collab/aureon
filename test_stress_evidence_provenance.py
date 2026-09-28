@@ -36,10 +36,16 @@ from aureon.approval_service.operator_auth import OPERATOR_ACTOR  # noqa: E402
 from aureon.policy_engine.binding import PolicyBindingError, pretrade_rules_digest  # noqa: E402
 from aureon.policy_engine.evidence import EvidenceProvenance, provenance_of  # noqa: E402
 from aureon.policy_engine.service import evaluate_pretrade_decision  # noqa: E402
+from cannae_kernel.session import BusinessDate, MarketSession, SessionContext  # noqa: E402
 
 RISK = {"drawdown_warn_pct": 5.0, "drawdown_fail_pct": 8.0}
 RULES = pretrade_rules_digest(risk_policy=RISK, operating_cash_floor_pct=0.03, ofac_blocked_isins={})
 T0 = datetime(2026, 9, 17, 17, 0, tzinfo=timezone.utc)
+SESSION_BODY = SessionContext(
+    session=MarketSession.REGULAR,
+    business_date=BusinessDate(value=T0.date(), calendar="XNYS",
+                               established_by=str(OPERATOR_ACTOR.actor_id)),
+).model_dump(mode="json")
 
 OFFICIAL = {"source": "ofr", "provenance": "FACT_EXTERNAL", "fsi_value": 0.2, "fsi_band": "watch"}
 
@@ -197,7 +203,7 @@ def test_the_api_refuses_when_both_feeds_are_down(server_client, monkeypatch) ->
     assert payload["disposition"] == "INDETERMINATE"
     cash = server.aureon_state["cash"]
     response = client.post("/api/decisions/DEC-F1-API", headers=_headers(),
-                           json={"resolution": "APPROVED"})
+                           json={"resolution": "APPROVED", "session_context": SESSION_BODY})
     assert response.status_code == 409
     assert response.get_json()["code"] == "POLICY_INDETERMINATE"
     assert server.aureon_state["cash"] == cash and server.aureon_state["trades"] == []
@@ -214,7 +220,7 @@ def test_the_api_works_when_the_ofr_feed_is_down_but_fred_is_live(server_client,
     macro = next(g for g in payload["gates"] if g["gate"] == "MACRO_STRESS_OVERLAY")
     assert macro["provenance"] == "POLICY_RESULT" and "source=ofr_proxy" in macro["detail"]
     assert client.post("/api/decisions/DEC-F1-API", headers=_headers(),
-                       json={"resolution": "APPROVED"}).get_json()["status"] == "ok"
+                       json={"resolution": "APPROVED", "session_context": SESSION_BODY}).get_json()["status"] == "ok"
 
 
 # ── Audit fields ────────────────────────────────────────────────────────────────

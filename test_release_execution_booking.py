@@ -31,6 +31,7 @@ import pytest
 os.environ.setdefault("RAILWAY_VOLUME_MOUNT_PATH", tempfile.mkdtemp(prefix="aureon-booking-test-"))
 
 from cannae_kernel.provenance import Provenance  # noqa: E402
+from cannae_kernel.session import BusinessDate, MarketSession, SessionContext  # noqa: E402
 
 from aureon.approval_service.operator_auth import OPERATOR_ACTOR  # noqa: E402
 from aureon.approval_service.release import find_release  # noqa: E402
@@ -49,6 +50,12 @@ from aureon.policy_engine.service import evaluate_pretrade_decision  # noqa: E40
 RISK = {"drawdown_warn_pct": 5.0, "drawdown_fail_pct": 8.0}
 RULES = pretrade_rules_digest(risk_policy=RISK, operating_cash_floor_pct=0.03, ofac_blocked_isins={})
 T0 = datetime(2026, 9, 17, 14, 0, tzinfo=timezone.utc)
+SESSION = SessionContext(
+    session=MarketSession.REGULAR,
+    business_date=BusinessDate(value=T0.date(), calendar="XNYS",
+                               established_by=str(OPERATOR_ACTOR.actor_id)),
+)
+SESSION_BODY = SESSION.model_dump(mode="json")
 # Fix F1: a stress reading must say where it came from, or it is fabricated.
 OFFICIAL_OFR = {"fsi_value": 0.1, "source": "ofr", "provenance": "FACT_EXTERNAL"}
 LIVE_MACRO = {"source": "fred", "provenance": "FACT_EXTERNAL", "macro_regime": "balanced",
@@ -78,7 +85,7 @@ def _authorize(state):
     return resolve_pending_decision(
         state=state, lock=lock, decision_id=state["pending_decisions"][0]["id"],
         resolution="APPROVED", approval_role="TRADER", actor=OPERATOR_ACTOR, rules_digest=RULES,
-        now=T0 + timedelta(seconds=30),
+        session_context=SESSION, now=T0 + timedelta(seconds=30),
     )
 
 
@@ -363,7 +370,8 @@ def _approve(server, client, decision_id, price=100.0):
              "required_approvals": ["TRADER"], "current_approvals": []})
     assert client.get(f"/api/decisions/{decision_id}/pretrade").get_json()["disposition"] == "PASS"
     return client.post(f"/api/decisions/{decision_id}", headers=_headers(),
-                       json={"resolution": "APPROVED", "approval_role": "TRADER"})
+                       json={"resolution": "APPROVED", "approval_role": "TRADER",
+                             "session_context": SESSION_BODY})
 
 
 def test_api_approval_books_only_from_the_venue_fill(server_client) -> None:

@@ -101,6 +101,8 @@ from aureon.evidence_service.service import build_trade_report as evidence_build
 from aureon.approval_service.release_control import OMSReleaseError, can_release, missing_roles, normalize_decision, release_to_oms
 from aureon.approval_service.service import AuthorityError, resolve_pending_decision, routed_required_approvals
 from aureon.contracts.approved_intent import IntentShapeError, normalize_quantity
+from cannae_kernel.session import BusinessDateNotEstablishedError, SessionContext
+from pydantic import ValidationError
 from aureon.booking.consumer import book_fill
 from aureon.integration_adapters.paper_venue import PaperVenue, PriceObservation, VenueRejection
 from aureon.integration_adapters.oms_adapter import send as oms_send
@@ -5680,6 +5682,15 @@ def _resolve_decision_request(decision_id, data, *, actor):
     data       = data or {}
     resolution = data.get("resolution", "").upper()
     approval_role = (data.get("approval_role") or "TRADER").upper()
+    session_context = None
+    if resolution == "APPROVED" and data.get("session_context") is not None:
+        try:
+            session_context = SessionContext.model_validate_json(
+                json.dumps(data["session_context"])
+            )
+        except ValidationError as exc:
+            return ({"status": "refused", "error": str(exc),
+                     "code": "SESSION_CONTEXT_INVALID", "decision_id": decision_id}), 422
 
     if resolution not in ("APPROVED", "REJECTED"):
         return ({"error": "resolution must be APPROVED or REJECTED"}), 400
@@ -5761,8 +5772,12 @@ def _resolve_decision_request(decision_id, data, *, actor):
             actor=actor,
             rules_digest=rules_digest,
             hold_exception=hold_exception,
+            session_context=session_context,
             now=_approval_clock(),
         )
+    except BusinessDateNotEstablishedError as exc:
+        return {"status": "refused", "error": str(exc),
+                "code": "BUSINESS_DATE_NOT_ESTABLISHED", "decision_id": decision_id}, 422
     except PolicyBindingError as exc:
         return _policy_refusal(exc, decision_id)
     except AuthorityError as exc:
@@ -5799,7 +5814,11 @@ def _resolve_decision_request(decision_id, data, *, actor):
         if decision.get("release_target") == "EMS":
             release_mode = "EMS"
             release_packet = build_execution_release(
-                decision, authority_hash, approved_intent=result["envelope"].model_dump(mode="json"))
+                decision, authority_hash, approved_intent={
+                    "envelope": result["envelope"].model_dump(mode="json"),
+                    "payload": result["payload"].model_dump(mode="json"),
+                    "payload_bytes": result["payload_bytes"].decode("utf-8"),
+                })
         else:
             release_mode = "OMS"
             try:
@@ -5807,7 +5826,11 @@ def _resolve_decision_request(decision_id, data, *, actor):
                     decision,
                     authority_hash=authority_hash,
                     oms_send=oms_send,
-                    approved_intent=result["envelope"].model_dump(mode="json"),
+                    approved_intent={
+                        "envelope": result["envelope"].model_dump(mode="json"),
+                        "payload": result["payload"].model_dump(mode="json"),
+                        "payload_bytes": result["payload_bytes"].decode("utf-8"),
+                    },
                 )
             except OMSReleaseError as exc:
                 release_packet = exc.package
@@ -5942,7 +5965,7 @@ def _resolve_decision_request(decision_id, data, *, actor):
         "hash": authority_hash,
         "release_id": result["release"].release_id if result.get("release") else None,
         "envelope_id": str(result["envelope"].envelope_id) if result.get("envelope") else None,
-        "envelope_digest": result["envelope"].digest if result.get("envelope") else None,
+        "envelope_digest": result["envelope"].payload_digest if result.get("envelope") else None,
         "execution": execution,
         "report_id": (execution or {}).get("report_id"),
         "approval_role": approval_role,

@@ -44,6 +44,7 @@ from aureon.policy_engine.binding import (  # noqa: E402
     pretrade_rules_digest,
 )
 from aureon.policy_engine.service import evaluate_pretrade_decision  # noqa: E402
+from cannae_kernel.session import BusinessDate, MarketSession, SessionContext  # noqa: E402
 
 RISK = {"drawdown_warn_pct": 5.0, "drawdown_fail_pct": 8.0,
         "position_warn_pct": 20.0, "position_fail_pct": 35.0}
@@ -51,6 +52,12 @@ FLOOR = 0.03
 OFAC: dict[str, str] = {}
 RULES = pretrade_rules_digest(risk_policy=RISK, operating_cash_floor_pct=FLOOR, ofac_blocked_isins=OFAC)
 T0 = datetime(2026, 9, 17, 14, 0, tzinfo=timezone.utc)
+SESSION = SessionContext(
+    session=MarketSession.REGULAR,
+    business_date=BusinessDate(value=T0.date(), calendar="XNYS",
+                               established_by=str(OPERATOR_ACTOR.actor_id)),
+)
+SESSION_BODY = SESSION.model_dump(mode="json")
 # Fix F1: a reading must say where it came from; an unlabelled one is fabricated.
 GOOD_OFR = {"fsi_value": 0.2, "source": "ofr", "provenance": "FACT_EXTERNAL"}
 LIVE_MACRO = {"source": "fred", "provenance": "FACT_EXTERNAL", "macro_regime": "balanced",
@@ -97,7 +104,7 @@ def _resolve(state, *, role="TRADER", now=T0 + timedelta(seconds=30), rules=RULE
         state=state, lock=threading.RLock(),
         decision_id=decision_id or state["pending_decisions"][0]["id"],
         resolution="APPROVED", approval_role=role, actor=OPERATOR_ACTOR,
-        rules_digest=rules, hold_exception=hold_exception, now=now,
+        rules_digest=rules, hold_exception=hold_exception, session_context=SESSION, now=now,
     )
 
 
@@ -462,7 +469,7 @@ def test_api_refuses_a_failed_gate_before_any_change(server_client) -> None:
     assert client.get("/api/decisions/DEC-API-FAIL/pretrade").get_json()["disposition"] == "BLOCK"
     cash, trades = server.aureon_state["cash"], list(server.aureon_state["trades"])
     response = client.post("/api/decisions/DEC-API-FAIL", headers=_headers(),
-                           json={"resolution": "APPROVED", "approval_role": "TRADER"})
+                           json={"resolution": "APPROVED", "approval_role": "TRADER", "session_context": SESSION_BODY})
     assert response.status_code == 409
     assert response.get_json()["code"] == "POLICY_BLOCK"
     assert server.aureon_state["cash"] == cash
@@ -474,7 +481,7 @@ def test_api_refuses_without_a_pretrade_check(server_client) -> None:
     server, client = server_client
     _add(server, _decision(id="DEC-API-NOCHECK"))
     response = client.post("/api/decisions/DEC-API-NOCHECK", headers=_headers(),
-                           json={"resolution": "APPROVED"})
+                           json={"resolution": "APPROVED", "session_context": SESSION_BODY})
     assert response.status_code == 409
     assert response.get_json()["code"] == "NO_POLICY_EVIDENCE"
 
@@ -486,7 +493,7 @@ def test_api_refuses_a_deferred_approval_too(server_client, monkeypatch) -> None
     server.aureon_state["drawdown"] = 9.0
     client.get("/api/decisions/DEC-API-DEFER/pretrade")
     response = client.post("/api/decisions/DEC-API-DEFER", headers=_headers(),
-                           json={"resolution": "APPROVED"})
+                           json={"resolution": "APPROVED", "session_context": SESSION_BODY})
     assert response.status_code == 409
     decision = next(d for d in server.aureon_state["pending_decisions"] if d["id"] == "DEC-API-DEFER")
     assert decision.get("status") != "APPROVED_PENDING_SESSION"
@@ -497,7 +504,7 @@ def test_api_approves_a_current_pass(server_client) -> None:
     _add(server, _decision(id="DEC-API-PASS"))
     assert client.get("/api/decisions/DEC-API-PASS/pretrade").get_json()["disposition"] == "PASS"
     response = client.post("/api/decisions/DEC-API-PASS", headers=_headers(),
-                           json={"resolution": "APPROVED"})
+                           json={"resolution": "APPROVED", "session_context": SESSION_BODY})
     assert response.status_code == 200, response.get_json()
     assert response.get_json()["status"] == "ok"
     journal = server.aureon_state["decision_journal"][0]
@@ -512,7 +519,7 @@ def test_api_hold_exception_by_compliance(server_client, monkeypatch) -> None:
     _add(server, _decision(id="DEC-API-HOLD"))
     assert client.get("/api/decisions/DEC-API-HOLD/pretrade").get_json()["disposition"] == "HOLD"
     refused = client.post("/api/decisions/DEC-API-HOLD", headers=_headers(),
-                          json={"resolution": "APPROVED", "approval_role": "TRADER"})
+                          json={"resolution": "APPROVED", "approval_role": "TRADER", "session_context": SESSION_BODY})
     assert refused.get_json()["code"] == "HOLD_EXCEPTION_REQUIRED"
     wrong_role = client.post("/api/decisions/DEC-API-HOLD", headers=_headers(), json={
         "resolution": "APPROVED", "approval_role": "TRADER",
@@ -526,7 +533,7 @@ def test_api_hold_exception_by_compliance(server_client, monkeypatch) -> None:
     assert exception["authority"]["actor_kind"] == "HUMAN"
     assert exception["authority_role"] == "COMPLIANCE"
     approved = client.post("/api/decisions/DEC-API-HOLD", headers=_headers(),
-                           json={"resolution": "APPROVED", "approval_role": "TRADER"})
+                           json={"resolution": "APPROVED", "approval_role": "TRADER", "session_context": SESSION_BODY})
     assert approved.get_json()["status"] == "ok"
 
 
