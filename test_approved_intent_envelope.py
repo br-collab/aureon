@@ -31,6 +31,7 @@ import pytest
 os.environ.setdefault("RAILWAY_VOLUME_MOUNT_PATH", tempfile.mkdtemp(prefix="aureon-envelope-test-"))
 
 from cannae_kernel.actor import ActorKind, ActorRef  # noqa: E402
+from cannae_kernel.canonical import digest_bytes  # noqa: E402
 from cannae_kernel.effects import ExternalEffect  # noqa: E402
 from cannae_kernel.envelopes import ApprovedIntentEnvelope  # noqa: E402
 from cannae_kernel.session import (  # noqa: E402
@@ -168,6 +169,17 @@ def test_a_tampered_or_expired_envelope_does_not_verify() -> None:
         verify_envelope(envelope, tampered, now=T0 + timedelta(seconds=20))
     with pytest.raises(IntentShapeError, match="expired"):
         verify_envelope(envelope, result["payload_bytes"], now=result["payload"].expires_at)
+
+
+def test_payload_digest_conforms_to_exact_emitted_wire_bytes() -> None:
+    result = _approve(_state())
+    wire_bytes = result["payload_bytes"]
+    assert digest_bytes(wire_bytes) == result["envelope"].payload_digest
+
+    tampered_bytes = wire_bytes.replace(b'"drift"', b'"crift"', 1)
+    assert len(tampered_bytes) == len(wire_bytes)
+    assert sum(left != right for left, right in zip(wire_bytes, tampered_bytes, strict=True)) == 1
+    assert digest_bytes(tampered_bytes) != result["envelope"].payload_digest
 
 
 @pytest.mark.parametrize("change", [
