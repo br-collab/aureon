@@ -89,12 +89,11 @@ Cannenses (L.C.), the middle layer, compares the digest over exactly the bytes i
 received before parsing. A digest over a reserialized parsed model is not accepted
 as evidence of what crossed the boundary.
 
-Current limitation: `approval_service.release.authorize_release` still annotates
-both `envelope` and `payload` as `Any`. The production path supplies the frozen
-`ApprovedIntentEnvelope` and Aureon's `ApprovedIntentPayload`, but that authorization
-function's boundary is not yet enforced by a static type check. This limitation is
-specific to that signature; the `Any` used for the persisted state mapping is not
-the same issue.
+`approval_service.release.authorize_release` accepts the frozen
+`ApprovedIntentEnvelope` and Aureon's `ApprovedIntentPayload` explicitly, so a static
+type check rejects any other envelope or payload at the authorization boundary. The
+`Any` used for the persisted state mapping describes heterogeneous state storage; it is
+not part of this typed contract boundary.
 
 ### Why Equities Now, eFICC as the Doctrine Target
 

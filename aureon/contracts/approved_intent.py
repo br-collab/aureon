@@ -43,7 +43,7 @@ import re
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 
 from cannae_kernel.actor import ActorRef
 from cannae_kernel.authority import AUTHORIZING_KINDS
@@ -72,8 +72,12 @@ __all__ = [
     "verify_envelope",
 ]
 
-ENVELOPE_SCHEMA_VERSION = "aureon.approved_intent/0.1-draft"
-EVIDENCE_MANIFEST_VERSION = "aureon.evidence_manifest/0.1-draft"
+ENVELOPE_SCHEMA_VERSION: Literal["aureon.approved_intent/0.1-draft"] = (
+    "aureon.approved_intent/0.1-draft"
+)
+EVIDENCE_MANIFEST_VERSION: Literal["aureon.evidence_manifest/0.1-draft"] = (
+    "aureon.evidence_manifest/0.1-draft"
+)
 SERIALIZATION_PROFILE = "cannae-kernel canonical_bytes (v0.1.0)"
 APPROVED_INTENT_TTL_SECONDS = 15 * 60
 PERMITTED_VENUES = ("AUREON-PAPER",)
@@ -325,7 +329,10 @@ def _validated_asset_class(asset_class: Any) -> str:
     return str(asset_class)
 
 
-def _typed_id(cls: type, seed: str, at: datetime) -> Any:
+_IdT = TypeVar("_IdT", IntentId, LifecycleId)
+
+
+def _typed_id(cls: type[_IdT], seed: str, at: datetime) -> _IdT:
     entropy = hashlib.sha256(seed.encode("utf-8")).digest()
     return cls.new(clock=lambda: at, entropy=lambda n: entropy[:n])
 
