@@ -24,8 +24,11 @@ from datetime import datetime
 from typing import Any, Literal
 
 from cannae_kernel.canonical import canonical_bytes_of, digest_bytes
+from cannae_kernel.envelopes import ApprovedIntentEnvelope
 from cannae_kernel.provenance import Provenance
 from pydantic import BaseModel, ConfigDict
+
+from aureon.contracts.approved_intent import ApprovedIntentPayload
 
 __all__ = [
     "RELEASE_AUTHORIZED",
@@ -36,7 +39,7 @@ __all__ = [
     "release_id_for",
 ]
 
-RELEASE_AUTHORIZED = "RELEASE_AUTHORIZED"
+RELEASE_AUTHORIZED: Literal["RELEASE_AUTHORIZED"] = "RELEASE_AUTHORIZED"
 MAX_PERSISTED_RELEASES = 1000
 
 
@@ -80,7 +83,12 @@ def release_id_for(decision_id: str, decision_digest: str) -> str:
     )[7:23].upper()
 
 
-def authorize_release(*, envelope: Any, payload: Any, release_id: str) -> ReleaseAuthorized:
+def authorize_release(
+    *,
+    envelope: ApprovedIntentEnvelope,
+    payload: ApprovedIntentPayload,
+    release_id: str,
+) -> ReleaseAuthorized:
     """Build a release from a frozen envelope and its digest-bound Aureon payload."""
     intent = payload.intent
     last = max(payload.authority_manifest.approvals, key=lambda a: a.approved_at)
