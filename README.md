@@ -68,6 +68,34 @@ The canonical live Thifur-H session engine remains
 `aureon.thifur.thifur_h.ThifurH` behind `/api/thifur-h/*`; it is distinct from
 the agent-framework `ThifurHAgent` retained for current CLI/MCP compatibility.
 
+### Approved-intent boundary
+
+`aureon/contracts/approved_intent.py` is the producer-side contract module. It
+imports and constructs the frozen `cannae_kernel.envelopes.ApprovedIntentEnvelope`
+and its supporting kernel types, including `SessionContext`, `ActorRef`,
+`OperationEffects`, `ExternalEffect`, `Provenance`, `IntentId` and `LifecycleId`.
+The committed emission function returns this signature:
+
+```python
+seal_approved_intent(...) -> tuple[ApprovedIntentEnvelope, ApprovedIntentPayload, bytes]
+```
+
+The frozen envelope is an attestation header, not a second copy of the trade
+economics. Aureon's `ApprovedIntentPayload` carries the intent terms, expiry,
+policy and authority manifests, downstream permissions and evidence references.
+It is serialized once with the kernel's `canonical_bytes_of`; Aureon computes
+`payload_digest` with `digest_bytes` over exactly those emitted bytes. Legiones
+Cannenses (L.C.), the middle layer, compares the digest over exactly the bytes it
+received before parsing. A digest over a reserialized parsed model is not accepted
+as evidence of what crossed the boundary.
+
+Current limitation: `approval_service.release.authorize_release` still annotates
+both `envelope` and `payload` as `Any`. The production path supplies the frozen
+`ApprovedIntentEnvelope` and Aureon's `ApprovedIntentPayload`, but that authorization
+function's boundary is not yet enforced by a static type check. This limitation is
+specific to that signature; the `Any` used for the persisted state mapping is not
+the same issue.
+
 ### Why Equities Now, eFICC as the Doctrine Target
 
 Equities is the first pilot surface because it offered the cleanest validation harness for the governance pattern. **The institutional doctrine target is eFICC post-trade** — where simultaneous regulatory deadline pressure is forcing every broker-dealer and asset manager to rebuild post-trade infrastructure at the same time:
@@ -460,7 +488,7 @@ repository root/
     persistence/  core/  data/  cli/  session/  mmf/
 ```
 
-**What is deliberately absent.** There is no `aureon/cockpit/` and no `aureon/agents/tier1/`. Those directories, and an earlier `aureon/contracts/`, existed until 31 July 2026 as vendored copies of the Atreides custody domain layer, and were retired in favour of the declared dependency in `requirements.txt` per `AUR-ADD-006`. The `aureon/contracts/` present today (since W2B-5) is unrelated: it holds only Aureon's own `ApprovedIntentEnvelope`. Do not reintroduce them — a copy of a module that has an authoritative home elsewhere is the failure mode that produced a Railway 502 on boot when it carried a transitive dependency this repository did not declare.
+**What is deliberately absent.** There is no `aureon/cockpit/` and no `aureon/agents/tier1/`. Those directories, and an earlier `aureon/contracts/`, existed until 31 July 2026 as vendored copies of the Atreides custody domain layer, and were retired in favour of the declared dependency in `requirements.txt` per `AUR-ADD-006`. The `aureon/contracts/` present today (since W2B-5) is unrelated: it holds Aureon's own `ApprovedIntentPayload` and constructs the frozen kernel envelope that binds it. Do not reintroduce custody copies — a copy of a module that has an authoritative home elsewhere is the failure mode that produced a Railway 502 on boot when it carried a transitive dependency this repository did not declare.
 
 Current file roles:
 
