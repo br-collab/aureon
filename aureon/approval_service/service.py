@@ -29,6 +29,7 @@ from aureon.policy_engine.binding import (
     persist_hold_exception,
     require_approvable,
 )
+from cannae_kernel.session import BusinessDateNotEstablishedError, SessionContext
 
 
 def routed_required_approvals(decision):
@@ -63,6 +64,7 @@ def resolve_pending_decision(
     actor=None,
     rules_digest=None,
     hold_exception=None,
+    session_context: SessionContext | None = None,
     now=None,
 ):
     """
@@ -210,6 +212,11 @@ def resolve_pending_decision(
 
         envelope = release = None
         if all_approved:
+            if session_context is None:
+                raise BusinessDateNotEstablishedError(
+                    "approval requires a caller-supplied SessionContext with an established "
+                    "business date"
+                )
             missing_actor = [r for r in required if r not in {x.role for x in records}]
             if missing_actor:
                 raise AuthorityError(
@@ -222,16 +229,19 @@ def resolve_pending_decision(
                 if raw.get("policy_record_digest") == policy_record.record_digest
             ] if policy_record.disposition.value == "HOLD" else []
             release_id = release_id_for(decision_id, policy_record.decision_digest)
-            envelope = seal_approved_intent(
+            envelope, payload, payload_bytes = seal_approved_intent(
                 decision=decision,
                 policy_record=policy_record,
                 hold_exception_ids=exception_ids,
                 approvals=sorted(records, key=lambda r: r.role),
                 required_roles=required,
                 release_id=release_id,
+                session=session_context,
                 now=at,
             )
-            release = authorize_release(envelope=envelope, release_id=release_id)
+            release = authorize_release(
+                envelope=envelope, payload=payload, release_id=release_id
+            )
 
         # ── Everything checked; record it ─────────────────────────
         if hold_exception is not None:
@@ -279,13 +289,13 @@ def resolve_pending_decision(
             }
 
         # ── Full approval — seal the intent, authorize release, nothing more ─
-        persist_approved_intent(state, envelope)
+        persist_approved_intent(state, envelope, payload, payload_bytes)
         persist_release(state, release)
         pending[:] = [d for d in pending if d["id"] != decision_id]
         decision["status"] = "RELEASE_AUTHORIZED"
         decision["release_id"] = release.release_id
         decision["envelope_id"] = str(envelope.envelope_id)
-        decision["envelope_digest"] = envelope.digest
+        decision["envelope_digest"] = envelope.payload_digest
 
         state["authority_log"].insert(0, {
             "id":        f"HAD-{decision_id[-8:]}",
@@ -300,7 +310,7 @@ def resolve_pending_decision(
             "actor":     actor.model_dump(mode="json"),
             "policy":    policy_ref,
             "release_id": release.release_id,
-            "envelope_digest": envelope.digest,
+            "envelope_digest": envelope.payload_digest,
             "hash":      authority_hash,
         })
 
@@ -313,12 +323,18 @@ def resolve_pending_decision(
         "policy_record": policy_record,
         "release":     release,
         "envelope":    envelope,
+        "payload":     payload,
+        "payload_bytes": payload_bytes,
     }
 
 
-def persist_approved_intent(state, envelope):
+def persist_approved_intent(state, envelope, payload, payload_bytes):
     log = state.setdefault("approved_intents", [])
-    log.insert(0, envelope.model_dump(mode="json"))
+    log.insert(0, {
+        "envelope": envelope.model_dump(mode="json"),
+        "payload": payload.model_dump(mode="json"),
+        "payload_bytes": payload_bytes.decode("utf-8"),
+    })
     del log[1000:]
 
 

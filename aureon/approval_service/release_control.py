@@ -220,8 +220,8 @@ def release_to_oms(
     """
     Build the governed OMS release package and optionally call oms_send.
 
-    approved_intent is the sealed ApprovedIntentEnvelope (JSON form). The
-    package carries it and its digest unchanged (W2B-5).
+    approved_intent contains the frozen envelope, Aureon payload and exact
+    canonical payload bytes. The package carries the bundle unchanged.
 
     Stamps CAOM-001 operating mode on the package if CAOM is active.
 
@@ -247,7 +247,7 @@ def release_to_oms(
     }
     if approved_intent is not None:
         package["approved_intent"]        = approved_intent
-        package["approved_intent_digest"] = approved_intent["digest"]
+        package["approved_intent_digest"] = approved_intent["envelope"]["payload_digest"]
 
     # Stamp CAOM operating mode on the release record
     if is_caom_active():

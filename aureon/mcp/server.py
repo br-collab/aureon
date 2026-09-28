@@ -79,6 +79,12 @@ RESOLVE_DECISION_TOOL = {
                     "type": "object",
                     "description": "For an overrideable HOLD: {reason, ttl_seconds}",
                 },
+                "session_context": {
+                    "type": "object",
+                    "description": (
+                        "Caller-established market session and business date; required for approval"
+                    ),
+                },
             },
             "required": ["decision_id", "resolution"],
         },

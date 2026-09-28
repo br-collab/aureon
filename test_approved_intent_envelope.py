@@ -31,11 +31,19 @@ import pytest
 os.environ.setdefault("RAILWAY_VOLUME_MOUNT_PATH", tempfile.mkdtemp(prefix="aureon-envelope-test-"))
 
 from cannae_kernel.actor import ActorKind, ActorRef  # noqa: E402
+from cannae_kernel.effects import ExternalEffect  # noqa: E402
+from cannae_kernel.envelopes import ApprovedIntentEnvelope  # noqa: E402
+from cannae_kernel.session import (  # noqa: E402
+    BusinessDate,
+    BusinessDateNotEstablishedError,
+    MarketSession,
+    SessionContext,
+)
 
 from aureon.approval_service.operator_auth import OPERATOR_ACTOR  # noqa: E402
 from aureon.approval_service.service import AuthorityError, resolve_pending_decision  # noqa: E402
 from aureon.contracts.approved_intent import (  # noqa: E402
-    ApprovedIntentEnvelope,
+    ApprovedIntentPayload,
     IntentShapeError,
     normalize_quantity,
     verify_envelope,
@@ -50,6 +58,13 @@ T0 = datetime(2026, 9, 17, 15, 0, tzinfo=timezone.utc)
 OFFICIAL_OFR = {"fsi_value": 0.1, "source": "ofr", "provenance": "FACT_EXTERNAL"}
 LIVE_MACRO = {"source": "fred", "provenance": "FACT_EXTERNAL", "macro_regime": "balanced",
               "vix": 18.0, "hy_oas": 3.4, "curve_spread_bps": -10.0, "as_of": "2026-09-17"}
+SESSION = SessionContext(
+    session=MarketSession.REGULAR,
+    business_date=BusinessDate(
+        value=T0.date(), calendar="XNYS", established_by=str(OPERATOR_ACTOR.actor_id)
+    ),
+)
+SESSION_JSON = SESSION.model_dump(mode="json")
 
 
 # ── One quantity model (AUR-I-04) ───────────────────────────────────────────────
@@ -111,7 +126,8 @@ def _approve(state, *, role="TRADER", actor=OPERATOR_ACTOR, at=T0 + timedelta(se
         )
     return resolve_pending_decision(
         state=state, lock=lock, decision_id=state["pending_decisions"][0]["id"],
-        resolution="APPROVED", approval_role=role, actor=actor, rules_digest=RULES, now=at,
+        resolution="APPROVED", approval_role=role, actor=actor, rules_digest=RULES,
+        session_context=SESSION, now=at,
     )
 
 
@@ -119,31 +135,39 @@ def test_approval_seals_a_verifiable_envelope() -> None:
     state = _state()
     result = _approve(state)
     envelope = result["envelope"]
-    verify_envelope(envelope, now=T0 + timedelta(seconds=20))
+    payload = result["payload"]
+    verify_envelope(envelope, result["payload_bytes"], now=T0 + timedelta(seconds=20))
     assert str(envelope.envelope_id).startswith("int_")
     assert str(envelope.lifecycle_id).startswith("lif_")
-    assert envelope.intent.quantity.basis == "QUANTITY"
-    assert envelope.policy_manifest.disposition.value == "PASS"
-    assert envelope.policy_manifest.policy_record_id == state["policy_evaluations"][0]["record_id"]
-    assert envelope.authority_manifest.approvals[0].actor == OPERATOR_ACTOR
-    assert envelope.authority_manifest.quorum_met is True
-    assert envelope.downstream_permissions.settlement_submit is False
-    assert envelope.downstream_permissions.idempotency_key == result["release"].release_id
-    kinds = {ref.kind for ref in envelope.evidence_manifest.refs}
+    assert envelope.session == SESSION
+    assert envelope.approved_by == OPERATOR_ACTOR
+    assert envelope.effects.effects == (ExternalEffect.WRITES_FOREIGN_STORE,)
+    assert ExternalEffect.SUBMITS not in envelope.effects.effects
+    assert payload.intent.quantity.basis == "QUANTITY"
+    assert payload.policy_manifest.disposition.value == "PASS"
+    assert payload.policy_manifest.policy_record_id == state["policy_evaluations"][0]["record_id"]
+    assert payload.authority_manifest.approvals[0].actor == OPERATOR_ACTOR
+    assert payload.authority_manifest.authority_id == str(envelope.approved_by.actor_id)
+    assert payload.authority_manifest.quorum_met is True
+    assert payload.downstream_permissions.settlement_submit is False
+    assert payload.downstream_permissions.idempotency_key == result["release"].release_id
+    kinds = {ref.kind for ref in payload.evidence_manifest.refs}
     assert {"POLICY_EVALUATION", "AUTHORITY_APPROVAL"} <= kinds
-    stored = ApprovedIntentEnvelope.model_validate_json(json.dumps(state["approved_intents"][0]))
-    assert stored == envelope
-    assert result["release"].envelope_digest == envelope.digest
+    stored = state["approved_intents"][0]
+    assert ApprovedIntentEnvelope.model_validate_json(json.dumps(stored["envelope"])) == envelope
+    assert ApprovedIntentPayload.model_validate_json(json.dumps(stored["payload"])) == payload
+    assert stored["payload_bytes"].encode() == result["payload_bytes"]
+    assert result["release"].envelope_digest == envelope.payload_digest
 
 
 def test_a_tampered_or_expired_envelope_does_not_verify() -> None:
-    envelope = _approve(_state())["envelope"]
-    tampered = envelope.model_copy(update={"intent": envelope.intent.model_copy(
-        update={"quantity": envelope.intent.quantity.model_copy(update={"quantity": "1000"})})})
+    result = _approve(_state())
+    envelope = result["envelope"]
+    tampered = result["payload_bytes"].replace(b'"quantity":"10"', b'"quantity":"1000"')
     with pytest.raises(IntentShapeError, match="digest"):
-        verify_envelope(tampered, now=T0 + timedelta(seconds=20))
+        verify_envelope(envelope, tampered, now=T0 + timedelta(seconds=20))
     with pytest.raises(IntentShapeError, match="expired"):
-        verify_envelope(envelope, now=envelope.expires_at)
+        verify_envelope(envelope, result["payload_bytes"], now=result["payload"].expires_at)
 
 
 @pytest.mark.parametrize("change", [
@@ -158,7 +182,7 @@ def test_changing_a_term_changes_the_digest(change) -> None:
     state["prices"]["OTHER"] = 100.0
     state["positions"] = [{"symbol": change.get("symbol", "TEST"), "shares": 100, "cost": 100.0}]
     other = _approve(state)["envelope"]
-    assert other.digest != base.digest
+    assert other.payload_digest != base.payload_digest
 
 
 def test_an_unauthenticated_actor_is_refused_before_any_change() -> None:
@@ -180,25 +204,67 @@ def test_an_unauthenticated_actor_is_refused_before_any_change() -> None:
     assert state == before
 
 
+def test_approval_without_an_established_business_date_refuses() -> None:
+    state = _state()
+    evaluate_pretrade_decision(
+        state=state, lock=threading.RLock(), decision_id="DEC-ENV-1",
+        market_is_open=lambda: True, macro_snapshot_fn=dict,
+        ofr_snapshot_fn=lambda _m: OFFICIAL_OFR,
+        operating_cash_floor_pct=0.03, risk_policy=RISK, symbol_to_isin={},
+        ofac_blocked_isins={}, now=T0,
+    )
+    before = copy.deepcopy(state)
+    with pytest.raises(BusinessDateNotEstablishedError):
+        resolve_pending_decision(
+            state=state, lock=threading.RLock(), decision_id="DEC-ENV-1",
+            resolution="APPROVED", approval_role="TRADER", actor=OPERATOR_ACTOR,
+            rules_digest=RULES, now=T0 + timedelta(seconds=10),
+        )
+    assert state == before
+
+
+def test_emission_has_no_timestamp_to_business_date_conversion(monkeypatch) -> None:
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("emission must not construct BusinessDate")
+
+    monkeypatch.setattr(BusinessDate, "__init__", forbidden)
+    result = _approve(_state())
+    assert result["envelope"].session == SESSION
+
+
+def test_non_authorizing_actor_kind_cannot_reach_approved_by() -> None:
+    state = _state()
+    agent = ActorRef(
+        actor_id=OPERATOR_ACTOR.actor_id,
+        actor_kind=ActorKind.AGENT_H,
+        role="agent",
+        entitlement_refs=(),
+        authenticated=True,
+    )
+    with pytest.raises(IntentShapeError, match="may not authorize"):
+        _approve(state, actor=agent)
+    assert "approved_intents" not in state
+
+
 def test_the_envelope_is_sealed_only_when_every_required_role_approved() -> None:
     state = _state(required_approvals=["TRADER", "RISK"])
     first = _approve(state, role="RISK", at=T0 + timedelta(seconds=5))
     assert first["status"] == "pending" and first["envelope"] is None
     assert "approved_intents" not in state
     second = _approve(state, role="TRADER", at=T0 + timedelta(seconds=9))
-    envelope = second["envelope"]
-    assert [a.role for a in envelope.authority_manifest.approvals] == ["RISK", "TRADER"]
-    assert envelope.authority_manifest.required_roles == ("TRADER", "RISK")
+    payload = second["payload"]
+    assert [a.role for a in payload.authority_manifest.approvals] == ["RISK", "TRADER"]
+    assert payload.authority_manifest.required_roles == ("TRADER", "RISK")
 
 
 def test_notional_orders_seal_with_the_notional_basis() -> None:
     state = _state(shares=None, price=None, notional=5_000.0, quantity_basis="NOTIONAL",
                    currency="USD")
-    envelope = _approve(state)["envelope"]
-    assert envelope.intent.quantity.model_dump() == {
+    payload = _approve(state)["payload"]
+    assert payload.intent.quantity.model_dump() == {
         "basis": "NOTIONAL", "quantity": None, "quantity_unit": None, "whole_units": True,
         "notional": "5000", "currency": "USD"}
-    assert envelope.intent.reference_price is None
+    assert payload.intent.reference_price is None
 
 
 # ── Server: release packets and channel parity ──────────────────────────────────
@@ -262,6 +328,10 @@ def _headers():
     return {"X-Admin-Key": KEY, "X-Request-Nonce": uuid.uuid4().hex}
 
 
+def _approval_body(**overrides):
+    return {"resolution": "APPROVED", "session_context": SESSION_JSON, **overrides}
+
+
 def test_release_packets_carry_the_envelope_unchanged(server_client, monkeypatch) -> None:
     server, client, keys = server_client
     sent = []
@@ -271,23 +341,23 @@ def test_release_packets_carry_the_envelope_unchanged(server_client, monkeypatch
         _reset(server, keys, {"release_target": target})
         client.get("/api/decisions/DEC-PARITY/pretrade")
         body = client.post("/api/decisions/DEC-PARITY", headers=_headers(),
-                           json={"resolution": "APPROVED"}).get_json()
+                           json=_approval_body()).get_json()
         assert body["status"] == "ok", body
         stored = server.aureon_state["approved_intents"][0]
         packet = server.aureon_state["integration_handoffs"][0]
         assert packet["approved_intent"] == stored
-        assert packet["approved_intent_digest"] == stored["digest"] == body["envelope_digest"]
-    assert sent and sent[0]["approved_intent"]["digest"] == sent[0]["approved_intent_digest"]
+        assert packet["approved_intent_digest"] == stored["envelope"]["payload_digest"] == body["envelope_digest"]
+    assert sent and sent[0]["approved_intent"]["envelope"]["payload_digest"] == sent[0]["approved_intent_digest"]
 
 
 def _via_dashboard(server, client):
     return client.post("/api/decisions/DEC-PARITY", headers={**_headers(), "Content-Type": "application/json"},
-                       data=json.dumps({"resolution": "APPROVED", "approval_role": "TRADER"})).get_json()
+                       data=json.dumps(_approval_body(approval_role="TRADER"))).get_json()
 
 
 def _via_api(server, client):
     return client.post("/api/decisions/DEC-PARITY", headers=_headers(),
-                       json={"resolution": "approved"}).get_json()
+                       json={**_approval_body(), "resolution": "approved"}).get_json()
 
 
 def _via_cli(server, client):
@@ -299,6 +369,7 @@ def _via_cli(server, client):
         return response.status_code, response.get_json()
 
     status, payload = resolve_decision("DEC-PARITY", "APPROVED", role="TRADER", admin_key=KEY,
+                                       session_context=SESSION_JSON,
                                        transport=transport)
     return payload
 
@@ -316,7 +387,7 @@ def _via_mcp(server, client):
         "jsonrpc": "2.0", "id": 1, "method": "tools/call",
         "params": {"name": "aureon_resolve_decision",
                    "arguments": {"decision_id": "DEC-PARITY", "resolution": "APPROVED",
-                                 "approval_role": "TRADER"}}})
+                                 "approval_role": "TRADER", "session_context": SESSION_JSON}}})
     return response.get_json()["result"]
 
 
@@ -331,7 +402,7 @@ def test_every_channel_seals_the_same_envelope(server_client, monkeypatch) -> No
         payload = channel(server, client)
         assert payload["status"] == "ok", (name, payload)
         digests[name] = payload["envelope_digest"]
-        assert server.aureon_state["approved_intents"][0]["digest"] == payload["envelope_digest"]
+        assert server.aureon_state["approved_intents"][0]["envelope"]["payload_digest"] == payload["envelope_digest"]
     assert len(set(digests.values())) == 1, digests
 
 
@@ -391,15 +462,15 @@ def test_authority_records_state_the_single_operator_limit(server_client) -> Non
     _reset(server, keys)
     client.get("/api/decisions/DEC-PARITY/pretrade")
     body = client.post("/api/decisions/DEC-PARITY", headers=_headers(),
-                       json={"resolution": "APPROVED", "approval_role": "TRADER"}).get_json()
+                       json=_approval_body(approval_role="TRADER")).get_json()
     assert body["status"] == "ok"
     approval = next(e for e in server.aureon_state["authority_log"] if e["type"].startswith("APPROVE"))
     assert approval["role_source"] == "request_body"
     assert approval["independence_asserted"] is False
-    envelope = server.aureon_state["approved_intents"][0]
-    assert envelope["authority_manifest"]["independence_asserted"] is False
-    assert envelope["authority_manifest"]["operating_mode"] == "CAOM-001 single operator"
-    assert envelope["authority_manifest"]["approvals"][0]["role_source"] == "request_body"
+    payload = server.aureon_state["approved_intents"][0]["payload"]
+    assert payload["authority_manifest"]["independence_asserted"] is False
+    assert payload["authority_manifest"]["operating_mode"] == "CAOM-001 single operator"
+    assert payload["authority_manifest"]["approvals"][0]["role_source"] == "request_body"
 
 
 def test_cli_without_a_key_does_not_call_the_server() -> None:
@@ -453,7 +524,7 @@ def test_an_operator_notional_order_executes_end_to_end(server_client) -> None:
     decision_id = created["decision_id"]
     assert client.get(f"/api/decisions/{decision_id}/pretrade").get_json()["disposition"] == "PASS"
     body = client.post(f"/api/decisions/{decision_id}", headers=_headers(),
-                       json={"resolution": "APPROVED"}).get_json()
+                       json=_approval_body()).get_json()
     assert body["status"] == "ok", body
     assert body["execution"]["status"] == "BOOKED"
     assert body["execution"]["quantity"] == "50"

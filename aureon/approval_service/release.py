@@ -11,8 +11,9 @@ only when an execution event arrives from a venue (``aureon.booking``).
 ``reference_price`` is the decision's price at approval. It is carried for
 reconciliation only; a venue must never fill at it.
 
-Since W2B-5 every term is taken from the sealed ApprovedIntentEnvelope, and the
-event carries the envelope id, digest and expiry. Schema ``0.2-draft`` (JUM-D-26).
+Every economic term is taken from the Aureon-owned payload bound by the frozen
+ApprovedIntentEnvelope. The event carries the envelope id, payload digest and
+expiry. Schema ``0.2-draft`` (JUM-D-26).
 """
 
 from __future__ import annotations
@@ -79,19 +80,19 @@ def release_id_for(decision_id: str, decision_digest: str) -> str:
     )[7:23].upper()
 
 
-def authorize_release(*, envelope: Any, release_id: str) -> ReleaseAuthorized:
-    """The release event for a sealed ApprovedIntentEnvelope; every term comes from the envelope."""
-    intent = envelope.intent
-    last = max(envelope.authority_manifest.approvals, key=lambda a: a.approved_at)
+def authorize_release(*, envelope: Any, payload: Any, release_id: str) -> ReleaseAuthorized:
+    """Build a release from a frozen envelope and its digest-bound Aureon payload."""
+    intent = payload.intent
+    last = max(payload.authority_manifest.approvals, key=lambda a: a.approved_at)
     return ReleaseAuthorized(
         release_id=release_id,
         envelope_id=str(envelope.envelope_id),
-        envelope_digest=envelope.digest,
-        expires_at=envelope.expires_at,
+        envelope_digest=envelope.payload_digest,
+        expires_at=payload.expires_at,
         decision_id=intent.decision_id,
-        decision_digest=envelope.policy_manifest.decision_digest,
-        policy_record_id=envelope.policy_manifest.policy_record_id,
-        policy_record_digest=envelope.policy_manifest.policy_record_digest,
+        decision_digest=payload.policy_manifest.decision_digest,
+        policy_record_id=payload.policy_manifest.policy_record_id,
+        policy_record_digest=payload.policy_manifest.policy_record_digest,
         symbol=intent.instrument_id,
         action=intent.side,
         asset_class=intent.asset_class,
@@ -102,10 +103,10 @@ def authorize_release(*, envelope: Any, release_id: str) -> ReleaseAuthorized:
         notional=intent.quantity.notional,
         currency=intent.quantity.currency,
         reference_price=intent.reference_price,
-        release_target=envelope.execution_constraints.release_target,
-        approvals=tuple(a.role for a in envelope.authority_manifest.approvals),
+        release_target=payload.execution_constraints.release_target,
+        approvals=tuple(a.role for a in payload.authority_manifest.approvals),
         authority_hash=last.authority_hash,
-        authorized_at=envelope.created_at,
+        authorized_at=payload.created_at,
     )
 
 

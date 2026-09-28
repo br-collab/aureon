@@ -1,7 +1,8 @@
 """
 aureon.contracts.approved_intent
 ================================
-The ApprovedIntentEnvelope, ``0.1-draft`` (AUR-I-04, AUR-I-07, AUR-I-11).
+The Aureon payload bound by the frozen ``cannae.approved_intent/1.0`` envelope
+(AUR-I-04, AUR-I-07, AUR-I-11).
 
 **Naming note.** ``aureon/contracts/`` was deleted on 31 July 2026 under
 AUR-ADD-006 because it held vendored copies of Atreides *custody* code. This
@@ -9,7 +10,9 @@ module is not that: it holds only Aureon's own approved-intent contract, which
 Aureon produces and L.C. will consume. Custody symbols still come from
 ``atreides.*``.
 
-What an approval hands downstream, sealed so no consumer can alter it:
+What an approval hands downstream is the frozen kernel envelope plus canonical
+bytes of :class:`ApprovedIntentPayload`. The envelope's ``payload_digest``
+binds those exact bytes so no consumer can alter them unnoticed:
 
 - ``intent`` — what is to be done, with **one quantity model**: either a
   quantity and its unit, or a notional and its currency, validated per asset
@@ -23,7 +26,8 @@ What an approval hands downstream, sealed so no consumer can alter it:
   permitted here.
 - ``evidence_manifest`` — versioned references, with digests, to every record
   the approval relied on (AUR-I-11).
-- ``expires_at`` and ``digest`` — kernel canonical digest over everything else.
+- ``expires_at`` — the lifetime of the approved terms; the kernel envelope
+  carries their canonical-byte digest.
 
 :func:`seal_approved_intent` is the only way to build one; every approval path
 reaches it through ``resolve_pending_decision``. Field names follow CL-JUM-001
@@ -42,11 +46,15 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
 from cannae_kernel.actor import ActorRef
+from cannae_kernel.authority import AUTHORIZING_KINDS
 from cannae_kernel.canonical import canonical_bytes_of, digest_bytes
 from cannae_kernel.disposition import Disposition
+from cannae_kernel.effects import ExternalEffect, OperationEffects
+from cannae_kernel.envelopes import ApprovedIntentEnvelope
 from cannae_kernel.ids import IntentId, LifecycleId
 from cannae_kernel.provenance import Provenance
-from pydantic import BaseModel, ConfigDict, Field
+from cannae_kernel.session import SessionContext
+from pydantic import BaseModel, ConfigDict
 
 __all__ = [
     "APPROVED_INTENT_TTL_SECONDS",
@@ -54,6 +62,7 @@ __all__ = [
     "QUANTITY_RULES",
     "ApprovalRecord",
     "ApprovedIntentEnvelope",
+    "ApprovedIntentPayload",
     "EvidenceRef",
     "IntentShapeError",
     "QuantityTerms",
@@ -264,6 +273,7 @@ class AuthorityManifest(BaseModel):
     #: False while one operator key can act in every role (AUR-I-19, fix F4).
     independence_asserted: Literal[False] = False
     operating_mode: Literal["CAOM-001 single operator"] = "CAOM-001 single operator"
+    authority_id: str
 
 
 class DownstreamPermissions(BaseModel):
@@ -291,14 +301,10 @@ class EvidenceManifest(BaseModel):
     refs: tuple[EvidenceRef, ...]
 
 
-class ApprovedIntentEnvelope(BaseModel):
+class ApprovedIntentPayload(BaseModel):
     model_config = _Frozen
 
     schema_version: Literal["aureon.approved_intent/0.1-draft"] = ENVELOPE_SCHEMA_VERSION
-    envelope_id: IntentId
-    lifecycle_id: LifecycleId
-    revision: int = Field(ge=1)
-    prior_digest: str | None
     created_at: datetime
     expires_at: datetime
     intent: IntentTerms
@@ -311,17 +317,12 @@ class ApprovedIntentEnvelope(BaseModel):
     evidence_manifest: EvidenceManifest
     provenance: Provenance = Provenance.HUMAN_JUDGMENT
     serialization_profile: str = SERIALIZATION_PROFILE
-    digest: str
 
 
 def _validated_asset_class(asset_class: Any) -> str:
     """The asset class as the book records it, after checking the quantity model knows it."""
     canonical_asset_class(str(asset_class or ""))
     return str(asset_class)
-
-
-def _digest_without_seal(fields: Mapping[str, Any]) -> str:
-    return digest_bytes(canonical_bytes_of({k: v for k, v in fields.items() if k != "digest"}))
 
 
 def _typed_id(cls: type, seed: str, at: datetime) -> Any:
@@ -351,9 +352,10 @@ def seal_approved_intent(
     approvals: Sequence[ApprovalRecord],
     required_roles: Sequence[str],
     release_id: str,
+    session: SessionContext,
     now: datetime,
     evidence: Sequence[EvidenceRef] = (),
-) -> ApprovedIntentEnvelope:
+) -> tuple[ApprovedIntentEnvelope, ApprovedIntentPayload, bytes]:
     """The one method that seals an approved intent. Raises IntentShapeError if it cannot."""
     created_at = now.astimezone(timezone.utc)
     if not approvals:
@@ -361,6 +363,10 @@ def seal_approved_intent(
     for record in approvals:
         if not record.actor.authenticated:
             raise IntentShapeError(f"approval by {record.role} is not from an authenticated actor")
+        if record.actor.actor_kind not in AUTHORIZING_KINDS:
+            raise IntentShapeError(
+                f"{record.actor.actor_kind.value} may not authorize an approved intent"
+            )
     side = str(decision.get("action", "")).upper()
     if side not in ("BUY", "SELL"):
         raise IntentShapeError(f"side must be BUY or SELL, got {side!r}")
@@ -368,12 +374,9 @@ def seal_approved_intent(
     price = decision.get("price")
     required = tuple(required_roles)
     approved_roles = {a.role for a in approvals}
-    fields: dict[str, Any] = {
+    approved_by = max(approvals, key=lambda approval: approval.approved_at).actor
+    payload_fields: dict[str, Any] = {
         "schema_version": ENVELOPE_SCHEMA_VERSION,
-        "envelope_id": _typed_id(IntentId, f"intent:{policy_record.decision_digest}", created_at),
-        "lifecycle_id": _typed_id(LifecycleId, f"lifecycle:{decision['id']}", created_at),
-        "revision": 1,
-        "prior_digest": None,
         "created_at": created_at,
         "expires_at": created_at + timedelta(seconds=APPROVED_INTENT_TTL_SECONDS),
         "intent": IntentTerms(
@@ -408,6 +411,7 @@ def seal_approved_intent(
             required_roles=required,
             approvals=tuple(approvals),
             quorum_met=all(role in approved_roles for role in required),
+            authority_id=str(approved_by.actor_id),
         ),
         "settlement_projection_ref": None,
         "downstream_permissions": DownstreamPermissions(
@@ -429,16 +433,41 @@ def seal_approved_intent(
         "provenance": Provenance.HUMAN_JUDGMENT,
         "serialization_profile": SERIALIZATION_PROFILE,
     }
-    if not fields["authority_manifest"].quorum_met:
+    if not payload_fields["authority_manifest"].quorum_met:
         raise IntentShapeError("required roles have not all approved")
-    fields["digest"] = _digest_without_seal(fields)
-    return ApprovedIntentEnvelope(**fields)
+    payload = ApprovedIntentPayload(**payload_fields)
+    payload_bytes = canonical_bytes_of(payload)
+    envelope = ApprovedIntentEnvelope(
+        envelope_id=_typed_id(IntentId, f"intent:{policy_record.decision_digest}", created_at),
+        lifecycle_id=_typed_id(LifecycleId, f"lifecycle:{decision['id']}", created_at),
+        revision=1,
+        prior_digest=None,
+        session=session,
+        approved_by=approved_by,
+        provenance=Provenance.HUMAN_JUDGMENT,
+        effects=OperationEffects(
+            operation="EMIT_APPROVED_INTENT",
+            effects=(ExternalEffect.WRITES_FOREIGN_STORE,),
+            note=("Persists the approved intent through Aureon's state store to STATE_FILE, "
+                  "which is a mounted volume in production. It does not submit to a rail or "
+                  "venue, send or pay a counterparty, publish externally, or consume "
+                  "credentialed third-party quota."),
+        ),
+        payload_digest=digest_bytes(payload_bytes),
+    )
+    return envelope, payload, payload_bytes
 
 
-def verify_envelope(envelope: ApprovedIntentEnvelope, *, now: datetime | None = None) -> None:
+def verify_envelope(
+    envelope: ApprovedIntentEnvelope,
+    payload_bytes: bytes,
+    *,
+    now: datetime | None = None,
+) -> None:
     """Raise IntentShapeError unless ``envelope`` is intact and unexpired."""
-    if _digest_without_seal(envelope.model_dump(mode="python")) != envelope.digest:
-        raise IntentShapeError("envelope digest does not match its content")
+    if digest_bytes(payload_bytes) != envelope.payload_digest:
+        raise IntentShapeError("payload digest does not match the envelope")
+    payload = ApprovedIntentPayload.model_validate_json(payload_bytes)
     at = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    if not envelope.created_at <= at < envelope.expires_at:
-        raise IntentShapeError(f"envelope expired at {envelope.expires_at.isoformat()}")
+    if not payload.created_at <= at < payload.expires_at:
+        raise IntentShapeError(f"envelope expired at {payload.expires_at.isoformat()}")
