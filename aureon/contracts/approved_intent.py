@@ -353,6 +353,7 @@ def decision_quantity_terms(decision: Mapping[str, Any]) -> QuantityTerms:
 
 def seal_approved_intent(
     *,
+    lifecycle_id: LifecycleId,
     decision: Mapping[str, Any],
     policy_record: Any,
     hold_exception_ids: Sequence[str],
@@ -363,7 +364,13 @@ def seal_approved_intent(
     now: datetime,
     evidence: Sequence[EvidenceRef] = (),
 ) -> tuple[ApprovedIntentEnvelope, ApprovedIntentPayload, bytes]:
-    """The one method that seals an approved intent. Raises IntentShapeError if it cannot."""
+    """Seal an approved intent into the caller-owned lifecycle.
+
+    The orchestration boundary supplies ``lifecycle_id``. In the cross-domain
+    experiment that owner is the C2 harness, which mints the run's sole
+    lifecycle identifier at scenario start (JUM-D-11). Aureon must preserve
+    that identity; this contract builder never mints a competing one.
+    """
     created_at = now.astimezone(timezone.utc)
     if not approvals:
         raise IntentShapeError("an approved intent needs at least one authenticated approval")
@@ -446,7 +453,7 @@ def seal_approved_intent(
     payload_bytes = canonical_bytes_of(payload)
     envelope = ApprovedIntentEnvelope(
         envelope_id=_typed_id(IntentId, f"intent:{policy_record.decision_digest}", created_at),
-        lifecycle_id=_typed_id(LifecycleId, f"lifecycle:{decision['id']}", created_at),
+        lifecycle_id=lifecycle_id,
         revision=1,
         prior_digest=None,
         session=session,

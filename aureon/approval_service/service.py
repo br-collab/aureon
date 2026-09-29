@@ -21,7 +21,14 @@ import hashlib
 import json
 from datetime import datetime, timezone
 
-from aureon.approval_service.release import authorize_release, persist_release, release_id_for
+from cannae_kernel.ids import LifecycleId
+from cannae_kernel.session import BusinessDateNotEstablishedError, SessionContext
+
+from aureon.approval_service.release import (
+    authorize_release,
+    persist_release,
+    release_id_for,
+)
 from aureon.approval_service.routing import apply_routing
 from aureon.contracts.approved_intent import ApprovalRecord, seal_approved_intent
 from aureon.policy_engine.binding import (
@@ -29,7 +36,6 @@ from aureon.policy_engine.binding import (
     persist_hold_exception,
     require_approvable,
 )
-from cannae_kernel.session import BusinessDateNotEstablishedError, SessionContext
 
 
 def routed_required_approvals(decision):
@@ -65,6 +71,7 @@ def resolve_pending_decision(
     rules_digest=None,
     hold_exception=None,
     session_context: SessionContext | None = None,
+    lifecycle_id: LifecycleId | None = None,
     now=None,
 ):
     """
@@ -95,6 +102,10 @@ def resolve_pending_decision(
         An exception granted with this request for an overrideable HOLD. It is
         checked against the record and persisted only if the approval is
         permitted.
+    lifecycle_id : cannae_kernel.ids.LifecycleId, optional
+        Caller-owned lifecycle identity. The C2 harness supplies this for the
+        cross-domain experiment. When omitted by the existing production API,
+        Aureon's approval service preserves its legacy deterministic identity.
     now : datetime, optional
         The approval time (UTC); defaults to now. A fixed clock gives a
         reproducible envelope digest.
@@ -229,7 +240,14 @@ def resolve_pending_decision(
                 if raw.get("policy_record_digest") == policy_record.record_digest
             ] if policy_record.disposition.value == "HOLD" else []
             release_id = release_id_for(decision_id, policy_record.decision_digest)
+            approval_lifecycle_id = lifecycle_id or LifecycleId.new(
+                clock=lambda: at,
+                entropy=lambda size: hashlib.sha256(
+                    f"lifecycle:{decision_id}".encode()
+                ).digest()[:size],
+            )
             envelope, payload, payload_bytes = seal_approved_intent(
+                lifecycle_id=approval_lifecycle_id,
                 decision=decision,
                 policy_record=policy_record,
                 hold_exception_ids=exception_ids,
