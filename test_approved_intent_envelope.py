@@ -180,6 +180,16 @@ def test_approval_preserves_caller_owned_lifecycle_id() -> None:
     assert result["envelope"].lifecycle_id == lifecycle_id
 
 
+def test_approval_carries_explicit_allocation_intent_without_inference() -> None:
+    accounts = ("TREASURY-DELIVERY", "TREASURY-RECEIPT")
+
+    explicit = _approve(_state(allocation_accounts=accounts))
+    absent = _approve(_state())
+
+    assert explicit["payload"].allocation_accounts == accounts
+    assert absent["payload"].allocation_accounts is None
+
+
 def test_a_tampered_or_expired_envelope_does_not_verify() -> None:
     result = _approve(_state())
     envelope = result["envelope"]

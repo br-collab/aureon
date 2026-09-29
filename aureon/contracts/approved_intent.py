@@ -54,7 +54,7 @@ from cannae_kernel.envelopes import ApprovedIntentEnvelope
 from cannae_kernel.ids import IntentId, LifecycleId
 from cannae_kernel.provenance import Provenance
 from cannae_kernel.session import SessionContext
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 __all__ = [
     "APPROVED_INTENT_TTL_SECONDS",
@@ -313,6 +313,7 @@ class ApprovedIntentPayload(BaseModel):
     expires_at: datetime
     intent: IntentTerms
     ownership: Ownership
+    allocation_accounts: tuple[str, ...] | None
     execution_constraints: ExecutionConstraints
     policy_manifest: PolicyManifest
     authority_manifest: AuthorityManifest
@@ -321,6 +322,18 @@ class ApprovedIntentPayload(BaseModel):
     evidence_manifest: EvidenceManifest
     provenance: Provenance = Provenance.HUMAN_JUDGMENT
     serialization_profile: str = SERIALIZATION_PROFILE
+
+    @model_validator(mode="after")
+    def _allocation_intent_is_explicit_when_present(self) -> ApprovedIntentPayload:
+        if self.allocation_accounts is None:
+            return self
+        if not self.allocation_accounts or any(
+            not account.strip() for account in self.allocation_accounts
+        ):
+            raise ValueError("allocation_accounts must be absent or name non-empty accounts")
+        if len(set(self.allocation_accounts)) != len(self.allocation_accounts):
+            raise ValueError("allocation_accounts cannot name the same account twice")
+        return self
 
 
 def _validated_asset_class(asset_class: Any) -> str:
@@ -406,6 +419,11 @@ def seal_approved_intent(
             rationale=str(decision.get("rationale") or ""),
         ),
         "ownership": Ownership(portfolio_id="AUREON-ENDOWMENT-SERIES-I-PAPER"),
+        "allocation_accounts": (
+            None
+            if decision.get("allocation_accounts") is None
+            else tuple(str(account) for account in decision["allocation_accounts"])
+        ),
         "execution_constraints": ExecutionConstraints(
             release_target=str(decision.get("release_target") or "OMS"),
             permitted_venues=PERMITTED_VENUES,
