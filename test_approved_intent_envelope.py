@@ -34,6 +34,7 @@ from cannae_kernel.actor import ActorKind, ActorRef  # noqa: E402
 from cannae_kernel.canonical import digest_bytes  # noqa: E402
 from cannae_kernel.effects import ExternalEffect  # noqa: E402
 from cannae_kernel.envelopes import ApprovedIntentEnvelope  # noqa: E402
+from cannae_kernel.ids import LifecycleId  # noqa: E402
 from cannae_kernel.session import (  # noqa: E402
     BusinessDate,
     BusinessDateNotEstablishedError,
@@ -114,7 +115,14 @@ def _state(**overrides):
             "pending_decisions": [decision]}
 
 
-def _approve(state, *, role="TRADER", actor=OPERATOR_ACTOR, at=T0 + timedelta(seconds=10)):
+def _approve(
+    state,
+    *,
+    role="TRADER",
+    actor=OPERATOR_ACTOR,
+    at=T0 + timedelta(seconds=10),
+    lifecycle_id=None,
+):
     lock = threading.RLock()
     if not any(r.get("decision_id") == state["pending_decisions"][0]["id"]
                for r in state.get("policy_evaluations", [])):
@@ -128,7 +136,7 @@ def _approve(state, *, role="TRADER", actor=OPERATOR_ACTOR, at=T0 + timedelta(se
     return resolve_pending_decision(
         state=state, lock=lock, decision_id=state["pending_decisions"][0]["id"],
         resolution="APPROVED", approval_role=role, actor=actor, rules_digest=RULES,
-        session_context=SESSION, now=at,
+        session_context=SESSION, lifecycle_id=lifecycle_id, now=at,
     )
 
 
@@ -159,6 +167,17 @@ def test_approval_seals_a_verifiable_envelope() -> None:
     assert ApprovedIntentPayload.model_validate_json(json.dumps(stored["payload"])) == payload
     assert stored["payload_bytes"].encode() == result["payload_bytes"]
     assert result["release"].envelope_digest == envelope.payload_digest
+
+
+def test_approval_preserves_caller_owned_lifecycle_id() -> None:
+    lifecycle_id = LifecycleId.new(
+        clock=lambda: T0,
+        entropy=lambda size: bytes(range(size)),
+    )
+
+    result = _approve(_state(), lifecycle_id=lifecycle_id)
+
+    assert result["envelope"].lifecycle_id == lifecycle_id
 
 
 def test_a_tampered_or_expired_envelope_does_not_verify() -> None:
