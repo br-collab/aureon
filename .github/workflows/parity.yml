@@ -31,20 +31,20 @@ jobs:
   parity:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Check out the Node decision core (Cato-FICC-MCP)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: br-collab/Cato-FICC-MCP
           ref: ${{ inputs.cato_ref || 'main' }}
           path: cato-mcp
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "20"
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.11"
 
@@ -57,13 +57,13 @@ jobs:
     name: Core (Python 3.11)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.11"
 
-      - uses: astral-sh/setup-uv@v10.1.0
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
 
       # Recompiling keeps every version already in the lock unless
       # requirements.txt now demands otherwise, so any difference means
