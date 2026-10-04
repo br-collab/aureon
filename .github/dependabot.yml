@@ -4,6 +4,20 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    # Dependabot edits requirements.lock.txt line by line and does not resolve it,
+    # so it can propose a version no resolver would accept. These two rules stop
+    # the bumps that cannot install. Each says when it can be removed.
+    ignore:
+      # pydantic-core is pydantic's engine, and every pydantic release pins one
+      # exact pydantic-core. A pydantic-core bump on its own can never install
+      # (aureon #66, 2.49.0, which only pydantic 2.14.0b2 accepts). pydantic itself
+      # is still watched: upgrade it with `python scripts/compile_lock.py --upgrade`,
+      # which moves pydantic-core with it. Permanent rule.
+      - dependency-name: "pydantic-core"
+      # xrpl-py 5.2.0 (latest as of 4 October 2026) requires websockets>=15.0.1,<16.0.0
+      # (aureon #64, 17.1). Remove this rule when an xrpl-py release accepts 16 or later.
+      - dependency-name: "websockets"
+        versions: [">=16"]
   - package-ecosystem: npm
     directory: "/KYC Agent/aureon-kyc"
     schedule:
@@ -12,4 +26,3 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-
