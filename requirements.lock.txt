@@ -76,7 +76,7 @@ numpy==2.4.6
     #   yfinance
 pandas==3.0.6
     # via yfinance
-peewee==4.5.1
+peewee==4.5.2
     # via yfinance
 pillow==12.3.0
     # via reportlab
