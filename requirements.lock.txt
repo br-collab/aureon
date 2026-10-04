@@ -138,7 +138,7 @@ werkzeug==3.1.8
     # via
     #   flask
     #   flask-cors
-wrapt==2.4.1
+wrapt==2.5.0
     # via deprecated
 xrpl-py==5.2.0
     # via -r requirements.txt
