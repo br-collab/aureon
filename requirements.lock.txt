@@ -134,7 +134,7 @@ websockets==15.0.1
     # via
     #   xrpl-py
     #   yfinance
-werkzeug==3.1.8
+werkzeug==3.1.9
     # via
     #   flask
     #   flask-cors
