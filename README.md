@@ -3,12 +3,12 @@
 **Doctrine Stack:** Aureon Consolidated Canonical Doctrine v1.6 · CAOM-001 · Cato Sec (external MCP server v0.3.1 · in-process Python twin v0.2.3 — the twin has not yet taken the v0.3.0 XRPL rail; disclosed, dated divergence in `PARITY_XRPL.md` in Cato-FICC-MCP. The v0.3.1 stress guard *is* mirrored in the twin and pinned by golden vector V16 on both sides) · AUR-CUSTODY-001 v1.0 · AUR-CUSTODY-CASH-001 v0.2
 **Live Deployment:** [aureon-production.up.railway.app](https://aureon-production.up.railway.app) · Endowment Series I — Argus · $100M paper AUM
 **Settlement & Custody Console:** [/cockpit](https://aureon-production.up.railway.app/cockpit) — pipeline, breaks workbench, and cash leg
-**Status:** Paper trading · approaching institutional testing · no real capital at risk
-**Classification:** Public prototype · full doctrine available under NDA
+**Status:** Research prototype · paper trading · no real capital at risk · no commercial offering
+**Classification:** Public research prototype · doctrine published in this repository
 
 Aureon is a doctrine-governed control layer between portfolio intent and execution — built for the convergence of tokenization, AI execution, and programmable payment rails. It sits above OMS, EMS, and post-trade infrastructure. It governs what enters those systems, and it produces the unified lineage record a trustee, rating agency, or regulator can rely on.
 
-This repository is the **Phase 1 Equities prototype** — a working implementation of the governance pattern with Electronic Execution as the first pilot motion. The full institutional doctrine spans eFICC (electronic Fixed Income, Currencies, and Commodities) post-trade with an eleven-role agent workforce specification. That broader specification is the v1.5.1 Consolidated Canonical Doctrine, available under NDA to qualified institutional counterparties.
+This repository is the **Phase 1 Equities prototype** — a working implementation of the governance pattern with Electronic Execution as the first pilot motion. The full institutional doctrine spans eFICC (electronic Fixed Income, Currencies, and Commodities) post-trade with an eleven-role agent workforce specification. That broader specification is the v1.5.1 Consolidated Canonical Doctrine published in this repository.
 
 In Phase 1, Aureon acts as a Decision System of Record (DSOR) before execution: it captures governed portfolio intent, applies policy and risk framing, records approval lineage, and packages evidence for downstream control, supervision, and replay.
 
@@ -781,13 +781,13 @@ TWELVE_DATA_API_KEY=your_key
 - The codebase is still structurally compressed and does not yet reflect the target service boundaries
 - FIX support is a translation stub, not a live broker, EMS, or OMS session
 - Thifur-H Phase 2 activated — five-gate governance layer live, Kraken live account validation in progress under CAOM-001, 20-cycle stress test protocol executing, DSOR export active for evidence packaging under NIST AI RMF 1.0 plus Aureon doctrine; production expansion pending full validation cycle completion
-- The repository should be read as an institutional product prototype, not as a claim of full OMS, SOR, treasury, settlement, or books-and-records replacement
+- The repository should be read as a research prototype, not as a claim of full OMS, SOR, treasury, settlement, or books-and-records replacement
 
 ---
 
 ## Long-Term Direction
 
-The long-term ambition is to expand Aureon into a broader institutional decision and governance layer across additional workflows, desks, and asset classes. The commercial path is **licensing the governance layer, not operating a fund** — through three deployment modes: governance overlay above existing OMS infrastructure, full-stack doctrine OS for greenfield builds, or pure compliance artifact engine where every decision returns a replayable regulatory submission package.
+The long-term research direction is to evaluate Aureon as a broader institutional decision and governance layer across additional workflows, desks, and asset classes. The repository makes no commercial offering.
 
 The structural advantage: when market structure shifts (PORTS ships, GENIUS Act passes, Fed L1 tokenized reserves go live), the doctrine does not change. The rail does.
 
@@ -803,6 +803,25 @@ The near-term objective is much narrower and more credible:
 
 ---
 
+## License and research status
+
+All source code and documentation in this repository, including the files in
+`doctrine/`, are licensed under the MIT License (see [LICENSE](LICENSE)). No part
+of this repository is offered under any other license, agreement or
+nondisclosure arrangement.
+
+Capstone / Independent Research, Columbia University M.S. Technology Management.
+
+Status: research prototype. There is no commercial offering.
+
+### Personal research
+
+This repository is personal research by Guillermo Ravelo, developed on his
+own time and his own equipment. It is not affiliated with, sponsored by or
+endorsed by any current or former employer, client or Columbia University.
+It contains no confidential or proprietary information of any employer,
+client or third party. Nothing here describes any firm's actual systems,
+controls or procedures.
+
 *Project Aureon · Guillermo "Bill" Ravelo · Columbia University M.S. Technology Management · Capstone Doctrine Publication*
 *The Grid 3 · v1.5.1 · CAOM-001 · Crawl Phase — Paper Trade Data Collection · Thifur-H Phase 2 Activated*
-*Full Consolidated Canonical Doctrine v1.5.1 available under NDA to qualified institutional counterparties.*
