@@ -12,6 +12,25 @@ This repository is the **Phase 1 Equities prototype** — a working implementati
 
 In Phase 1, Aureon acts as a Decision System of Record (DSOR) before execution: it captures governed portfolio intent, applies policy and risk framing, records approval lineage, and packages evidence for downstream control, supervision, and replay.
 
+## Maturity and criticality
+
+The programme uses two separate descriptions. **Automation level** describes what
+the software does: 1 is Observe, 2 is Compare, 3 is Recommend, 4 is Execute with
+control, 5 is Exception led, and 6 is Straight through. **Criticality tier**
+describes the consequence-bearing function a component would touch: Tier 0 covers
+money, positions, regulatory calculations and clearing submission, Tier 1 covers
+production workflow or regulated records, Tier 2 covers shared decision support,
+and Tier 3 covers analysis and operator productivity. A tier is not an assurance
+rating.
+
+| Component | Automation level | Criticality tier |
+|---|---:|---:|
+| Aureon intent gate | 3, Recommend | 0 |
+
+The intent gate is synthetic and advisory. It does not meet the assurance,
+operational control or authorization that Tier 0 would require in production,
+and the table makes no compliance claim.
+
 ---
 
 ## Why This Exists
