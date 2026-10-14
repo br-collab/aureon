@@ -101,7 +101,7 @@ python-dotenv==1.2.4
     # via -r requirements.txt
 pytimeparse==1.1.8
     # via twelvedata
-pytz==2026.4
+pytz==2026.5
     # via yfinance
 reportlab==5.0.1
     # via -r requirements.txt
