@@ -8,7 +8,7 @@
 
 Aureon is a doctrine-governed control layer between portfolio intent and execution — built for the convergence of tokenization, AI execution, and programmable payment rails. It sits above OMS, EMS, and post-trade infrastructure. It governs what enters those systems, and it produces the unified lineage record a trustee, rating agency, or regulator can rely on.
 
-This repository is the **Phase 1 Equities prototype** — a working implementation of the governance pattern with Electronic Execution as the first pilot motion. The full institutional doctrine spans eFICC (electronic Fixed Income, Currencies, and Commodities) post-trade with an eleven-role agent workforce specification. That broader specification is the v1.5.1 Consolidated Canonical Doctrine published in this repository.
+This repository is the **Phase 1 Equities prototype** — a working implementation of the governance pattern with Electronic Execution as the first pilot motion. The full institutional doctrine spans eFICC (electronic Fixed Income, Currencies, and Commodities) post-trade with an eleven-role agent workforce specification. That broader specification is the v1.6 Consolidated Canonical Doctrine published in this repository.
 
 In Phase 1, Aureon acts as a Decision System of Record (DSOR) before execution: it captures governed portfolio intent, applies policy and risk framing, records approval lineage, and packages evidence for downstream control, supervision, and replay.
 
@@ -162,7 +162,7 @@ The framework holds no depository, CCP, or payment-system credential, opens no s
 `requirements.txt` declares:
 
 ```
-atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.3.1
+atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.5.0
 ```
 
 This repository holds **no vendored copy** of the custody domain layer. That is a deliberate reversal: the cockpit originally reached production by being copied across the repository boundary, which was the only move available while both packages defined a top-level module named `aureon`. The copy carried a transitive pydantic requirement this repository did not declare and took the deployment down with a Railway 502 on boot. The `atreides` rename removed the constraint; the determination is recorded in `AUR-ADD-006`.
@@ -824,4 +824,4 @@ client or third party. Nothing here describes any firm's actual systems,
 controls or procedures.
 
 *Project Aureon · Guillermo "Bill" Ravelo · Columbia University M.S. Technology Management · Capstone Doctrine Publication*
-*The Grid 3 · v1.5.1 · CAOM-001 · Crawl Phase — Paper Trade Data Collection · Thifur-H Phase 2 Activated*
+*The Grid 3 · v1.6 · CAOM-001 · Crawl Phase, paper trade data collection · Thifur-H advisory mode active*

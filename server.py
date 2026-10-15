@@ -54,6 +54,7 @@ import hashlib
 import tempfile
 import zipfile
 import smtplib
+from importlib import metadata as importlib_metadata
 import urllib.parse
 import urllib.request
 try:
@@ -3936,6 +3937,14 @@ def _deploy_sha() -> str:
             or "unset")
 
 
+def _installed_version(distribution: str) -> str:
+    """Return an installed distribution version without guessing."""
+    try:
+        return importlib_metadata.version(distribution)
+    except importlib_metadata.PackageNotFoundError:
+        return "unavailable"
+
+
 def _build_trade_report(decision, exec_price, authority_hash, gate_results, portfolio_before):
     return evidence_build_trade_report(
         decision=decision,
@@ -6983,6 +6992,18 @@ def api_snapshot():
             # the generic buildpack fallback; "unset" means local dev.
             "deploy_sha":            _deploy_sha(),
         })
+
+
+@app.route("/api/versions")
+def api_versions():
+    """Authoritative deployed component versions for presentation surfaces."""
+    return jsonify({
+        "deploy_sha": _deploy_sha(),
+        "doctrine": CANONICAL_DOCTRINE_VERSION,
+        "atreides": _installed_version("atreides"),
+        "cannae_kernel": _installed_version("cannae-kernel"),
+        "observed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    })
 
 
 @app.route("/api/admin/reset-state", methods=["POST"])
