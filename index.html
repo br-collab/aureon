@@ -1303,11 +1303,13 @@ main {
       <div class="card-label">Portfolio Value</div>
       <div class="card-value" id="kpi-value">—</div>
       <div class="card-sub">Loading...</div>
+      <div class="card-sub">Synthetic paper portfolio for exercising governance gates. Not a strategy track record.</div>
     </div>
     <div class="card">
       <div class="card-label">Total P&L</div>
       <div class="card-value" id="kpi-pnl">—</div>
       <div class="card-sub" id="kpi-pnlp">—</div>
+      <div class="card-sub">Synthetic paper portfolio for exercising governance gates. Not a strategy track record.</div>
     </div>
     <div class="card">
       <div class="card-label">Drawdown</div>
@@ -1321,7 +1323,7 @@ main {
     </div>
     <div class="card">
       <div class="card-label">Doctrine Version</div>
-      <div class="card-value" style="font-size:16px;color:var(--cyan)" id="kpi-doctrine-version">1.3</div>
+      <div class="card-value" style="font-size:16px;color:var(--cyan)" id="kpi-doctrine-version" data-version="doctrine">n/a</div>
       <div class="card-sub">AUREON-MENTAT</div>
     </div>
   </div>
@@ -2677,7 +2679,7 @@ main {
   <div style="text-align:center;padding:16px 0 8px;color:var(--dim);font-size:10px;letter-spacing:1.5px;line-height:2.2">
     ATROX SPEAR — ALPHA ORIGINATION LAYER · 50,000 FT<br>
     ADVISORY ONLY — ALL OUTPUTS REQUIRE HUMAN APPROVAL (CAOM-001)<br>
-    SIX DATA PIPES · VERANA L0 MCP · DOCTRINE v<span id="atrox-doctrine-ver">1.3</span>
+    SIX DATA PIPES · VERANA L0 MCP · DOCTRINE v<span id="atrox-doctrine-ver" data-version="doctrine">n/a</span>
   </div>
 
 </div>
@@ -3054,7 +3056,7 @@ Aureon for replay, evidence, and audit packaging</pre>
       </tr>
       <tr style="border-bottom:1px solid var(--border)">
         <td style="padding:6px 8px;color:var(--white)">Thifur-H</td>
-        <td style="padding:6px 8px;color:var(--yellow)">Declared — not activated</td>
+        <td style="padding:6px 8px;color:var(--yellow)">Advisory mode active · autonomous mode declared, not activated · Phase 2 Kraken validation evidence in evidence/</td>
         <td style="padding:6px 8px;color:var(--muted)">VWAP/TWAP/POV, Phase 2 pending Tier 1 validation (NIST AI RMF 1.0 + doctrine)</td>
       </tr>
       <tr>
@@ -3070,7 +3072,7 @@ Aureon for replay, evidence, and audit packaging</pre>
               letter-spacing:1.5px;line-height:2">
     PREPARED BY GUILLERMO "BILL" RAVELO<br>
     COLUMBIA UNIVERSITY · MS IN TECHNOLOGY MANAGEMENT<br>
-    PROJECT AUREON · DRAFT 1.0 · DOCTRINE-DRIVEN OPERATING SYSTEM FOR GLOBAL FINANCIAL INFRASTRUCTURE
+    PROJECT AUREON · DOCTRINE v<span data-version="doctrine">n/a</span> · DOCTRINE-DRIVEN OPERATING SYSTEM FOR GLOBAL FINANCIAL INFRASTRUCTURE
   </div>
 </div>
 
@@ -3150,7 +3152,7 @@ const state = {
   cycleCount: 0,
   classTotals: {},
   allocations: {},
-  doctrineVersion: '1.3',
+  doctrineVersion: 'n/a',
   stackStatus: 'initializing',
   doctrineUpdates: [],
   frameworks: [],
@@ -3308,7 +3310,7 @@ async function fetchGovernance() {
     const d = await r.json();
 
     // Core doctrine state
-    state.doctrineVersion        = d.doctrine_version         || '1.2';
+    state.doctrineVersion        = d.doctrine_version         || 'n/a';
     state.stackStatus            = d.stack_status             || 'ready';
     state.doctrineUpdates        = d.doctrine_updates         || [];
     state.authorityLog           = d.authority_log            || [];
@@ -5479,7 +5481,7 @@ function renderAtrox() {
 
   // Doctrine version footer
   const verEl = document.getElementById('atrox-doctrine-ver');
-  if (verEl) verEl.textContent = state.doctrineVersion || '1.3';
+  if (verEl) verEl.textContent = state.doctrineVersion || 'n/a';
 }
 
 // ── TAB SWITCHING ─────────────────────────────────────
@@ -5984,6 +5986,19 @@ setInterval(tick,      5000);
 setInterval(slowTick, 15000);
 slowTick();
 </script>
-<footer style="text-align:center;color:#64748B;font:11px/1.6 system-ui,sans-serif;padding:18px 14px;margin-top:24px;border-top:1px solid #1E3A5F">Aureon platform · Project-Atreides settlement &amp; custody engine consumed as a pinned dependency, v0.3.1 (AUR-ADD-006) · <a href="/cockpit" style="color:#38BDF8">Leto console at /cockpit </a> · synthetic inputs; governance surfaces are live </footer>
+<footer style="text-align:center;color:#64748B;font:11px/1.6 system-ui,sans-serif;padding:18px 14px;margin-top:24px;border-top:1px solid #1E3A5F">Aureon platform · Project-Atreides settlement &amp; custody engine consumed as a pinned dependency, v<span data-version="atreides">n/a</span> (AUR-ADD-006) · <a href="/cockpit" style="color:#38BDF8">Leto console at /cockpit </a> · synthetic inputs; governance surfaces are live </footer>
+<script>
+async function hydrateVersions() {
+  try {
+    const response = await fetch('/api/versions');
+    if (!response.ok) return;
+    const versions = await response.json();
+    document.querySelectorAll('[data-version]').forEach(element => {
+      element.textContent = versions[element.dataset.version] || 'n/a';
+    });
+  } catch (error) {}
+}
+hydrateVersions();
+</script>
 </body>
 </html>
