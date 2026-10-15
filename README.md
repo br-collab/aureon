@@ -183,42 +183,49 @@ Beat 4 — submission — permanently. Live rail execution, the quorum signature
 Atrox — Alpha Origination (50,000 ft)
   Systematic signal generation, predictive analytics,
   market intelligence, product recommendations
-  [Advisory only — all outputs require human approval]
-                    |
-                    v
-      [HUMAN AUTHORITY — CAOM-001]
-      Operator reviews and approves Atrox output
-                    |
-                    v
+  [Advisory only — never initiates, approves, or releases]
+                    │
+                    ▼
       Aureon Agent + Governance Layer
       Layer 0 - Verana  — Network Governance
-        └── Cato Sec — Live settlement-doctrine gate (open-source MCP, MIT)
+        └── Cato Sec — Settlement-doctrine gate
       Layer 1 - Mentat  — Strategic Intelligence
       Layer 2 - Kaladan — Lifecycle Orchestration
       Layer 3 - Thifur-C2 — Command and Control
-        └── Thifur-R — Deterministic Execution
-        └── Thifur-J — Bounded Autonomy
-        └── Thifur-H — Adaptive Intelligence
-      Tier 0 — Emergency Halt (above all doctrine, any authority can trigger)
-                    |
-                    v
-           OMS / Order Staging
-                    |
-                    v
-          EMS / Trader Workflow
-                    |
-                    v
-     SOR / Broker / Venue Connectivity
-                    |
-                    v
-Exchanges / ATS / Internalization Venues
-                    |
-                    v
-Post-Trade / Clearing / Custody / Settlement
-                    |
-                    v
-Status / fills / breaks / confirms returned to Aureon
-for replay, supervisory evidence, and audit packaging
+        ├── Thifur-R — Deterministic analysis
+        ├── Thifur-J — Bounded path selection
+        └── Thifur-H — Adaptive advisory mode
+      Tier 0 — Emergency Halt (above all doctrine)
+  [Agents advise and validate; no agent holds authority]
+                    │
+                    ▼
+      Bound pre-trade policy + evidence record
+                    │
+                    ▼
+      [HUMAN AUTHORITY — CAOM-001]
+      Operator approves or rejects governed intent
+                    │
+                    ▼
+ ApprovedIntentEnvelope + RELEASE_AUTHORIZED
+          [No economic side effect]
+                    │
+                    ▼
+       OMS / EMS / SOR / Venue workflow
+                    │
+                    ▼
+ Venue fill — the only economic booking input
+                    │
+                    ▼
+ Booking consumer + C2 reconciliation + DSOR
+                    │
+                    ▼
+ Project Atreides prepares · governs · reconciles
+      [The entitled member submits;
+       Aureon and Atreides never submit]
+                    │
+                    ▼
+Status, fills, breaks, and confirmations return to
+Aureon for replay, evidence, and audit packaging
 ```
 
 ---
