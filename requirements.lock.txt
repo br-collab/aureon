@@ -99,7 +99,7 @@ python-dateutil==2.9.0.post0
     # via pandas
 python-dotenv==1.2.4
     # via -r requirements.txt
-pytimeparse==1.1.8
+pytimeparse==1.1.9
     # via twelvedata
 pytz==2026.5
     # via yfinance
