@@ -63,7 +63,7 @@ jinja2==3.1.6
     # via flask
 lxml==6.1.3
     # via yfinance
-markupsafe==3.0.3
+markupsafe==3.0.4
     # via
     #   flask
     #   jinja2
@@ -80,11 +80,11 @@ peewee==4.5.2
     # via yfinance
 pillow==12.3.0
     # via reportlab
-platformdirs==4.11.10
+platformdirs==4.13.0
     # via yfinance
 protobuf==7.36.2
     # via yfinance
-pycparser==3.0
+pycparser==3.11
     # via cffi
 pycryptodome==3.23.0
     # via xrpl-py
@@ -99,9 +99,9 @@ python-dateutil==2.9.0.post0
     # via pandas
 python-dotenv==1.2.4
     # via -r requirements.txt
-pytimeparse==1.1.8
+pytimeparse==1.1.9
     # via twelvedata
-pytz==2026.4
+pytz==2026.5
     # via yfinance
 reportlab==5.0.1
     # via -r requirements.txt
