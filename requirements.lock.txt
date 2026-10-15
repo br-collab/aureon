@@ -84,7 +84,7 @@ platformdirs==4.13.0
     # via yfinance
 protobuf==7.36.2
     # via yfinance
-pycparser==3.0
+pycparser==3.11
     # via cffi
 pycryptodome==3.23.0
     # via xrpl-py
