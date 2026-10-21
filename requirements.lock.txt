@@ -18,7 +18,7 @@ cannae-kernel @ git+https://github.com/br-collab/cannae-kernel.git@v1.0.0
     # via
     #   -r requirements.txt
     #   atreides
-certifi==2026.7.22
+certifi==2026.10.19
     # via
     #   curl-cffi
     #   httpcore
@@ -78,7 +78,7 @@ pandas==3.0.6
     # via yfinance
 peewee==4.5.2
     # via yfinance
-pillow==12.3.0
+pillow==13.0.0
     # via reportlab
 platformdirs==4.13.0
     # via yfinance
