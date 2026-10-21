@@ -116,7 +116,7 @@ soupsieve==2.10
     # via beautifulsoup4
 twelvedata==1.4.0
     # via -r requirements.txt
-types-deprecated==1.3.1.20260728
+types-deprecated==1.3.1.20260928
     # via xrpl-py
 typing-extensions==4.16.0
     # via
