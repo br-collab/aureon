@@ -41,3 +41,12 @@ def test_readme_atreides_pin_matches_requirements():
 def test_readme_uses_canonical_cato_repository_name():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "Cato---FICC-MCP" not in readme
+
+
+def test_readme_states_current_external_cato_version_and_twin_divergence():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    doctrine_stack = readme.splitlines()[2]
+
+    assert "external MCP server v0.3.2" in doctrine_stack
+    assert "in-process Python twin v0.2.3" in doctrine_stack
+    assert "PARITY_XRPL.md" in doctrine_stack
