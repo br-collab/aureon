@@ -4,6 +4,10 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      pip-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
     # Dependabot edits requirements.lock.txt line by line and does not resolve it,
     # so it can propose a version no resolver would accept. These two rules stop
     # the bumps that cannot install. Each says when it can be removed.
@@ -18,11 +22,29 @@ updates:
       # (aureon #64, 17.1). Remove this rule when an xrpl-py release accepts 16 or later.
       - dependency-name: "websockets"
         versions: [">=16"]
+      # xrpl-py 5.2.0 requires pycryptodome>=3.23.0,<4.0.0, so Dependabot PR #100
+      # cannot resolve with 4.x. Remove this when xrpl-py accepts pycryptodome 4 or later,
+      # then regenerate with `python scripts/compile_lock.py --upgrade` and run the suite.
+      - dependency-name: "pycryptodome"
+        versions: [">=4"]
   - package-ecosystem: npm
     directory: "/KYC Agent/aureon-kyc"
     schedule:
       interval: weekly
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action/*"
+      actions-minor-patch:
+        patterns: ["*"]
+        exclude-patterns:
+          - "github/codeql-action/*"
+        update-types: ["minor", "patch"]
