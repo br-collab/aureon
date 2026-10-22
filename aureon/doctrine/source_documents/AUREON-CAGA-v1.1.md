@@ -131,8 +131,8 @@ Cato exists in two implementations that must produce bit-for-bit identical decis
 
 | **Input** | **Threshold** | **Effect** |
 |---|---|---|
-| **OFR STLFSI4** | > 1.0 | ESCALATE — systemic stress, route to human authority |
-| **OFR STLFSI4** | > 0.5 | HOLD — broad stress, route to FICC traditional |
+| **St. Louis Fed STLFSI4** | > 1.0 | ESCALATE — systemic stress, route to human authority |
+| **St. Louis Fed STLFSI4** | > 0.5 | HOLD — broad stress, route to FICC traditional |
 | **ETH L1 gas** | > 50 gwei | HOLD — L1 congestion, route to FICC traditional |
 | **\|SOFR(t) − SOFR(t−****1)\|**** × 100** | > 10 bps | HOLD — funding-market shock (v0.2.2 Sept 2019 backtest fix) |
 | **All below threshold** | — | PROCEED — atomic settlement viable |
@@ -228,7 +228,7 @@ CAOM-001 is the formally governed configuration under which a single human opera
 - 2. CAOM mode declaration — operator confirms CAOM-001 is active operating mode.
 - 3. Role consolidation acknowledgment — operator affirms tier holdings for the session, logged to DSOR.
 - 4. Agent advisory readiness check — Thifur-C2 confirms all advisory agents are online and doctrine-loaded.
-- 5. Systemic stress status review — Verana surfaces OFR STLFSI4 signal; operator may proceed unless Verana hard-blocks.
+- 5. Systemic stress status review — Verana surfaces the St. Louis Fed STLFSI4 signal; operator may proceed unless Verana hard-blocks.
 - 6. Session open confirmation — operator confirms; execution gates activate.
 *The 6 April 2026 pre-trade routing failure was caused by the absence of Steps 2 and 3 prior to CAOM-001 codification. CAOM-001 is both the architectural fix and the formal doctrine. All six steps are implemented as discrete endpoints (/**api**/session/status, /**api**/session/step/1, /**api**/session/step/2, /**api**/session/step/3, /**api**/session/open) in the deployed server.*
 ### Transition Triggers

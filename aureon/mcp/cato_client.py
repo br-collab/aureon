@@ -21,8 +21,8 @@ What this module does
    server.py, not here — this module stays pure for testability).
 2. Applies the Cato doctrine:
 
-    ESCALATE  if OFR stress > 1.0                   (systemic stress)
-    HOLD      if OFR stress > 0.5 OR gas > 50 gwei  (non-systemic friction)
+    ESCALATE  if St. Louis Fed stress > 1.0                   (systemic stress)
+    HOLD      if St. Louis Fed stress > 0.5 OR gas > 50 gwei  (non-systemic friction)
     PROCEED   otherwise                             (atomic settlement viable)
 
 3. Selects a recommended chain among live rails (PROCEED case only).
@@ -311,11 +311,11 @@ def atomic_settlement_gate(
     Deterministic Cato doctrine gate v0.2.2.
 
     Primary HOLD triggers (any one trips it):
-      - OFR STLFSI4 > 0.5                     (broad financial stress)
+      - St. Louis Fed STLFSI4 > 0.5            (broad financial stress)
       - ETH L1 gas > 50 gwei                  (network congestion)
       - |SOFR(t) - SOFR(t-1)| × 100 > 10 bps  (funding-market shock)
 
-    ESCALATE if OFR STLFSI4 > 1.0 (systemic stress, route to human
+    ESCALATE if St. Louis Fed STLFSI4 > 1.0 (systemic stress, route to human
     authority — overrides everything else).
 
     The SOFR delta trigger was added in v0.2.2 to close the September
@@ -352,21 +352,21 @@ def atomic_settlement_gate(
         decision = "HOLD"
         recommended_rail = "traditional"
         reasons.append(
-            f"OFR stress reading is not a usable number (got {ofr_stress!r}) — "
+            f"St. Louis Fed stress reading is not a usable number (got {ofr_stress!r}) — "
             "feed missing or malformed; holding rather than assuming clear"
         )
     elif ofr > CATO_OFR_ESCALATE_THRESHOLD:
         decision = "ESCALATE"
         recommended_rail = "human_authority"
         reasons.append(
-            f"OFR stress index at {ofr:.2f} — "
+            f"St. Louis Fed stress index at {ofr:.2f} — "
             f"systemic stress threshold (>{CATO_OFR_ESCALATE_THRESHOLD}) breached"
         )
     else:
         if ofr > CATO_OFR_HOLD_THRESHOLD:
             decision = "HOLD"
             reasons.append(
-                f"OFR stress index at {ofr:.2f} — "
+                f"St. Louis Fed stress index at {ofr:.2f} — "
                 f"above-average stress (>{CATO_OFR_HOLD_THRESHOLD})"
             )
         if eth_gas is not None and eth_gas > CATO_GAS_GWEI_HOLD_THRESHOLD:
@@ -376,7 +376,7 @@ def atomic_settlement_gate(
                 f"above {CATO_GAS_GWEI_HOLD_THRESHOLD:.0f} gwei doctrine threshold"
             )
         # v0.2.2: SOFR 1-day delta trigger — catches funding-market
-        # shocks (Sept 2019 repo spike) that OFR STLFSI4 misses entirely.
+        # shocks (Sept 2019 repo spike) that STLFSI4 misses entirely.
         if sofr_delta_bps is not None and sofr_delta_bps > CATO_SOFR_DELTA_HOLD_BPS:
             decision = "HOLD"
             reasons.append(
