@@ -42,6 +42,7 @@ STRUCTURE:
 # 'hashlib'   → generate deterministic audit hashes (like a fingerprint)
 
 import os
+import uuid
 import io
 import json
 import math
@@ -5831,6 +5832,15 @@ def _resolve_decision_request(decision_id, data, *, actor):
         else:
             release_mode = "OMS"
             try:
+                def _write_release_dsor(packet):
+                    record_id = f"DSOR-RELEASE-{uuid.uuid4()}"
+                    with _lock:
+                        aureon_state.setdefault("release_dsor_log", []).insert(0, {
+                            "record_id": record_id, "packet": packet,
+                            "recorded_at": datetime.now(timezone.utc).isoformat(),
+                        })
+                    return record_id
+
                 release_packet = release_to_oms(
                     decision,
                     authority_hash=authority_hash,
@@ -5840,6 +5850,7 @@ def _resolve_decision_request(decision_id, data, *, actor):
                         "payload": result["payload"].model_dump(mode="json"),
                         "payload_bytes": result["payload_bytes"].decode("utf-8"),
                     },
+                    dsor_write=_write_release_dsor,
                 )
             except OMSReleaseError as exc:
                 release_packet = exc.package
@@ -6365,6 +6376,15 @@ def api_halt_activate():
             "hash":      halt_hash,
         })
 
+    cancel_result = None
+    if _thifur_h_session is not None:
+        try:
+            cancel_result = _thifur_h_session.exchange.cancel_all_session_orders()
+        except Exception:
+            # The halt response is externally visible. Do not disclose venue
+            # or transport exception details through the API.
+            cancel_result = {"error": "cancel_all_failed"}
+
     _journal("HALT_ACTIVATED", "OPERATOR", "SYSTEM",
              f"Emergency halt activated. Reason: {reason}",
              authority=authority, outcome="HALTED", ref_id=halt_hash)
@@ -6375,6 +6395,7 @@ def api_halt_activate():
         "authority": authority,
         "hash":      halt_hash,
         "ts":        aureon_state["halt_ts"],
+        "cancel_all": cancel_result,
     })
 
 
@@ -9190,6 +9211,8 @@ _atrox_live.start()
 def _get_kraken_engine():
     from aureon.thifur.thifur_h import SessionLedger, ThifurHGates
     from datetime import datetime, timezone
+    if os.environ.get("AUREON_KRAKEN_LIVE_ENABLED", "false").lower() != "true":
+        return None, "Kraken live path is disabled (AUREON_KRAKEN_LIVE_ENABLED is off)"
     api_key = os.environ.get("KRAKEN_API_KEY", "")
     api_secret = os.environ.get("KRAKEN_API_SECRET", "")
     if not api_key or not api_secret:
@@ -9199,7 +9222,11 @@ def _get_kraken_engine():
     engine.ledger = SessionLedger(session_id=engine.session_id, started_at=datetime.now(timezone.utc).isoformat())
     engine.doctrine = ThifurHDoctrineLive
     engine.gates = ThifurHGates(engine.ledger, ThifurHDoctrineLive)
-    engine.exchange = KrakenLiveClient(api_key, api_secret)
+    engine.exchange = KrakenLiveClient(
+        api_key, api_secret,
+        halt_check=lambda: bool(aureon_state.get("halt_active", False)),
+        live_enabled=True,
+    )
     # The autonomous close loop has no HTTP route, so a route-level guard
     # cannot reach it. Bind the same halt predicate the cockpit already uses,
     # so Tier 0 stops execution rather than only stopping the simulated
