@@ -13,7 +13,7 @@ beautifulsoup4==4.15.0
     # via yfinance
 blinker==1.9.0
     # via flask
-cannae-kernel @ git+https://github.com/br-collab/cannae-kernel.git@v1.0.0
+cannae-kernel @ git+https://github.com/br-collab/cannae-kernel.git@v1.1.2
     # resolved to 74def3f1cd3010f35375d771425903ad2f72f8ec
     # via
     #   -r requirements.txt

@@ -17,6 +17,6 @@ atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.5.0
 pydantic>=2.5.0
 # Shared identifiers, digests, dispositions and halt context for Project Cannae
 # Legion (CL-JUM-001 JUM-D-05). Same pinning rule as atreides: tag first.
-cannae-kernel @ git+https://github.com/br-collab/cannae-kernel.git@v1.0.0
+cannae-kernel @ git+https://github.com/br-collab/cannae-kernel.git@v1.1.2
 # Phase 2 P2-2 — real atomic DvP on XRPL testnet for MMF Lane D.
 xrpl-py>=4.5.0
