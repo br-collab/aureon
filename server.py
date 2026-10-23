@@ -2550,7 +2550,7 @@ def _atrox_refresh_loop():
     """
     # One-time boot check. Without FRED_API_KEY the SOFR and OFR fetches
     # 400 and Cato Sec falls back to cached/None values — the gate still
-    # answers, but on stale macro inputs. Cato Cash (atreides.rails.cato_f)
+    # answers, but on stale macro inputs. Cato Cash (atreides.rails.cato_cash)
     # reuses the same OFR STLFSI4 band deliberately, so BOTH the securities
     # and cash legs degrade together and silently. Surface it at boot, once,
     # rather than only as a per-fetch WARN buried in the refresh loop.
@@ -9743,10 +9743,7 @@ from atreides.messaging import (                                     # noqa: E40
     emit_instruction_artifact as _cl_emit,
     settlement_method_for_rail as _cl_method_for_rail,
 )
-# The immutable v0.5.0 dependency pin predates Atreides' cato_cash module
-# rename. Keep this internal import until a tagged Atreides release carries
-# the new path; Cato Cash is the component's canonical public identity now.
-from atreides.rails.cato_f import (                                  # noqa: E402
+from atreides.rails.cato_cash import (                               # noqa: E402
     CashRail as _ClRail,
     FinalityClass as _ClFinality,
     OperationContext as _ClOpCtx,
@@ -10005,7 +10002,7 @@ def cashleg_demo():
                                    rails=rails, ofr_stlfsi4=0.12)
     stages.append({
         "stage": "2. Cato Cash — which rail, how final?",
-        "module": "atreides/rails/cato_f.py",
+        "module": "atreides/rails/cato_cash.py",
         "doctrine": "AUR-CUSTODY-CASH-001 SV",
         "headline": f"{cleared.decision.value} — {cleared.recommended_rail.value} "
                     f"({cleared.finality_class.value})",
