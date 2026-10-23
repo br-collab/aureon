@@ -76,30 +76,30 @@ numpy==2.4.6
     #   yfinance
 pandas==3.0.6
     # via yfinance
-peewee==4.5.2
+peewee==4.5.3
     # via yfinance
 pillow==13.0.0
     # via reportlab
-platformdirs==4.13.0
+platformdirs==4.13.5
     # via yfinance
 protobuf==7.36.2
     # via yfinance
 pycparser==3.11
     # via cffi
-pycryptodome==3.23.0
+pycryptodome==3.24.1
     # via xrpl-py
-pydantic==2.13.5
+pydantic==2.14.1
     # via
     #   -r requirements.txt
     #   atreides
     #   cannae-kernel
-pydantic-core==2.46.5
+pydantic-core==2.50.1
     # via pydantic
 python-dateutil==2.9.0.post0
     # via pandas
 python-dotenv==1.2.4
     # via -r requirements.txt
-pytimeparse==1.1.9
+pytimeparse==1.1.10
     # via twelvedata
 pytz==2026.5
     # via yfinance
@@ -112,7 +112,7 @@ requests==2.34.2
     #   yfinance
 six==1.17.0
     # via python-dateutil
-soupsieve==2.10
+soupsieve==3.0.3
     # via beautifulsoup4
 twelvedata==1.4.0
     # via -r requirements.txt
@@ -138,7 +138,7 @@ werkzeug==3.1.9
     # via
     #   flask
     #   flask-cors
-wrapt==2.5.0
+wrapt==2.5.1
     # via deprecated
 xrpl-py==5.2.0
     # via -r requirements.txt

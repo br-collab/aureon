@@ -54,6 +54,10 @@ Usage:
     python scripts/compile_lock.py            # refresh, keeping existing pins
     python scripts/compile_lock.py --upgrade  # allow transitive upgrades
     python scripts/compile_lock.py --check    # fail if the lock is out of date
+
+The resolver targets Python 3.11.9, matching ``runtime.txt`` and Railway's
+declared runtime. Using the abstract ``3.11`` floor incorrectly excludes
+packages that support Aureon's runtime but require a later 3.11 patch release.
 """
 
 from __future__ import annotations
@@ -68,6 +72,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 REQUIREMENTS = ROOT / "requirements.txt"
 LOCK = ROOT / "requirements.lock.txt"
+PYTHON_VERSION = "3.11.9"
 
 #: `name @ git+<url>@<ref>` — the ref may be a tag, a branch or a commit.
 GIT_REQUIREMENT = re.compile(
@@ -126,8 +131,16 @@ def compile_lock(*, upgrade: bool = False) -> str:
         # and --check fails on upstream releases rather than on our changes.
         if LOCK.exists() and not upgrade:
             out.write_text(LOCK.read_text(encoding="utf-8"), encoding="utf-8")
-        command = ["uv", "pip", "compile", "requirements.txt",
-                   "--python-version", "3.11", "-o", str(out)]
+        command = [
+            "uv",
+            "pip",
+            "compile",
+            "requirements.txt",
+            "--python-version",
+            PYTHON_VERSION,
+            "-o",
+            str(out),
+        ]
         if upgrade:
             command.append("--upgrade")
         subprocess.run(command, check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
