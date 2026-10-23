@@ -25,6 +25,7 @@ import base64
 import json
 import time
 import logging
+from decimal import Decimal, ROUND_HALF_UP
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from enum import Enum
@@ -467,6 +468,11 @@ class ThifurH:
     def _generate_client_order_id(self, signal_id: str) -> str:
         return f"aureon-{self.session_id[-8:]}-{signal_id[-6:]}"
 
+    def _price_string(self, symbol: str, price: float) -> str:
+        """Format opens and closes with the same instrument tick size."""
+        tick = getattr(self.doctrine, "PRICE_TICKS", {}).get(symbol, Decimal("0.01"))
+        return format(Decimal(str(price)).quantize(tick, rounding=ROUND_HALF_UP), "f")
+
     def process_signal(self, signal: AtroxSignal) -> dict:
         """
         Main entry point. One signal in, one governed outcome out.
@@ -497,7 +503,7 @@ class ThifurH:
 
         # ── All gates passed — place order ──────────
         client_order_id = self._generate_client_order_id(signal.signal_id)
-        price_str = f"{signal.suggested_price:.2f}"
+        price_str = self._price_string(signal.symbol, signal.suggested_price)
         qty_str = f"{signal.suggested_qty:.6f}"
 
         logger.info(f"Submitting to Gemini sandbox: {signal.symbol} {signal.side} {qty_str} @ ${price_str}")
@@ -519,6 +525,7 @@ class ThifurH:
         order_id = kraken_txids[0] if kraken_txids else order_response.get("order_id", "UNKNOWN")
         self.ledger.orders_placed += 1
         self.ledger.open_positions[order_id] = {
+            "client_order_id": client_order_id,
             "signal_id": signal.signal_id,
             "symbol": signal.symbol,
             "side": signal.side,
@@ -553,12 +560,6 @@ class ThifurH:
         kind: "sell" | "stop"
         force_market: if True and STOP_ALLOW_MARKET, use Kraken market order
         """
-        from aureon.thifur.kraken_client import ThifurHDoctrineLive
-        # Kraken fee constants — duplicated here vs atrox_live.py to avoid
-        # the live -> sandbox -> live circular import. Keep the two in sync.
-        MAKER_FEE = 0.0016
-        TAKER_FEE = 0.0025
-
         if self.halt_check is not None and self.halt_check():
             self._dsor("HALT_REFUSED", signal.signal_id,
                        {"reason": "Tier 0 Emergency Halt active"})
@@ -599,7 +600,7 @@ class ThifurH:
             )
             order_type = "market"
         else:
-            price_str = f"{signal.suggested_price:.1f}"
+            price_str = self._price_string(signal.symbol, signal.suggested_price)
             order_response = self.exchange.place_limit_order(
                 symbol=signal.symbol,
                 side=signal.side,
@@ -619,42 +620,26 @@ class ThifurH:
         kraken_txids = (order_response.get("result") or {}).get("txid") or []
         order_id = kraken_txids[0] if kraken_txids else "UNKNOWN"
 
-        # P&L estimation (assumes immediate-fill semantics for sell side;
-        # actual realized P&L will reconcile when Kraken reports the fill —
-        # for v1 this is the operator-visible estimate).
-        fee_pct = TAKER_FEE if order_type == "market" else MAKER_FEE
-        notional = signal.suggested_price * signal.suggested_qty
-        fee_usd = notional * fee_pct
-        # If we're closing a long position, P&L = (exit - entry) * qty - exit_fee
-        # entry fee was already booked at the open order
-        gross_pnl = (signal.suggested_price - entry_price) * signal.suggested_qty if entry_price > 0 else 0.0
-        net_pnl = gross_pnl - fee_usd
-
         self.ledger.orders_placed += 1
         self.ledger.auto_executions += 1
-        self.ledger.realized_pnl_gross_usd += gross_pnl
-        self.ledger.total_fees_usd += fee_usd
-        self.ledger.realized_pnl_usd += net_pnl
-        if net_pnl < 0:
-            self.ledger.session_loss_usd += abs(net_pnl)
-
-        # Close the open position (logical close — Kraken match settles it)
-        if entry_txid and entry_txid in self.ledger.open_positions:
-            del self.ledger.open_positions[entry_txid]
+        self.ledger.open_positions[order_id] = {
+            "client_order_id": client_order_id, "closing_txid": order_id,
+            "closes_txid": entry_txid, "entry_price": entry_price,
+            "qty": signal.suggested_qty, "order_type": order_type,
+            "status": "PENDING_EXECUTION_REPORT",
+        }
 
         self._dsor(f"AUTO_{kind.upper()}_EXECUTED", signal.signal_id,
                    {"order_response": order_response, "signal": asdict(signal),
                     "kind": kind, "order_type": order_type,
-                    "entry_price": entry_price, "exit_price": signal.suggested_price,
-                    "gross_pnl_usd": round(gross_pnl, 4),
-                    "fee_usd": round(fee_usd, 4),
-                    "net_pnl_usd": round(net_pnl, 4),
+                    "entry_price": entry_price, "requested_exit_price": signal.suggested_price,
+                    "booking_status": "PENDING_EXECUTION_REPORT",
                     "closed_txid": entry_txid},
                    gate_result="PASS", order_id=order_id)
 
         logger.warning(
             f"AUTO-{kind.upper()} executed | order_id={order_id} | "
-            f"order_type={order_type} | net_pnl=${net_pnl:.4f}"
+            f"order_type={order_type} | booking pending execution report"
         )
         return {
             "result": "ORDER_PLACED",
@@ -663,11 +648,31 @@ class ThifurH:
             "order_type": order_type,
             "signal_id": signal.signal_id,
             "entry_price": entry_price,
-            "exit_price": signal.suggested_price,
-            "gross_pnl_usd": round(gross_pnl, 4),
-            "fee_usd": round(fee_usd, 4),
-            "net_pnl_usd": round(net_pnl, 4),
+            "requested_exit_price": signal.suggested_price,
+            "booking_status": "PENDING_EXECUTION_REPORT",
         }
+
+    def apply_close_execution_report(self, txid: str, *, fill_price: str, fill_quantity: str, fee_usd: str) -> dict:
+        """Book a close only from a full venue execution report keyed by txid."""
+        pending = self.ledger.open_positions.get(txid)
+        if not pending or pending.get("status") != "PENDING_EXECUTION_REPORT":
+            raise ValueError(f"no pending close for txid {txid}")
+        qty = Decimal(fill_quantity)
+        if qty != Decimal(str(pending["qty"])):
+            raise ValueError("partial close remains open until full quantity is reported")
+        gross = (Decimal(fill_price) - Decimal(str(pending["entry_price"]))) * qty
+        fee = Decimal(fee_usd)
+        net = gross - fee
+        self.ledger.realized_pnl_gross_usd += float(gross)
+        self.ledger.total_fees_usd += float(fee)
+        self.ledger.realized_pnl_usd += float(net)
+        if net < 0:
+            self.ledger.session_loss_usd += float(-net)
+        original = pending.get("closes_txid")
+        del self.ledger.open_positions[txid]
+        if original in self.ledger.open_positions:
+            del self.ledger.open_positions[original]
+        return {"result": "CLOSE_BOOKED", "txid": txid, "gross_pnl_usd": str(gross), "net_pnl_usd": str(net)}
 
     def rollback(self, order_id: str, reason: str) -> dict:
         """
