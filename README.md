@@ -275,7 +275,7 @@ Strict determinism. Zero variance permitted. The same input always produces the 
 Governs the TradFi-DeFi convergence zone. Manages tokenized asset lifecycle and multi-constraint flows. Selects among approved paths — never generates new ones. Doctrine always overrides smart contract execution logic.
 
 **Thifur-H — Hunter-Killer — Adaptive Intelligence**
-Adaptive optimization for execution strategy, liquidity routing, collateral optimization, FX hedging, and repo. **Phase 2 first-light validation complete** — end-to-end signal cycle exercised against the live Kraken exchange under CAOM-001 sole-operator mode, with $10 position cap, $5 session-loss cap, XBTUSD-only whitelist, and post-only limit orders. Five-gate governance layer enforced and recorded (CAOM-001 authorization, symbol whitelist, position size, session drawdown, HITL); every gate evaluated for every signal regardless of upstream block, for evidence completeness under the National Institute of Standards and Technology AI Risk Management Framework (NIST AI RMF) 1.0 plus Aureon doctrine. Session ledger tracks orders by Kraken txid, supports per-order rollback, and exposes a MiFID II RTS 6 kill switch that cancels all open orders. The full Decision System of Record export from a 20-cycle validation protocol (5 clean execution, 15 intentional breach tests across symbol/size/authorization gates) is committed under `evidence/`. Exchange connectivity is direct Kraken REST with HMAC-SHA512 signing — no MCP intermediary on the live path.
+Adaptive optimization for execution strategy, liquidity routing, collateral optimization, FX hedging, and repo. The repository contains an optional direct Kraken path for Bill's own funds. It is off by default in every profile and can be enabled only by the operator setting `AUREON_KRAKEN_LIVE_ENABLED=true` alongside credentials outside the application. Its hard caps are $10 per position, $5 session loss, XBTUSD only, and 20 orders per session. The halt sets the execution interlock and cancels every resting venue order. Orders retain Aureon's full client id and are thereafter addressed by Kraken `txid`; a close books no profit or loss and removes no position until a venue execution report arrives.
 
 ### Governance Boundary
 
@@ -285,7 +285,7 @@ All Thifur agents operate under strict governance constraints:
 - All trades pass through pre-trade decision structuring within Aureon
 - All trades pass through role-based human approvals (CAOM-001)
 - Agent outputs are advisory and validated within the decision workflow
-- Authority remains with human roles and governed control logic, never with agents
+- Approval authority remains with human roles. The optional, operator-enabled Kraken adapter can transmit a previously approved order; CAOM releases are labelled `SINGLE_ACTOR_APPROVAL`.
 
 ---
 
@@ -293,7 +293,7 @@ All Thifur agents operate under strict governance constraints:
 
 Cato Sec is the Verana L0 pre-settlement doctrine gate for tokenized institutional repo. It answers one question before every settlement: is atomic on-chain Delivery-versus-Payment viable right now, or should this trade route to FICC (Fixed Income Clearing Corporation)? The gate runs four deterministic checks and emits PROCEED, HOLD, or ESCALATE plus a recommended settlement rail.
 
-Cato Sec exists in two implementations that must produce bit-for-bit identical decisions for identical inputs: the external open-source MCP server (Node.js, MIT license, 23 tools at [github.com/br-collab/Cato-FICC-MCP](https://github.com/br-collab/Cato-FICC-MCP)) and the in-process Python twin inside Aureon. The deterministic parity is currently in a known mixed state and tracked in the open conflicts log.
+Cato Sec exists in two implementations: the external open-source MCP server (Node.js, MIT license, 24 tools at [github.com/br-collab/Cato-FICC-MCP](https://github.com/br-collab/Cato-FICC-MCP)) and the in-process Python twin inside Aureon. Their current compatibility status is `INCOMPATIBLE`; the divergence is tracked in the open conflicts log.
 
 **Backtest verified (produced as an SR 11-7 Tier 1 artefact; SR 11-7 is now superseded by Federal Reserve SR 26-2 / Office of the Comptroller of the Currency (OCC) Bulletin 2026-13):** March 2020 COVID repo freeze (100%), September 2019 repo spike (80% post-fix), March 2023 SVB collapse (45.5% — documented calibration limit; Cato Sec is a market-regime gate, not a counterparty-credit gate).
 
@@ -629,7 +629,7 @@ POST /mcp
 
 Cato Sec is the **public-facing twin** of Verana L0's settlement-doctrine gate. Where Verana L0 exposes Aureon's full governance state over HTTP JSON-RPC to authenticated clients (above), Cato Sec re-implements the settlement-doctrine portion as a stdio MCP server suitable for desktop AI clients (Claude Desktop, Claude Code, Agent SDK apps).
 
-**Repository:** [github.com/br-collab/Cato-FICC-MCP](https://github.com/br-collab/Cato-FICC-MCP) — Node.js, MIT, 23 tools
+**Repository:** [github.com/br-collab/Cato-FICC-MCP](https://github.com/br-collab/Cato-FICC-MCP) — Node.js, MIT, 24 tools
 **Transport:** stdio JSON-RPC (per MCP convention for desktop clients)
 **Paired with:** `aureon/mcp/cato_client.py` — the in-process Python twin called by `/api/cato/*` endpoints
 

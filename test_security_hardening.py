@@ -136,6 +136,13 @@ def test_halt_reaches_the_engine() -> None:
         "the live engine is constructed with the halt bound",
         "engine.halt_check = lambda" in server_src,
     )
+    halt_route = server_src[server_src.find("def api_halt_activate(") :]
+    halt_route = halt_route[: halt_route.find("\n@app.route")]
+    check("halt invokes cancel-all", "cancel_all_session_orders" in halt_route)
+    check(
+        "cancel-all failures do not expose exception details",
+        '{"error": "cancel_all_failed"}' in halt_route and "str(exc)" not in halt_route,
+    )
 
 
 def test_halt_blocks_a_signal_without_touching_an_exchange() -> None:
@@ -168,6 +175,38 @@ def test_halt_blocks_a_signal_without_touching_an_exchange() -> None:
         "Halt" in result.get("reason", ""),
         result.get("reason", ""),
     )
+
+
+def test_live_client_checks_halt_and_keeps_full_client_id_off_wire() -> None:
+    from aureon.thifur.kraken_client import KrakenLiveClient
+
+    halted = KrakenLiveClient("key", "secret", halt_check=lambda: True, live_enabled=True)
+    try:
+        halted.place_limit_order("XBTUSD", "buy", "100.1", "0.0001", "client-full-id")
+    except RuntimeError as exc:
+        check("every place call checks halt", "Halt" in str(exc))
+    else:
+        check("every place call checks halt", False)
+
+    disabled = KrakenLiveClient("key", "secret", halt_check=lambda: False, live_enabled=False)
+    try:
+        disabled.place_market_order("XBTUSD", "sell", "0.0001", "client-full-id")
+    except RuntimeError as exc:
+        check("live path is off unless operator enables it", "disabled" in str(exc))
+    else:
+        check("live path is off unless operator enables it", False)
+
+
+def test_multi_role_mode_requires_distinct_actors(monkeypatch) -> None:
+    from aureon.approval_service import release_control as rc
+
+    monkeypatch.setattr(rc, "is_caom_active", lambda: False)
+    raw = {"required_approvals": ["TRADER", "RISK"], "current_approvals": []}
+    rc.record_approval(raw, "TRADER", actor_id="person-1")
+    rc.record_approval(raw, "RISK", actor_id="person-1")
+    check("one actor cannot satisfy two institutional roles", not rc.can_release(rc.normalize_decision(raw)))
+    raw["approval_actors"]["RISK"] = "person-2"
+    check("distinct actors satisfy distinct roles", rc.can_release(rc.normalize_decision(raw)))
 
 
 # ---------------------------------------------------------------------------
@@ -222,6 +261,8 @@ if __name__ == "__main__":
     test_auto_close_is_bounded()
     test_halt_reaches_the_engine()
     test_halt_blocks_a_signal_without_touching_an_exchange()
+    test_live_client_checks_halt_and_keeps_full_client_id_off_wire()
+    # pytest supplies monkeypatch; the script runner covers the other guards.
     test_cash_floor()
     print("=" * 60)
     if FAILURES:
