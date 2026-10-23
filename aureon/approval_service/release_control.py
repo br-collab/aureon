@@ -63,6 +63,7 @@ class Decision:
     release_target:      str
     required_approvals:  list[str]
     current_approvals:   list[str]
+    approval_actors:     dict[str, str] = field(default_factory=dict)
 
     # Flags
     mandate_sensitive:   bool = False
@@ -85,6 +86,7 @@ class Decision:
             "release_target":      self.release_target,
             "required_approvals":  self.required_approvals,
             "current_approvals":   self.current_approvals,
+            "approval_actors":     self.approval_actors,
             "mandate_sensitive":   self.mandate_sensitive,
             "policy_exception":    self.policy_exception,
             "risk_exception":      self.risk_exception,
@@ -108,6 +110,7 @@ def normalize_decision(raw: dict) -> Decision:
         release_target      = raw.get("release_target", "OMS"),
         required_approvals  = list(raw.get("required_approvals", ["TRADER"])),
         current_approvals   = list(raw.get("current_approvals", [])),
+        approval_actors     = dict(raw.get("approval_actors", {})),
         mandate_sensitive   = bool(raw.get("mandate_sensitive", False)),
         policy_exception    = bool(raw.get("policy_exception", False)),
         risk_exception      = bool(raw.get("risk_exception", False)),
@@ -159,6 +162,9 @@ def missing_roles(decision: Decision) -> list[str]:
             return sorted(required)
 
     # ── Non-CAOM path (multi-role institutional) ───────────────────────────
+    actors = [decision.approval_actors.get(role) for role in required]
+    if any(actor is None for actor in actors) or len(set(actors)) != len(actors):
+        return sorted(required)
     return sorted(required - satisfied)
 
 
@@ -175,7 +181,7 @@ def can_release(decision: Decision) -> bool:
 
 # ── Approval Recording ────────────────────────────────────────────────────────
 
-def record_approval(decision_raw: dict, approval_role: str) -> dict:
+def record_approval(decision_raw: dict, approval_role: str, actor_id: str | None = None) -> dict:
     """
     Record an approval action against a decision.
 
@@ -199,10 +205,13 @@ def record_approval(decision_raw: dict, approval_role: str) -> dict:
             approvals.append(operator_token)
         decision_raw["current_approvals"] = approvals
     else:
+        if not actor_id:
+            raise ValueError("multi-role approval requires actor_id")
         approvals = list(decision_raw.get("current_approvals", []))
         if role not in approvals:
             approvals.append(role)
         decision_raw["current_approvals"] = approvals
+        decision_raw.setdefault("approval_actors", {})[role] = actor_id
 
     decision_raw["last_approval_ts"]   = datetime.now(timezone.utc).isoformat()
     decision_raw["last_approval_role"]  = role
@@ -216,6 +225,7 @@ def release_to_oms(
     authority_hash: str,
     oms_send:       Optional[Callable] = None,
     approved_intent: Optional[dict] = None,
+    dsor_write: Optional[Callable[[dict], str]] = None,
 ) -> dict:
     """
     Build the governed OMS release package and optionally call oms_send.
@@ -243,7 +253,7 @@ def release_to_oms(
         "authority_hash":   authority_hash,
         "approval_lineage": decision.get("current_approvals", []),
         "status":           "RELEASED",
-        "dsor_stamped":     True,
+        "dsor_stamped":     False,
     }
     if approved_intent is not None:
         package["approved_intent"]        = approved_intent
@@ -254,6 +264,14 @@ def release_to_oms(
         package["operating_mode"]    = "CAOM-001"
         package["caom_operator"]     = CAOM_OPERATOR["name"]
         package["caom_operator_id"]  = CAOM_OPERATOR["id"]
+        package["approval_control"] = "SINGLE_ACTOR_APPROVAL"
+
+    if dsor_write is not None:
+        record_id = dsor_write(dict(package))
+        if not record_id:
+            raise OMSReleaseError(package, "DSOR store did not return a record id")
+        package["dsor_record_id"] = str(record_id)
+        package["dsor_stamped"] = True
 
     if oms_send is not None:
         try:
