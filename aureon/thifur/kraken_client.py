@@ -15,8 +15,8 @@ Doctrine constants tightened for live account:
 Author: Project Aureon · Guillermo "Bill" Ravelo
 """
 
-import hashlib
 import hmac
+import hashlib
 import base64
 import urllib.parse
 import urllib.request
@@ -24,7 +24,9 @@ import urllib.error
 import json
 import time
 import logging
-from datetime import datetime, timezone
+from decimal import Decimal
+from collections.abc import Callable
+from typing import ClassVar
 
 logger = logging.getLogger("thifur_h.kraken")
 
@@ -54,6 +56,7 @@ class ThifurHDoctrineLive:
     # Any code path placing a market order outside the stop path is a
     # doctrine breach — limit-only is the default for entries and profit-takes.
     STOP_ALLOW_MARKET: bool = True
+    PRICE_TICKS: ClassVar = {"XBTUSD": Decimal("0.1")}
 
 
 class KrakenLiveClient:
@@ -65,9 +68,17 @@ class KrakenLiveClient:
 
     BASE_URL = "https://api.kraken.com"
 
-    def __init__(self, api_key: str, api_secret: str):
+    def __init__(self, api_key: str, api_secret: str, *, halt_check: Callable[[], bool], live_enabled: bool):
         self.api_key = api_key
         self.api_secret = api_secret
+        self._halt_check = halt_check
+        self._live_enabled = live_enabled
+
+    def _assert_order_allowed(self) -> None:
+        if not self._live_enabled:
+            raise RuntimeError("Kraken live order path is disabled")
+        if self._halt_check():
+            raise RuntimeError("Tier 0 Emergency Halt active")
 
     def _sign(self, uri_path: str, data: dict) -> str:
         """
@@ -141,6 +152,7 @@ class KrakenLiveClient:
         quantity: str,
         client_order_id: str
     ) -> dict:
+        self._assert_order_allowed()
         assert symbol in ThifurHDoctrineLive.ALLOWED_SYMBOLS, \
             f"DOCTRINE BREACH: {symbol} not in whitelist"
         assert side in ThifurHDoctrineLive.ALLOWED_SIDES, \
@@ -153,7 +165,9 @@ class KrakenLiveClient:
             "pair": symbol,
             "price": price,
             "oflags": "post",        # Post-only — maker order, no immediate fill
-            "userref": int(hashlib.sha256(client_order_id.encode()).hexdigest(), 16) % (2**31),
+            # The full client id is retained in Aureon's ledger; Kraken orders
+            # are addressed by the venue's returned txid.  A 31-bit userref is
+            # not an injective identifier and therefore is deliberately absent.
         }
         result = self._post("/0/private/AddOrder", data)
         logger.info(f"Kraken order placed: {result}")
@@ -170,6 +184,7 @@ class KrakenLiveClient:
         Market order — restricted by doctrine to stop-loss execution only.
         Caller must verify STOP_ALLOW_MARKET before invoking.
         """
+        self._assert_order_allowed()
         assert symbol in ThifurHDoctrineLive.ALLOWED_SYMBOLS, \
             f"DOCTRINE BREACH: {symbol} not in whitelist"
         assert side in ThifurHDoctrineLive.ALLOWED_SIDES, \
@@ -181,7 +196,6 @@ class KrakenLiveClient:
             "type": side,
             "volume": quantity,
             "pair": symbol,
-            "userref": int(hashlib.sha256(client_order_id.encode()).hexdigest(), 16) % (2**31),
         }
         result = self._post("/0/private/AddOrder", data)
         logger.warning(f"Kraken MARKET order placed: {result}")
