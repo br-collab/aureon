@@ -162,7 +162,7 @@ The framework holds no depository, CCP, or payment-system credential, opens no s
 `requirements.txt` declares:
 
 ```
-atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.5.0
+atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.6.1
 ```
 
 This repository holds **no vendored copy** of the custody domain layer. That is a deliberate reversal: the cockpit originally reached production by being copied across the repository boundary, which was the only move available while both packages defined a top-level module named `aureon`. The copy carried a transitive pydantic requirement this repository did not declare and took the deployment down with a Railway 502 on boot. The `atreides` rename removed the constraint; the determination is recorded in `AUR-ADD-006`.
