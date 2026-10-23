@@ -17,18 +17,18 @@ In Phase 1, Aureon acts as a Decision System of Record (DSOR) before execution: 
 The programme uses two separate descriptions. **Automation level** describes what
 the software does: 1 is Observe, 2 is Compare, 3 is Recommend, 4 is Execute with
 control, 5 is Exception led, and 6 is Straight through. **Criticality tier**
-describes the consequence-bearing function a component would touch: Tier 0 covers
-money, positions, regulatory calculations and clearing submission, Tier 1 covers
-production workflow or regulated records, Tier 2 covers shared decision support,
-and Tier 3 covers analysis and operator productivity. A tier is not an assurance
+describes the consequence-bearing function a component would touch: Criticality A covers
+money, positions, regulatory calculations and clearing submission, Criticality B covers
+production workflow or regulated records, Criticality C covers shared decision support,
+and Criticality D covers analysis and operator productivity. A criticality class is not an assurance
 rating.
 
 | Component | Automation level | Criticality tier |
 |---|---:|---:|
-| Aureon intent gate | 3, Recommend | 0 |
+| Aureon intent gate | 3, Recommend | A |
 
 The intent gate is synthetic and advisory. It does not meet the assurance,
-operational control or authorization that Tier 0 would require in production,
+operational control or authorization that Criticality A would require in production,
 and the table makes no compliance claim.
 
 ---
@@ -275,7 +275,7 @@ Strict determinism. Zero variance permitted. The same input always produces the 
 Governs the TradFi-DeFi convergence zone. Manages tokenized asset lifecycle and multi-constraint flows. Selects among approved paths — never generates new ones. Doctrine always overrides smart contract execution logic.
 
 **Thifur-H — Hunter-Killer — Adaptive Intelligence**
-Adaptive optimization for execution strategy, liquidity routing, collateral optimization, FX hedging, and repo. The repository contains an optional direct Kraken path for Bill's own funds. It is off by default in every profile and can be enabled only by the operator setting `AUREON_KRAKEN_LIVE_ENABLED=true` alongside credentials outside the application. Its hard caps are $10 per position, $5 session loss, XBTUSD only, and 20 orders per session. The halt sets the execution interlock and cancels every resting venue order. Orders retain Aureon's full client id and are thereafter addressed by Kraken `txid`; a close books no profit or loss and removes no position until a venue execution report arrives.
+Adaptive optimization for execution strategy, liquidity routing, collateral optimization, FX hedging, and repo. The repository contains an optional direct Kraken path for Bill's own funds only; it holds no customer money and is separate from the synthetic estate. It is off by default locally and forced off in every deployed profile. A local operator can enable it only by setting `AUREON_KRAKEN_LIVE_ENABLED=true` alongside credentials outside the application. Its hard caps are $10 per position, $5 session loss, XBTUSD only, and 20 orders per session. The halt sets the execution interlock and cancels every resting venue order. Orders retain Aureon's full client id and are thereafter addressed by Kraken `txid`; a close books no profit or loss and removes no position until a venue execution report arrives.
 
 ### Governance Boundary
 

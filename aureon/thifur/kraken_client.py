@@ -24,6 +24,7 @@ import urllib.error
 import json
 import time
 import logging
+import os
 from decimal import Decimal
 from collections.abc import Callable
 from typing import ClassVar
@@ -72,7 +73,10 @@ class KrakenLiveClient:
         self.api_key = api_key
         self.api_secret = api_secret
         self._halt_check = halt_check
-        self._live_enabled = live_enabled
+        # ORDER-GR-1 finding 6: "move the live client behind a flag that is
+        # off in every deployed profile." A local operator may explicitly
+        # enable Bill's own-funds path; Railway can never do so.
+        self._live_enabled = live_enabled and not bool(os.environ.get("RAILWAY_ENVIRONMENT"))
 
     def _assert_order_allowed(self) -> None:
         if not self._live_enabled:

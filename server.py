@@ -9199,6 +9199,8 @@ _atrox_live.start()
 def _get_kraken_engine():
     from aureon.thifur.thifur_h import SessionLedger, ThifurHGates
     from datetime import datetime, timezone
+    if os.environ.get("RAILWAY_ENVIRONMENT"):
+        return None, "Kraken live path is disabled in every deployed profile"
     if os.environ.get("AUREON_KRAKEN_LIVE_ENABLED", "false").lower() != "true":
         return None, "Kraken live path is disabled (AUREON_KRAKEN_LIVE_ENABLED is off)"
     api_key = os.environ.get("KRAKEN_API_KEY", "")

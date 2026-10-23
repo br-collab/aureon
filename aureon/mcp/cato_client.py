@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 
-CATO_DOCTRINE_VERSION = "0.2.3"
+CATO_DOCTRINE_VERSION = "0.5.0"
 CATO_GATE_LABEL = f"Verana L0 — Cato settlement gate v{CATO_DOCTRINE_VERSION}"
 
 # Doctrine thresholds (see Duffie 2025, Brookings Institution).
@@ -87,6 +87,8 @@ def _is_usable_stress_reading(value: Optional[float]) -> bool:
 # MCP server v0.2.1 ETH_PRICE_FALLBACK / SOL_PRICE_FALLBACK constants.
 ETH_PRICE_FALLBACK = 3500.0   # USD per ETH
 SOL_PRICE_FALLBACK = 150.0    # USD per SOL
+XRP_PRICE_FALLBACK = 2.50     # USD per XRP
+CATO_ULTRA_LOW_FEE_USD = 0.01
 
 # Settlement speeds (informational, surfaced in output).
 CHAIN_SPEED = {
@@ -94,12 +96,13 @@ CHAIN_SPEED = {
     "base": "2s",
     "arbitrum": "2s",
     "solana": "400ms",
+    "xrpl": "4s",
 }
 
 # Supported rail identifiers. The fed_l1 placeholder is documented but
 # intentionally never live — Cato reserves the slot for tokenized Fed
 # reserves once PORTS (Duffie 2025) or the GENIUS Act ships.
-SUPPORTED_CHAINS = ("ethereum", "base", "arbitrum", "solana")
+SUPPORTED_CHAINS = ("ethereum", "base", "arbitrum", "solana", "xrpl")
 
 SOLANA_NOTE = (
     "Solana 400ms finality eliminates T+1 window entirely at near-zero "
@@ -144,6 +147,12 @@ def _empty_chain_state() -> dict:
             "settlement_speed": CHAIN_SPEED["solana"],
             "status": "unavailable",
         },
+        "xrpl": {
+            "fee_drops": None,
+            "fee_usd_estimate": None,
+            "settlement_speed": CHAIN_SPEED["xrpl"],
+            "status": "unavailable",
+        },
         "fed_l1": {
             "status": "not_yet_issued",
             "note": FED_L1_NOTE,
@@ -158,7 +167,7 @@ def _get_chain_state(chain_state: Optional[dict]) -> dict:
         return _empty_chain_state()
     # Ensure every expected key is present so downstream access is safe.
     base = _empty_chain_state()
-    for key in ("ethereum", "base", "arbitrum", "solana", "fed_l1"):
+    for key in ("ethereum", "base", "arbitrum", "solana", "xrpl", "fed_l1"):
         if key in chain_state:
             base[key] = chain_state[key]
     return base
@@ -211,13 +220,14 @@ def _solana_cost(fee_lamports: Optional[float], sol_price_usd: Optional[float] =
 
 def _resolve_prices(prices: Optional[dict]) -> dict:
     """Normalize a caller-supplied prices dict. Returns a dict with at
-    least {eth, sol, source, fallback_used}. If the caller passes None,
+    least {eth, sol, xrp, source, fallback_used}. If the caller passes None,
     falls back to the static constants and marks the result accordingly
     so the output's `price_sources` block reflects the degraded state."""
     if prices and prices.get("eth") is not None and prices.get("sol") is not None:
         return {
             "eth": float(prices["eth"]),
             "sol": float(prices["sol"]),
+            "xrp": float(prices.get("xrp", XRP_PRICE_FALLBACK)),
             "source": prices.get("source", "caller_supplied"),
             "timestamp": prices.get("timestamp"),
             "fallback_used": bool(prices.get("fallback_used", False)),
@@ -225,6 +235,7 @@ def _resolve_prices(prices: Optional[dict]) -> dict:
     return {
         "eth": ETH_PRICE_FALLBACK,
         "sol": SOL_PRICE_FALLBACK,
+        "xrp": XRP_PRICE_FALLBACK,
         "source": "static_fallback",
         "timestamp": None,
         "fallback_used": True,
@@ -281,16 +292,16 @@ def tokenized_settlement_context(
 def _pick_recommended_chain(chain_state: dict) -> Optional[str]:
     """Cheapest-wins chain picker for the gate (trade-size-agnostic).
 
-    Priority order (matches MCP v0.2.0 `get_atomic_settlement_gate`):
-      1. Solana if fee_usd < $0.01
-      2. Base   if base_gas < 1 gwei
-      3. Ethereum if it has live data
-      4. None
+    Generated doctrine order from Cato v0.5.0: XRPL, Solana, Base, Ethereum.
+    ORDER-GR-1 finding 2 requires no independent decision difference.
     """
     sol_fee = _coerce_float(chain_state.get("solana", {}).get("fee_usd_estimate"))
+    xrpl_fee = _coerce_float(chain_state.get("xrpl", {}).get("fee_usd_estimate"))
     base_gas = _coerce_float(chain_state.get("base", {}).get("gas_gwei"))
     eth_gas = _eth_gas(chain_state)
-    if sol_fee is not None and sol_fee < 0.01:
+    if xrpl_fee is not None and xrpl_fee < CATO_ULTRA_LOW_FEE_USD:
+        return "xrpl"
+    if sol_fee is not None and sol_fee < CATO_ULTRA_LOW_FEE_USD:
         return "solana"
     if base_gas is not None and base_gas < 1:
         return "base"
@@ -416,6 +427,7 @@ def atomic_settlement_gate(
         "price_sources": {
             "eth_usd": resolved_prices["eth"],
             "sol_usd": resolved_prices["sol"],
+            "xrp_usd": resolved_prices["xrp"],
             "source": resolved_prices["source"],
             "timestamp": resolved_prices["timestamp"],
             "fallback_used": resolved_prices["fallback_used"],

@@ -197,6 +197,20 @@ def test_live_client_checks_halt_and_keeps_full_client_id_off_wire() -> None:
         check("live path is off unless operator enables it", False)
 
 
+def test_live_client_is_disabled_in_every_deployed_profile(monkeypatch) -> None:
+    """ORDER-GR-1 finding 6: a deployed profile cannot enable live Kraken."""
+    from aureon.thifur.kraken_client import KrakenLiveClient
+
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    deployed = KrakenLiveClient("key", "secret", halt_check=lambda: False, live_enabled=True)
+    try:
+        deployed.place_market_order("XBTUSD", "sell", "0.0001", "client-full-id")
+    except RuntimeError as exc:
+        check("deployed profiles force the live path off", "disabled" in str(exc))
+    else:
+        check("deployed profiles force the live path off", False)
+
+
 def test_multi_role_mode_requires_distinct_actors(monkeypatch) -> None:
     from aureon.approval_service import release_control as rc
 
