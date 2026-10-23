@@ -136,6 +136,13 @@ def test_halt_reaches_the_engine() -> None:
         "the live engine is constructed with the halt bound",
         "engine.halt_check = lambda" in server_src,
     )
+    halt_route = server_src[server_src.find("def api_halt_activate(") :]
+    halt_route = halt_route[: halt_route.find("\n@app.route")]
+    check("halt invokes cancel-all", "cancel_all_session_orders" in halt_route)
+    check(
+        "cancel-all failures do not expose exception details",
+        '{"error": "cancel_all_failed"}' in halt_route and "str(exc)" not in halt_route,
+    )
 
 
 def test_halt_blocks_a_signal_without_touching_an_exchange() -> None:

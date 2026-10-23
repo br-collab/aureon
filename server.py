@@ -6380,8 +6380,10 @@ def api_halt_activate():
     if _thifur_h_session is not None:
         try:
             cancel_result = _thifur_h_session.exchange.cancel_all_session_orders()
-        except Exception as exc:
-            cancel_result = {"error": f"{type(exc).__name__}: {exc}"}
+        except Exception:
+            # The halt response is externally visible. Do not disclose venue
+            # or transport exception details through the API.
+            cancel_result = {"error": "cancel_all_failed"}
 
     _journal("HALT_ACTIVATED", "OPERATOR", "SYSTEM",
              f"Emergency halt activated. Reason: {reason}",
