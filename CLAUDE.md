@@ -126,7 +126,7 @@ Started via `_start_background_threads()` in `server.py`. On Railway, triggered 
 
 Required in `.env` (local) or Railway service variables (production):
 - `TWELVE_DATA_API_KEY` — market data
-- `FRED_API_KEY` — live SOFR + OFR STLFSI4; powers the Cato Sec and Cato Cash stress gates. Unset, both degrade to fallback values silently
+- `FRED_API_KEY` — residual FRED macro and stress series only. Cato Sec SOFR comes from the New York Fed Markets API and fails closed when unavailable.
 - `AUREON_EMAIL`, `AUREON_EMAIL_PW`, `AUREON_EMAIL_RECIPIENT` — Gmail SMTP reporting
 - `ALPACA_API_KEY`, `ALPACA_API_SECRET` — paper trading
 - `RAILWAY_VOLUME_MOUNT_PATH` — production state persistence directory
@@ -193,7 +193,7 @@ the chain and rail pickers differ, and none of the 16 vectors exercises the XRPL
 is why `parity/run_parity.py` passes against the v0.3.1 Node core despite the divergence.
 **Reference:** Duffie (2025) *"The Case for PORTS"* — Brookings Institution.
 
-Cato Sec is the Verana L0 pre-settlement doctrine gate. It takes live SOFR (FRED), OFR financial stress (FRED STLFSI4), multi-chain gas/fee state (Blockscout + Solana RPC), and live ETH/SOL prices (CoinGecko), and emits a deterministic `PROCEED / HOLD / ESCALATE` decision plus a `recommended_chain` for tokenized repo settlement.
+Cato Sec is the Verana L0 pre-settlement doctrine gate. It takes live SOFR (New York Fed Markets API), OFR financial stress (FRED STLFSI4), multi-chain gas/fee state (Blockscout + Solana RPC), and live ETH/SOL prices (CoinGecko), and emits a deterministic `PROCEED / HOLD / ESCALATE` decision plus a `recommended_chain` for tokenized repo settlement.
 
 The cash-leg rail and finality counterpart is Cato Cash (`cato_cash`). The
 existing `/api/cato/*` and `/api/cashleg/*` paths are stable transport
@@ -204,10 +204,10 @@ namespaces, not component identities.
 Cato Sec exists in **two forms** that must produce bit-for-bit identical decisions:
 
 1. **External MCP server** — https://github.com/br-collab/Cato-FICC-MCP
-   Node.js, 23 tools, `@modelcontextprotocol/sdk ^1.0.0`. Exposes Cato Sec to LLM callers (Claude Desktop, Agent SDK apps) over JSON-RPC stdio. GitHub Actions CI asserts exactly 23 tools on every push.
+   Node.js, 29 tools, `@modelcontextprotocol/sdk`. Exposes Cato Sec to LLM callers (Claude Desktop, Agent SDK apps) over JSON-RPC stdio.
 
 2. **Aureon in-process Python twin** — `aureon/mcp/cato_client.py`
-   Pure Python, no I/O. Called directly from `server.py` for the `/api/cato/*` endpoints. Data fetching (FRED, Blockscout, Solana RPC, CoinGecko) happens in `server.py` inside `_cato_refresh_inputs()` and flows into the twin via scalar parameters.
+   Pure Python, no I/O. Called directly from `server.py` for the `/api/cato/*` endpoints. Data fetching (New York Fed, FRED residual series, Blockscout, Solana RPC, CoinGecko) happens in `server.py` inside `_cato_refresh_inputs()` and flows into the twin via scalar parameters.
 
 **The parity principle (hard rule):** any doctrine change — new threshold, new input, new decision branch — must land in **both** codebases in the same commit series. The deterministic identity is what lets regulators trust the gate regardless of caller. If you only update one side you break model governance under Federal Reserve SR 26-2 / Office of the Comptroller of the Currency (OCC) Bulletin 2026-13 (supersedes SR 11-7).
 
@@ -240,7 +240,7 @@ Rail routing (notional-aware, in `compare_settlement_rails`):
 ### Live market data flow (every 60 seconds)
 
 Inside `_cato_refresh_inputs()` in `server.py`:
-1. Fetch SOFR from FRED (with fed_funds proxy fallback)
+1. Fetch SOFR from the New York Fed Markets API; if unavailable, leave the gate input absent (no proxy or static fallback)
 2. Read OFR STLFSI4 from the existing `_ofr_cache` (warmed by `market_loop`)
 3. Fetch live ETH/SOL USD prices from CoinGecko public API
 4. Build `chain_state` dict by fetching gas from Blockscout (eth/base/arbitrum) + Solana RPC `getRecentPrioritizationFees`, using the live SOL price for Solana's fee USD conversion

@@ -2039,38 +2039,39 @@ def _fred_series_latest(series_id: str):
     raise ValueError(f"no usable FRED value for {series_id}")
 
 
-def _fred_series_recent(series_id: str, count: int = 2):
+def _nyfed_reference_rate_recent(rate: str, count: int = 2):
+    """Return newest NY Fed reference-rate observations, newest first.
+
+    CATO-D2 governing rule (scope 2): "SOFR, EFFR, OBFR, BGCR, TGCR: the
+    New York Fed Markets API ... remove the FRED `SOFR` reads ... [from] the
+    atomic settlement gate." A missing or malformed primary response raises;
+    the gate input remains absent rather than receiving a proxy or default.
     """
-    Return the N most recent non-null observations for a FRED series as
-    a list of {"date", "value"} dicts, newest first. Used by Cato Sec v0.2.2
-    for the SOFR 1-day delta check — needs 2 observations to compute
-    the day-over-day move. Over-fetches by 3x to handle FRED missing-
-    value markers ('.', '', None).
-    """
-    params = {
-        "series_id": series_id,
-        "file_type": "json",
-        "sort_order": "desc",
-        "limit": max(count * 3, 7),
-    }
-    if FRED_API_KEY:
-        params["api_key"] = FRED_API_KEY
-    url = "https://api.stlouisfed.org/fred/series/observations?" + urllib.parse.urlencode(params)
-    with urllib.request.urlopen(url, timeout=6) as resp:
+    normalized = str(rate).strip().lower()
+    if normalized not in {"sofr", "effr", "obfr", "bgcr", "tgcr"}:
+        raise ValueError(f"unsupported NY Fed reference rate: {rate}")
+    market = "secured" if normalized in {"sofr", "bgcr", "tgcr"} else "unsecured"
+    url = f"https://markets.newyorkfed.org/api/rates/{market}/{normalized}/last/{max(count, 1)}.json"
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "Aureon/0.6.1 (research; github.com/br-collab/aureon)"},
+    )
+    with urllib.request.urlopen(request, timeout=6) as resp:
         payload = json.loads(resp.read().decode("utf-8"))
     out = []
-    for obs in payload.get("observations", []):
-        value = obs.get("value")
-        if value in (None, ".", ""):
+    for observation in payload.get("refRates", []):
+        value = observation.get("percentRate")
+        date = observation.get("effectiveDate")
+        if value in (None, "") or not date:
             continue
         try:
-            out.append({"date": obs.get("date"), "value": float(value)})
+            out.append({"date": date, "value": float(value)})
         except (TypeError, ValueError):
             continue
         if len(out) >= count:
             break
     if not out:
-        raise ValueError(f"no usable FRED values for {series_id}")
+        raise ValueError(f"no usable New York Fed values for {normalized.upper()}")
     return out
 
 
@@ -2490,26 +2491,17 @@ def _cato_refresh_inputs():
     sofr_prev = None
     ofr_stress = None
 
-    # SOFR today + prior day (v0.2.2 requires 2 observations for delta).
+    # SOFR today + prior day from its primary publisher (v0.2.2 requires 2
+    # observations for delta). Source failure is an absent gate input; a
+    # different rate is not SOFR and must never be substituted.
     try:
-        sofr_recent = _fred_series_recent("SOFR", count=2)
+        sofr_recent = _nyfed_reference_rate_recent("sofr", count=2)
         if len(sofr_recent) >= 1 and sofr_recent[0].get("value") is not None:
             sofr_rate = float(sofr_recent[0]["value"])
         if len(sofr_recent) >= 2 and sofr_recent[1].get("value") is not None:
             sofr_prev = float(sofr_recent[1]["value"])
     except Exception as exc:
         _log_error("WARN", "cato_refresh:sofr", str(exc))
-
-    # SOFR fallback — cached fed_funds rate as proxy when FRED is unreachable.
-    # Only applies to the current value; sofr_prev stays None on fallback
-    # so the delta check is skipped (graceful degradation).
-    if sofr_rate is None:
-        try:
-            fred_data = _fred_cache.get("data")
-            if fred_data and fred_data.get("fed_funds") is not None:
-                sofr_rate = float(fred_data["fed_funds"])
-        except Exception:
-            pass
 
     # OFR stress — read from the market_loop-maintained _ofr_cache.
     try:
@@ -2548,25 +2540,21 @@ def _atrox_refresh_loop():
     The first iteration fires immediately so caches are warm before the
     dashboard polls.
     """
-    # One-time boot check. Without FRED_API_KEY the SOFR and OFR fetches
-    # 400 and Cato Sec falls back to cached/None values — the gate still
-    # answers, but on stale macro inputs. Cato Cash (atreides.rails.cato_cash)
-    # reuses the same OFR STLFSI4 band deliberately, so BOTH the securities
-    # and cash legs degrade together and silently. Surface it at boot, once,
-    # rather than only as a per-fetch WARN buried in the refresh loop.
+    # One-time boot check. FRED remains necessary for residual macro and
+    # stress-series reads, but Cato Sec SOFR now comes from the New York Fed.
     if not FRED_API_KEY:
         _log_error(
             "WARN",
             "boot:fred_api_key",
-            "FRED_API_KEY is unset — Cato Sec and Cato Cash will evaluate systemic "
-            "stress on fallback values, not live SOFR/OFR. A stress gate "
+            "FRED_API_KEY is unset — residual macro and stress-series reads may "
+            "degrade to unavailable/fallback values. A stress gate "
             "reading a stale input will not fire when it matters. Set it in "
             "Railway service variables (see DEPLOY.md).",
         )
 
     while True:
         # Refresh Cato Sec gate inputs first — these are fast (cache reads
-        # + one FRED SOFR fetch) and power /api/cato/gate.
+        # + one NY Fed SOFR fetch) and power /api/cato/gate.
         try:
             _cato_refresh_inputs()
         except Exception as exc:
