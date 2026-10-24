@@ -5,6 +5,7 @@
 **Settlement & Custody Console:** [/cockpit](https://aureon-production.up.railway.app/cockpit) — pipeline, breaks workbench, and cash leg
 **Status:** Research prototype · paper trading · no real capital at risk · no commercial offering
 **Classification:** Public research prototype · doctrine published in this repository
+**Last updated:** 242250Z OCT 26. Reflects `main` at `254713b`. Latest merged change: #121, GR-1, Cato parity closed and deployed live-client claims hardened.
 
 Aureon is a doctrine-governed control layer between portfolio intent and execution — built for the convergence of tokenization, AI execution, and programmable payment rails. It sits above OMS, EMS, and post-trade infrastructure. It governs what enters those systems, and it produces the unified lineage record a trustee, rating agency, or regulator can rely on.
 
