@@ -183,14 +183,10 @@ The dashboards send both headers through `authorityFetch` (`index.html`) and `ap
 
 ## Cato Sec (`cato_sec`) — Verana L0 Tokenized Settlement Doctrine Gate
 
-**Status:** external MCP server **v0.3.1** · in-process Python twin **v0.2.3** — paper
-trading, approaching institutional-testing readiness. The two are *not* at the same version:
-v0.3.0 added the XRPL rail on the Node side only, and the twin has not taken it yet. That is a
-declared, dated divergence recorded in `PARITY_XRPL.md` in Cato-FICC-MCP, not an oversight — but it is
-also the one thing the Parity Principle below does not permit to stand indefinitely.
-`computeGateDecision` produces identical decisions on both sides for all 16 golden vectors; only
-the chain and rail pickers differ, and none of the 16 vectors exercises the XRPL branch — which
-is why `parity/run_parity.py` passes against the v0.3.1 Node core despite the divergence.
+**Status:** external MCP server and in-process Python twin **v0.7.0** — paper
+trading, approaching institutional-testing readiness. The former XRPL picker divergence is
+retired. `parity/run_parity.py` drives both source implementations and covers every picker
+branch, including XRPL.
 **Reference:** Duffie (2025) *"The Case for PORTS"* — Brookings Institution.
 
 Cato Sec is the Verana L0 pre-settlement doctrine gate. It takes live SOFR (New York Fed Markets API), OFR financial stress (FRED STLFSI4), multi-chain gas/fee state (Blockscout + Solana RPC), and live ETH/SOL prices (CoinGecko), and emits a deterministic `PROCEED / HOLD / ESCALATE` decision plus a `recommended_chain` for tokenized repo settlement.
@@ -211,7 +207,7 @@ Cato Sec exists in **two forms** that must produce bit-for-bit identical decisio
 
 **The parity principle (hard rule):** any doctrine change — new threshold, new input, new decision branch — must land in **both** codebases in the same commit series. The deterministic identity is what lets regulators trust the gate regardless of caller. If you only update one side you break model governance under Federal Reserve SR 26-2 / Office of the Comptroller of the Currency (OCC) Bulletin 2026-13 (supersedes SR 11-7).
 
-### Doctrine thresholds (gate core v0.3.1)
+### Doctrine thresholds (gate core v0.7.0)
 
 | Input | Threshold | Effect |
 |---|---|---|
@@ -223,8 +219,7 @@ Cato Sec exists in **two forms** that must produce bit-for-bit identical decisio
 | everything below | — | **PROCEED** — atomic settlement viable |
 
 Chain selection (trade-size-agnostic) picks cheapest live rail:
-1. XRPL if fee < $0.01 — **Node side only (v0.3.0)**; deterministic finality preferred over raw
-   speed. Not yet in the Python twin — see `PARITY_XRPL.md` in Cato-FICC-MCP
+1. XRPL if fee < $0.01 — deterministic finality preferred over raw speed
 2. Solana if fee < $0.01
 3. Base if gas < 1 gwei
 4. Ethereum L1 otherwise

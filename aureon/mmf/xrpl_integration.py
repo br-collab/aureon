@@ -52,13 +52,14 @@ AUDIT NOTES: Every XRPL tx hash, ledger index, and ledger close
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Optional
 
@@ -67,6 +68,8 @@ from xrpl.wallet import Wallet, generate_faucet_wallet
 from xrpl.models.transactions import (
     AccountSet,
     AccountSetAsfFlag,
+    Clawback,
+    OfferCancel,
     OfferCreate,
     Payment,
     PaymentFlag,
@@ -156,6 +159,8 @@ _load_state()
 
 # ─── XRPL primitives ────────────────────────────────────────────────────────
 _client: Optional[JsonRpcClient] = None
+_operation_lock = threading.RLock()
+_operations: dict[str, dict] = {}
 
 
 def _get_client() -> JsonRpcClient:
@@ -186,7 +191,12 @@ def _submit(label: str, tx: Any, signer: Wallet) -> dict:
         # the tec*/tef*/ter* code so callers get an accurate
         # engine_result rather than an opaque SUBMIT_EXCEPTION.
         msg = str(e)
-        engine_result = "SUBMIT_EXCEPTION"
+        is_timeout = (
+            isinstance(e, TimeoutError)
+            or "timeout" in type(e).__name__.lower()
+            or "timed out" in msg.lower()
+        )
+        engine_result = "SUBMIT_TIMEOUT" if is_timeout else "SUBMIT_EXCEPTION"
         for marker in ("Transaction failed: ", "engine_result: "):
             idx = msg.find(marker)
             if idx >= 0:
@@ -200,6 +210,7 @@ def _submit(label: str, tx: Any, signer: Wallet) -> dict:
             "ledger_index":         0,
             "ledger_close_time_utc": "",
             "engine_result":        engine_result,
+            "outcome":              "UNKNOWN" if is_timeout else "FAILED",
             "error":                f"{type(e).__name__}: {msg[:200]}",
             "wall_seconds":         wall,
             "started_at":           started_at,
@@ -227,16 +238,84 @@ def _submit(label: str, tx: Any, signer: Wallet) -> dict:
         or (r.get("meta") or {}).get("TransactionResult")
         or ""
     )
+    sequence = (r.get("tx_json") or {}).get("Sequence")
     return {
         "label":                 label,
         "tx_hash":               tx_hash,
         "ledger_index":          ledger_index,
         "ledger_close_time_utc": close_iso,
         "engine_result":         engine_result,
+        "sequence":              sequence,
+        "outcome":               "SUCCESS" if engine_result == "tesSUCCESS" else "FAILED",
         "error":                 "",
         "wall_seconds":          wall,
         "started_at":            started_at,
     }
+
+
+def _economic_key(flow: str, investor_id: str, first: Decimal, second: Decimal) -> str:
+    """R-L3 economic identity: flow, investor, and normalized consideration."""
+    identity = "|".join((flow, investor_id, str(first.normalize()), str(second.normalize())))
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+def _lookup_prior_attempt(operation_id: str, prior: dict) -> Optional[dict]:
+    """Lookup-before-retry hook; fake-ledger tests replace it in process."""
+    return None
+
+
+def _begin_operation(operation_id: str) -> Optional[dict]:
+    with _operation_lock:
+        prior = _operations.get(operation_id)
+    if prior is None:
+        return None
+    if prior.get("status") == "UNKNOWN":
+        found = _lookup_prior_attempt(operation_id, prior)
+        resolved = found if found is not None else prior
+        return {**resolved, "deduplicated": True, "lookup_performed": True}
+    return {**prior, "deduplicated": True}
+
+
+def _finish_operation(operation_id: str, result: dict) -> dict:
+    with _operation_lock:
+        _operations[operation_id] = dict(result)
+    return result
+
+
+def _reset_operation_registry_for_tests() -> None:
+    with _operation_lock:
+        _operations.clear()
+
+
+def _compensate(*, investor: Wallet, cash_issuer: Wallet, share_issuer: Wallet,
+                amount: Decimal, pre_fund_step: Optional[dict] = None,
+                offer_step: Optional[dict] = None) -> list[dict]:
+    """INST-1 R-M2: compensate every already-successful reversible step."""
+    compensation: list[dict] = []
+    if offer_step and offer_step.get("engine_result") == "tesSUCCESS":
+        sequence = offer_step.get("sequence")
+        if sequence is not None:
+            compensation.append(_submit(
+                "COMPENSATE OfferCancel",
+                OfferCancel(account=share_issuer.classic_address, offer_sequence=int(sequence)),
+                share_issuer,
+            ))
+    if pre_fund_step and pre_fund_step.get("engine_result") == "tesSUCCESS":
+        compensation.append(_submit(
+            "COMPENSATE Clawback pre-fund",
+            Clawback(
+                account=cash_issuer.classic_address,
+                amount=IssuedCurrencyAmount(
+                    currency=CASH_CURRENCY,
+                    # XRPL Clawback encodes the token holder in Amount.issuer;
+                    # Account is the issuing account exercising clawback.
+                    issuer=investor.classic_address,
+                    value=str(amount),
+                ),
+            ),
+            cash_issuer,
+        ))
+    return compensation
 
 
 # ─── Fund-level setup (ShareIssuer + CashIssuer) ────────────────────────────
@@ -627,8 +706,19 @@ def execute_subscription_dvp(investor_id: str,
         log.warning("force_skip_offer=True but test hooks not enabled; proceeding normally")
         force_skip_offer = False
 
-    amount = Decimal(str(amount_usd))
-    shares = Decimal(str(share_count))
+    # INST-1 R-L2: subscription consideration must be finite and positive.
+    try:
+        amount = Decimal(str(amount_usd))
+        shares = Decimal(str(share_count))
+    except (InvalidOperation, ValueError):
+        return {"status": "INVALID", "reason": "amount and shares must be finite positive decimals"}
+    if not amount.is_finite() or not shares.is_finite() or amount <= 0 or shares <= 0:
+        return {"status": "INVALID", "reason": "amount and shares must be finite and > 0"}
+
+    operation_id = _economic_key("SUBSCRIPTION", investor_id, amount, shares)
+    prior = _begin_operation(operation_id)
+    if prior is not None:
+        return prior
 
     investor_wallet = _get_investor_wallet(investor_id)
     if investor_wallet is None:
@@ -654,11 +744,12 @@ def execute_subscription_dvp(investor_id: str,
         cash_issuer,
     )
     if pre_fund_step["engine_result"] != "tesSUCCESS":
-        return {
-            "status":            "PRE_FUND_FAILED",
+        return _finish_operation(operation_id, {
+            "status":            "UNKNOWN" if pre_fund_step.get("outcome") == "UNKNOWN" else "PRE_FUND_FAILED",
             "investor_address":  investor_wallet.classic_address,
             "pre_fund_step":     pre_fund_step,
-        }
+            "operation_id":      operation_id,
+        })
 
     # Step B: ShareIssuer posts resting Offer.
     # Test hook: force_skip_offer=True skips this step to trigger
@@ -694,12 +785,18 @@ def execute_subscription_dvp(investor_id: str,
             share_issuer,
         )
         if offer_step["engine_result"] != "tesSUCCESS":
-            return {
-                "status":            "OFFER_FAILED",
+            compensation = _compensate(
+                investor=investor_wallet, cash_issuer=cash_issuer,
+                share_issuer=share_issuer, amount=amount,
+                pre_fund_step=pre_fund_step,
+            )
+            return _finish_operation(operation_id, {
+                "status":            "UNKNOWN" if offer_step.get("outcome") == "UNKNOWN" else "OFFER_FAILED",
                 "investor_address":  investor_wallet.classic_address,
                 "pre_fund_tx_hash":  pre_fund_step["tx_hash"],
                 "offer_step":        offer_step,
-            }
+                "compensation_steps": compensation,
+            })
 
     # Step C: Atomic cross-currency Payment. The DvP moment.
     payment_step = _submit(
@@ -722,9 +819,20 @@ def execute_subscription_dvp(investor_id: str,
         investor_wallet,
     )
 
-    status = "COMPLETE" if payment_step["engine_result"] == "tesSUCCESS" else "REJECTED"
+    if payment_step.get("outcome") == "UNKNOWN":
+        status = "UNKNOWN"
+    else:
+        status = "COMPLETE" if payment_step["engine_result"] == "tesSUCCESS" else "REJECTED"
+    compensation = []
+    if status != "COMPLETE":
+        compensation = _compensate(
+            investor=investor_wallet, cash_issuer=cash_issuer,
+            share_issuer=share_issuer, amount=amount,
+            pre_fund_step=pre_fund_step,
+            offer_step=None if force_skip_offer else offer_step,
+        )
 
-    return {
+    return _finish_operation(operation_id, {
         "status":                 status,
         "investor_id":            investor_id,
         "investor_address":       investor_wallet.classic_address,
@@ -737,7 +845,9 @@ def execute_subscription_dvp(investor_id: str,
         "ledger_close_time_utc":  payment_step["ledger_close_time_utc"],
         "engine_result":          payment_step["engine_result"],
         "steps": [pre_fund_step, offer_step, payment_step],
-    }
+        "compensation_steps": compensation,
+        "operation_id": operation_id,
+    })
 
 
 def execute_redemption_dvp(investor_id: str,
@@ -770,14 +880,22 @@ def execute_redemption_dvp(investor_id: str,
     Returns a dict with all tx hashes, ledger index, close time,
     and final engine_result. Caller stamps DSOR based on status.
     """
-    shares = Decimal(str(shares_to_burn))
-    net_payout = Decimal(str(net_payout_usd))
+    try:
+        shares = Decimal(str(shares_to_burn))
+        net_payout = Decimal(str(net_payout_usd))
+    except (InvalidOperation, ValueError):
+        return {"status": "INVALID", "reason": "shares and net_payout must be finite positive decimals"}
 
-    if shares <= 0 or net_payout <= 0:
+    if not shares.is_finite() or not net_payout.is_finite() or shares <= 0 or net_payout <= 0:
         return {
             "status": "INVALID",
             "reason": "shares and net_payout must both be > 0",
         }
+
+    operation_id = _economic_key("REDEMPTION", investor_id, shares, net_payout)
+    prior = _begin_operation(operation_id)
+    if prior is not None:
+        return prior
 
     investor_wallet = _get_investor_wallet(investor_id)
     if investor_wallet is None:
@@ -807,11 +925,12 @@ def execute_redemption_dvp(investor_id: str,
         share_issuer,
     )
     if offer_step["engine_result"] != "tesSUCCESS":
-        return {
-            "status":            "OFFER_FAILED",
+        return _finish_operation(operation_id, {
+            "status":            "UNKNOWN" if offer_step.get("outcome") == "UNKNOWN" else "OFFER_FAILED",
             "investor_address":  investor_wallet.classic_address,
             "offer_step":        offer_step,
-        }
+            "operation_id":      operation_id,
+        })
 
     # Step B: Atomic cross-currency Payment — USD to investor, MMF burned.
     # tfLimitQuality at rate net_payout/shares guarantees the investor
@@ -836,9 +955,19 @@ def execute_redemption_dvp(investor_id: str,
         investor_wallet,
     )
 
-    status = "COMPLETE" if payment_step["engine_result"] == "tesSUCCESS" else "REJECTED"
+    if payment_step.get("outcome") == "UNKNOWN":
+        status = "UNKNOWN"
+    else:
+        status = "COMPLETE" if payment_step["engine_result"] == "tesSUCCESS" else "REJECTED"
+    compensation = []
+    if status != "COMPLETE":
+        compensation = _compensate(
+            investor=investor_wallet, cash_issuer=cash_issuer,
+            share_issuer=share_issuer, amount=net_payout,
+            offer_step=offer_step,
+        )
 
-    return {
+    return _finish_operation(operation_id, {
         "status":                 status,
         "investor_id":            investor_id,
         "investor_address":       investor_wallet.classic_address,
@@ -850,7 +979,9 @@ def execute_redemption_dvp(investor_id: str,
         "ledger_close_time_utc":  payment_step["ledger_close_time_utc"],
         "engine_result":          payment_step["engine_result"],
         "steps": [offer_step, payment_step],
-    }
+        "compensation_steps": compensation,
+        "operation_id": operation_id,
+    })
 
 
 def diagnostic_status() -> dict:
