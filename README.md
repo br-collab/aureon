@@ -1,6 +1,6 @@
 # Project Aureon - The Grid 3
 
-**Doctrine Stack:** Aureon Consolidated Canonical Doctrine v1.6 · CAOM-001 · Cato Sec (external MCP server v0.3.2 · in-process Python twin v0.2.3 — the twin has not yet taken the v0.3.0 XRPL rail; disclosed, dated divergence in `PARITY_XRPL.md` in Cato-FICC-MCP. The v0.3.1 stress guard *is* mirrored in the twin and pinned by golden vector V16 on both sides) · AUR-CUSTODY-001 v1.0 · AUR-CUSTODY-CASH-001 v0.2
+**Doctrine Stack:** Aureon Consolidated Canonical Doctrine v1.6 · CAOM-001 · Cato Sec v0.7.0 (external Node core and in-process Python twin; XRPL divergence retired) · AUR-CUSTODY-001 v1.0 · AUR-CUSTODY-CASH-001 v0.2
 **Live Deployment:** [aureon-production.up.railway.app](https://aureon-production.up.railway.app) · Endowment Series I — Argus · $100M paper AUM
 **Settlement & Custody Console:** [/cockpit](https://aureon-production.up.railway.app/cockpit) — pipeline, breaks workbench, and cash leg
 **Status:** Research prototype · paper trading · no real capital at risk · no commercial offering
@@ -163,7 +163,7 @@ The framework holds no depository, CCP, or payment-system credential, opens no s
 `requirements.txt` declares:
 
 ```
-atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.6.1
+atreides @ git+https://github.com/br-collab/Project-Atreides.git@v0.7.0
 ```
 
 This repository holds **no vendored copy** of the custody domain layer. That is a deliberate reversal: the cockpit originally reached production by being copied across the repository boundary, which was the only move available while both packages defined a top-level module named `aureon`. The copy carried a transitive pydantic requirement this repository did not declare and took the deployment down with a Railway 502 on boot. The `atreides` rename removed the constraint; the determination is recorded in `AUR-ADD-006`.

@@ -43,10 +43,12 @@ def test_readme_uses_canonical_cato_repository_name():
     assert "Cato---FICC-MCP" not in readme
 
 
-def test_readme_states_current_external_cato_version_and_twin_divergence():
+def test_documented_cato_version_is_read_from_the_python_twin_source():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     doctrine_stack = readme.splitlines()[2]
+    source = (ROOT / "aureon/mcp/cato_client.py").read_text(encoding="utf-8")
+    source_version = re.search(r'^CATO_DOCTRINE_VERSION = "([^"]+)"$', source, re.MULTILINE)
 
-    assert "external MCP server v0.3.2" in doctrine_stack
-    assert "in-process Python twin v0.2.3" in doctrine_stack
-    assert "PARITY_XRPL.md" in doctrine_stack
+    assert source_version is not None
+    assert f"Cato Sec v{source_version.group(1)}" in doctrine_stack
+    assert "XRPL divergence retired" in doctrine_stack

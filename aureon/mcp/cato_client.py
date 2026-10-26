@@ -10,7 +10,7 @@ pre-trade gating — no subprocess, no JSON-RPC, no stdio marshalling.
 Both the MCP server and this module implement the same deterministic
 gate so that the governance decision is identical regardless of caller.
 
-Version parity: this module mirrors the Cato MCP server v0.2.0 doctrine.
+Version parity: this module mirrors the Cato MCP server v0.7.0 doctrine.
 It is multi-chain (Ethereum L1, Base L2, Arbitrum L2, Solana) with a
 documented Fed L1 placeholder for tokenized Fed reserves (pending
 GENIUS Act / Duffie 2025 PORTS proposal).
@@ -38,7 +38,8 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 
-CATO_DOCTRINE_VERSION = "0.5.0"
+CATO_DOCTRINE_VERSION = "0.7.0"
+MALFORMED_RAIL_ENTRY = "MALFORMED_RAIL_ENTRY"
 CATO_GATE_LABEL = f"Verana L0 — Cato settlement gate v{CATO_DOCTRINE_VERSION}"
 
 # Doctrine thresholds (see Duffie 2025, Brookings Institution).
@@ -77,7 +78,13 @@ def _is_usable_stress_reading(value: Optional[float]) -> bool:
     2026-08-21 audit finding: a missing OFR reading silently cleared
     the gate via `ofr_stress if ofr_stress is not None else 0.0`.
     """
-    return isinstance(value, (int, float)) and math.isfinite(value)
+    # INST-1 R-M4: "A boolean is never a usable stress reading in Python,
+    # matching Node." bool is an int subclass, so it must be excluded first.
+    return (
+        not isinstance(value, bool)
+        and isinstance(value, (int, float))
+        and math.isfinite(value)
+    )
 
 # Price fallbacks — used only when CoinGecko is unreachable and the caller
 # doesn't supply a live `prices` dict. The doctrine principle: live prices
@@ -169,7 +176,11 @@ def _get_chain_state(chain_state: Optional[dict]) -> dict:
     base = _empty_chain_state()
     for key in ("ethereum", "base", "arbitrum", "solana", "xrpl", "fed_l1"):
         if key in chain_state:
-            base[key] = chain_state[key]
+            entry = chain_state[key]
+            base[key] = entry if isinstance(entry, dict) else {
+                "status": "refused",
+                "refusal_code": MALFORMED_RAIL_ENTRY,
+            }
     return base
 
 
@@ -295,19 +306,51 @@ def _pick_recommended_chain(chain_state: dict) -> Optional[str]:
     Generated doctrine order from Cato v0.5.0: XRPL, Solana, Base, Ethereum.
     ORDER-GR-1 finding 2 requires no independent decision difference.
     """
-    sol_fee = _coerce_float(chain_state.get("solana", {}).get("fee_usd_estimate"))
-    xrpl_fee = _coerce_float(chain_state.get("xrpl", {}).get("fee_usd_estimate"))
-    base_gas = _coerce_float(chain_state.get("base", {}).get("gas_gwei"))
-    eth_gas = _eth_gas(chain_state)
+    result = _pick_recommended_chain_result(chain_state)
+    return result["recommended_chain"]
+
+
+def _pick_recommended_chain_result(chain_state: dict) -> dict:
+    """Return the picker outcome plus the named R-L1 refusal, if any.
+
+    INST-1 R-L1: "Malformed rail entries return a named refusal on both
+    twins, never an exception." Present values are deliberately not coerced:
+    JavaScript and Python must refuse strings and booleans identically.
+    """
+    readings: dict[str, Optional[float]] = {}
+    fields = {
+        "xrpl": "fee_usd_estimate",
+        "solana": "fee_usd_estimate",
+        "base": "gas_gwei",
+        "ethereum": "gas_gwei",
+    }
+    for rail, field in fields.items():
+        entry = chain_state.get(rail)
+        if entry is None:
+            readings[rail] = None
+            continue
+        if not isinstance(entry, dict):
+            return {"recommended_chain": None, "refusal_code": MALFORMED_RAIL_ENTRY, "rail": rail}
+        value = entry.get(field)
+        if value is None:
+            readings[rail] = None
+        elif isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            return {"recommended_chain": None, "refusal_code": MALFORMED_RAIL_ENTRY, "rail": rail}
+        else:
+            readings[rail] = float(value)
+    xrpl_fee = readings["xrpl"]
+    sol_fee = readings["solana"]
+    base_gas = readings["base"]
+    eth_gas = readings["ethereum"]
     if xrpl_fee is not None and xrpl_fee < CATO_ULTRA_LOW_FEE_USD:
-        return "xrpl"
+        return {"recommended_chain": "xrpl", "refusal_code": None}
     if sol_fee is not None and sol_fee < CATO_ULTRA_LOW_FEE_USD:
-        return "solana"
+        return {"recommended_chain": "solana", "refusal_code": None}
     if base_gas is not None and base_gas < 1:
-        return "base"
+        return {"recommended_chain": "base", "refusal_code": None}
     if eth_gas is not None:
-        return "ethereum"
-    return None
+        return {"recommended_chain": "ethereum", "refusal_code": None}
+    return {"recommended_chain": None, "refusal_code": None}
 
 
 def atomic_settlement_gate(
