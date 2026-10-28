@@ -95,7 +95,7 @@ pydantic==2.14.1
     #   cannae-kernel
 pydantic-core==2.50.1
     # via pydantic
-python-dateutil==2.9.0.post0
+python-dateutil==3.0.0
     # via pandas
 python-dotenv==1.2.4
     # via -r requirements.txt
