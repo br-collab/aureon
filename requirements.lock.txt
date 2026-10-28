@@ -18,7 +18,7 @@ cannae-kernel @ git+https://github.com/br-collab/cannae-kernel.git@v2.0.0
     # via
     #   -r requirements.txt
     #   atreides
-certifi==2026.10.19
+certifi==2026.10.23
     # via
     #   curl-cffi
     #   httpcore
@@ -74,7 +74,7 @@ numpy==2.4.6
     # via
     #   pandas
     #   yfinance
-pandas==3.0.6
+pandas==3.1.0
     # via yfinance
 peewee==4.5.3
     # via yfinance
@@ -84,7 +84,7 @@ platformdirs==4.13.5
     # via yfinance
 protobuf==7.36.2
     # via yfinance
-pycparser==3.11
+pycparser==3.12
     # via cffi
 pycryptodome==3.24.1
     # via xrpl-py
@@ -103,7 +103,7 @@ pytimeparse==1.1.10
     # via twelvedata
 pytz==2026.5
     # via yfinance
-reportlab==5.0.1
+reportlab==5.1.0
     # via -r requirements.txt
 requests==2.34.2
     # via
@@ -112,7 +112,7 @@ requests==2.34.2
     #   yfinance
 six==1.17.0
     # via python-dateutil
-soupsieve==3.0.3
+soupsieve==3.0.4
     # via beautifulsoup4
 twelvedata==1.4.0
     # via -r requirements.txt
