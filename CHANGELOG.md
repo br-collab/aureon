@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.4 - 7 Nov 2026
+
+Persist Decision System of Record replay metadata and reconcile merge authority.
+
 ## 0.8.3 - 7 Nov 2026
 
 Apply Ruff safe fixes and add per-file Ruff and strict mypy quality ratchets.

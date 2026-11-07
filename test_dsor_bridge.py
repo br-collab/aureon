@@ -108,6 +108,44 @@ def persistence_roundtrip(state):
        any(e["kind"] == "settlement_escalation" for e in reloaded["cockpit_dsor_log"]))
 
 
+def test_fresh_store_replays_migration_fields_and_persisted_header(tmp_path):
+    import uuid
+
+    expected_header = {
+        "schema_version": "aureon.cockpit_dsor_log/2",
+        "append_only": True,
+        "source": "persisted migration header",
+    }
+    state, lock = {"cockpit_dsor_header": expected_header}, threading.Lock()
+    first = AureonStateDSORStore(state, lock)
+    record = first.append_metadata_migration(
+        [uuid.uuid4()],
+        autonomy_level="CONSTRAINED_EXECUTION",
+        action_class="WRITE_CORE_RECORD",
+        classification_basis="ONB-1C verified migration",
+        classifier_version="onb-1c/1",
+        migrated_at=SD,
+    )
+    state.setdefault("positions", [])
+    state.setdefault("trades", [])
+    state_file = tmp_path / "state.json"
+    save_state(
+        state=state,
+        lock=lock,
+        state_file=str(state_file),
+        resolve_mmf_provider=lambda provider: provider or "FIX",
+        log_error=lambda *args: None,
+    )
+    reloaded = load_state(state_file=str(state_file), log_error=lambda *args: None)
+    fresh = AureonStateDSORStore(reloaded, threading.Lock())
+    replayed = fresh.replay(record.record_id)
+    assert replayed == record.output
+    assert replayed["classification_basis"] == "ONB-1C verified migration"
+    assert replayed["classifier_version"] == "onb-1c/1"
+    assert replayed["migrated_at"] == SD.isoformat()
+    assert fresh.header == expected_header
+
+
 if __name__ == "__main__":
     print("— unit —");            unit_tests()
     print("— cockpit integ —");   st = cockpit_integration()

@@ -56,18 +56,43 @@ class AureonStateDSORStore:
     head of ``state[log_key]`` under ``lock`` and trims to ``cap``.
     """
 
-    def __init__(self, state, lock, *, log_key: str = "cockpit_dsor_log", cap: int = 500) -> None:
+    def __init__(
+        self,
+        state,
+        lock,
+        *,
+        log_key: str = "cockpit_dsor_log",
+        header_key: str = "cockpit_dsor_header",
+        cap: int = 500,
+    ) -> None:
         self._state = state
         self._lock = lock
         self._log_key = log_key
+        self._header_key = header_key
         self._cap = cap
-        self._by_id: dict[uuid.UUID, Any] = {}
-        self._originals: set = set()
+        with self._lock:
+            self._state.setdefault(
+                self._header_key,
+                {"schema_version": "aureon.cockpit_dsor_log/1", "append_only": True},
+            )
+            persisted = list(self._state.get(self._log_key, []))
+        self._by_id: dict[uuid.UUID, Any] = {
+            uuid.UUID(entry["record_id"]): entry["payload"] for entry in persisted
+        }
+        self._originals: set = {
+            entry["operation_id"]
+            for entry in persisted
+            if entry.get("operation_id") is not None and entry.get("correction_of") is None
+        }
+
+    @property
+    def header(self) -> dict:
+        return dict(self._state[self._header_key])
 
     def append(self, output, *, dtg: datetime | None = None, correction_of=None, autonomy_level=None, action_class=None) -> BridgedDSORRecord:
         dtg = dtg or datetime.now(tz=timezone.utc)
         op = getattr(output, "operation_id", None)
-        if correction_of is None and op is not None and op in self._originals:
+        if correction_of is None and op is not None and str(op) in self._originals:
             raise DSORAppendOnlyError(
                 f"non-correction DSOR record for operation_id={op} already "
                 f"exists (Axiom 4). Pass correction_of to append a correction."
@@ -82,7 +107,7 @@ class AureonStateDSORStore:
         )
         self._by_id[rec.record_id] = output
         if correction_of is None and op is not None:
-            self._originals.add(op)
+            self._originals.add(str(op))
 
         entry = {
             "record_id": str(rec.record_id),
