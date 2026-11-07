@@ -5,10 +5,8 @@ Reads TWELVE_DATA_API_KEY from environment.
 """
 
 import os
-import time
 import threading
-from datetime import datetime, timezone
-from typing import Optional
+import time
 
 TWELVE_DATA_API_KEY = os.environ.get("TWELVE_DATA_API_KEY", "")
 _cache: dict = {}
@@ -16,7 +14,7 @@ _cache_lock = threading.Lock()
 CACHE_TTL_SECONDS = 60  # refresh prices at most once per minute per symbol
 
 
-def get_price(symbol: str, asset_class: str = "equities") -> Optional[float]:
+def get_price(symbol: str, asset_class: str = "equities") -> float | None:
     """
     Fetch the latest price for a symbol.
     Primary: Twelve Data REST API.

@@ -35,8 +35,7 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, timezone
-from typing import Any, Optional
-
+from typing import Any
 
 CATO_DOCTRINE_VERSION = "0.7.0"
 MALFORMED_RAIL_ENTRY = "MALFORMED_RAIL_ENTRY"
@@ -69,7 +68,7 @@ FICC_CLEARING_FEE_BPS = 0.5
 FICC_NETTING_BENEFIT_PCT = 40
 
 
-def _is_usable_stress_reading(value: Optional[float]) -> bool:
+def _is_usable_stress_reading(value: float | None) -> bool:
     """True only for a real, finite number — the one shape a systemic-
     stress reading must have to be usable. None, NaN, and +/-Infinity
     all fail this. Mirrors gate_core.js::isUsableStressReading in the
@@ -126,7 +125,7 @@ FED_L1_NOTE = (
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def _coerce_float(value: Any) -> Optional[float]:
+def _coerce_float(value: Any) -> float | None:
     """Best-effort float coercion. Returns None for missing/unparseable."""
     if value is None:
         return None
@@ -167,7 +166,7 @@ def _empty_chain_state() -> dict:
     }
 
 
-def _get_chain_state(chain_state: Optional[dict]) -> dict:
+def _get_chain_state(chain_state: dict | None) -> dict:
     """Normalize caller-supplied chain_state — returns empty-rails default
     if the caller didn't supply one yet."""
     if not chain_state:
@@ -184,7 +183,7 @@ def _get_chain_state(chain_state: Optional[dict]) -> dict:
     return base
 
 
-def _eth_gas(chain_state: dict) -> Optional[float]:
+def _eth_gas(chain_state: dict) -> float | None:
     """Pull Ethereum L1 gas gwei from a normalized chain_state."""
     return _coerce_float(chain_state.get("ethereum", {}).get("gas_gwei"))
 
@@ -205,7 +204,7 @@ def _ficc_cost(notional_usd: float, sofr_pct: float, term_days: int) -> float:
     return clearing + coc
 
 
-def _evm_l1_cost(gas_gwei: Optional[float], eth_price_usd: Optional[float] = None) -> Optional[float]:
+def _evm_l1_cost(gas_gwei: float | None, eth_price_usd: float | None = None) -> float | None:
     """EVM rail: gas_gwei × 65000 gas × 1e-9 × live ETH price.
 
     The gwei→ETH conversion is 1e-9 (corrected from the v0.1.0 1e-10 typo
@@ -218,7 +217,7 @@ def _evm_l1_cost(gas_gwei: Optional[float], eth_price_usd: Optional[float] = Non
     return gas_gwei * 65000 * 1e-9 * price
 
 
-def _solana_cost(fee_lamports: Optional[float], sol_price_usd: Optional[float] = None) -> Optional[float]:
+def _solana_cost(fee_lamports: float | None, sol_price_usd: float | None = None) -> float | None:
     """Solana rail: total lamports × 1e-9 × live SOL price.
 
     Falls back to SOL_PRICE_FALLBACK only if the caller didn't supply a
@@ -229,7 +228,7 @@ def _solana_cost(fee_lamports: Optional[float], sol_price_usd: Optional[float] =
     return fee_lamports * 1e-9 * price
 
 
-def _resolve_prices(prices: Optional[dict]) -> dict:
+def _resolve_prices(prices: dict | None) -> dict:
     """Normalize a caller-supplied prices dict. Returns a dict with at
     least {eth, sol, xrp, source, fallback_used}. If the caller passes None,
     falls back to the static constants and marks the result accordingly
@@ -257,9 +256,9 @@ def _resolve_prices(prices: Optional[dict]) -> dict:
 
 def tokenized_settlement_context(
     *,
-    sofr_rate: Optional[float],
-    ofr_stress: Optional[float],
-    chain_state: Optional[dict] = None,
+    sofr_rate: float | None,
+    ofr_stress: float | None,
+    chain_state: dict | None = None,
 ) -> dict:
     """
     Build the tokenized-settlement context payload — same schema as the
@@ -300,7 +299,7 @@ def tokenized_settlement_context(
 
 # ── Atomic settlement gate (multi-chain) ─────────────────────────────────────
 
-def _pick_recommended_chain(chain_state: dict) -> Optional[str]:
+def _pick_recommended_chain(chain_state: dict) -> str | None:
     """Cheapest-wins chain picker for the gate (trade-size-agnostic).
 
     Generated doctrine order from Cato v0.5.0: XRPL, Solana, Base, Ethereum.
@@ -317,7 +316,7 @@ def _pick_recommended_chain_result(chain_state: dict) -> dict:
     twins, never an exception." Present values are deliberately not coerced:
     JavaScript and Python must refuse strings and booleans identically.
     """
-    readings: dict[str, Optional[float]] = {}
+    readings: dict[str, float | None] = {}
     fields = {
         "xrpl": "fee_usd_estimate",
         "solana": "fee_usd_estimate",
@@ -355,11 +354,11 @@ def _pick_recommended_chain_result(chain_state: dict) -> dict:
 
 def atomic_settlement_gate(
     *,
-    sofr_rate: Optional[float],
-    ofr_stress: Optional[float],
-    chain_state: Optional[dict] = None,
-    prices: Optional[dict] = None,
-    sofr_prev: Optional[float] = None,
+    sofr_rate: float | None,
+    ofr_stress: float | None,
+    chain_state: dict | None = None,
+    prices: dict | None = None,
+    sofr_prev: float | None = None,
 ) -> dict:
     """
     Deterministic Cato doctrine gate v0.2.2.
@@ -390,7 +389,7 @@ def atomic_settlement_gate(
     # SOFR 1-day delta — absolute value in basis points. None if either
     # observation is missing (caller hasn't supplied prev yet, or first
     # cycle after boot).
-    sofr_delta_bps: Optional[float] = None
+    sofr_delta_bps: float | None = None
     if sofr_rate is not None and sofr_prev is not None:
         sofr_delta_bps = abs(float(sofr_rate) - float(sofr_prev)) * 100.0
 
@@ -493,7 +492,7 @@ def _route_recommended_rail(
     notional_usd: float,
     ofr_stress: float,
     chain_state: dict,
-    sofr_delta_bps: Optional[float] = None,
+    sofr_delta_bps: float | None = None,
 ) -> str:
     """Cato v0.2.2 notional-aware routing. Mirrors MCP server routing
     block. Stress overrides (OFR or SOFR delta) are absolute — they
@@ -524,9 +523,9 @@ def compare_settlement_rails(
     term_days: int,
     sofr_pct: float,
     ofr_stress: float = 0.0,
-    chain_state: Optional[dict] = None,
-    prices: Optional[dict] = None,
-    sofr_prev: Optional[float] = None,
+    chain_state: dict | None = None,
+    prices: dict | None = None,
+    sofr_prev: float | None = None,
 ) -> dict:
     """
     Cato v0.2.2 multi-chain rail cost comparison.
@@ -546,7 +545,7 @@ def compare_settlement_rails(
     state = _get_chain_state(chain_state)
 
     # SOFR 1-day delta (v0.2.2 funding-market shock indicator)
-    sofr_delta_bps: Optional[float] = None
+    sofr_delta_bps: float | None = None
     if sofr_prev is not None:
         sofr_delta_bps = abs(float(sofr_pct) - float(sofr_prev)) * 100.0
     eth_gas = _eth_gas(state)

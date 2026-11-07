@@ -37,7 +37,7 @@ def test_the_audit_card_does_not_claim_a_result(source) -> None:
     card = _card(source, "Audit Report")
     assert "PASS" not in card, "the card asserts a result that nothing computes"
     assert "All green" not in card
-    assert re.search(r"mock|illustrative", card, re.I), (
+    assert re.search(r"mock|illustrative", card, re.IGNORECASE), (
         "the card does not say the panel is a design mock"
     )
 
@@ -47,8 +47,8 @@ def test_the_audit_panel_says_the_checks_are_not_computed(source) -> None:
     panel = panel[: panel.index('<div id="report-replay"')] if '<div id="report-replay"' in panel \
         else panel[:4000]
     banner = panel[: panel.index("Doctrine Integrity Checks")]
-    assert re.search(r"design mock", banner, re.I), "the panel does not declare itself a mock"
-    assert re.search(r"not (a )?comput", banner, re.I), (
+    assert re.search(r"design mock", banner, re.IGNORECASE), "the panel does not declare itself a mock"
+    assert re.search(r"not (a )?comput", banner, re.IGNORECASE), (
         "the panel does not say the checks are uncomputed"
     )
     # The checks themselves are still listed: the point is to label them, not hide them.

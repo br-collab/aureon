@@ -9,15 +9,19 @@ Proves:
   3. cockpit_dsor_log survives a persistence.store save_state -> load_state
      cycle (a deploy) — the cockpit lineage is now durable (WS-0.1 parity).
 """
-import threading, tempfile, os, json
-from decimal import Decimal
+import json
+import os
+import tempfile
+import threading
 from datetime import datetime, timezone
+from decimal import Decimal
+
+from atreides.agents.tier1.outputs import SettlementKind, SettlementRail
+from atreides.cockpit import ClearingCockpit, PortalRegime
+from atreides.contracts.dsor_stub import CAOMTier
 
 from aureon.dsor.bridge import AureonStateDSORStore, DSORAppendOnlyError
-from atreides.cockpit import ClearingCockpit, PortalRegime
-from atreides.agents.tier1.outputs import SettlementRail, SettlementKind
-from atreides.contracts.dsor_stub import CAOMTier
-from aureon.persistence.store import save_state, load_state
+from aureon.persistence.store import load_state, save_state
 
 FAIL = []
 def ck(name, cond):
@@ -60,9 +64,9 @@ def cockpit_integration():
     t = cp.capture_tasking(regime=PortalRegime.CCP, rail=SettlementRail.FICC_GSD_DVP,
         settlement_kind=SettlementKind.DVP, counterparty_id="CP-A", settlement_date=SD,
         authority_id="operator-bill", authority_tier=CAOMTier.T1, cusip="912828XX",
-        net_delivery_quantity=Decimal("1000000"), net_payment_amount=Decimal("1000000"),
-        ficc_published_net_delivery=Decimal("1000000"),
-        intraday_credit_limit=Decimal("100000000"), intraday_credit_current_usage=Decimal("1000000"))
+        net_delivery_quantity=Decimal(1000000), net_payment_amount=Decimal(1000000),
+        ficc_published_net_delivery=Decimal(1000000),
+        intraday_credit_limit=Decimal(100000000), intraday_credit_current_usage=Decimal(1000000))
     # Atreides v0.4.0 (ATR-I-02): validation is pure. Emission is the only
     # cockpit step that writes to the DSOR, so the bridge is exercised there.
     g = cp.run_validation_gates(t)
@@ -76,9 +80,9 @@ def cockpit_integration():
     t2 = cp.capture_tasking(regime=PortalRegime.CCP, rail=SettlementRail.FICC_GSD_DVP,
         settlement_kind=SettlementKind.DVP, counterparty_id="CP-B", settlement_date=SD,
         authority_id="operator-bill", authority_tier=CAOMTier.T1, cusip="912828YY",
-        net_delivery_quantity=Decimal("1000000"), net_payment_amount=Decimal("1000000"),
-        ficc_published_net_delivery=Decimal("1000000"),
-        intraday_credit_limit=Decimal("100000000"), intraday_credit_current_usage=Decimal("1000000"),
+        net_delivery_quantity=Decimal(1000000), net_payment_amount=Decimal(1000000),
+        ficc_published_net_delivery=Decimal(1000000),
+        intraday_credit_limit=Decimal(100000000), intraday_credit_current_usage=Decimal(1000000),
         ficc_clearing_fund_compliant=False)
     g2 = cp.run_validation_gates(t2)
     ck("held gate does not pass", g2.passed is False)

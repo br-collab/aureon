@@ -140,7 +140,7 @@ def test_no_generated_number_fills_an_evidence_field(source) -> None:
     for line_no, line in enumerate(source.splitlines(), 1):
         if "Math.random" not in line or line.strip().startswith("//"):
             continue
-        if re.search(r"\b(hash|authority|record_id|report_id|signature)\b", line, re.I):
+        if re.search(r"\b(hash|authority|record_id|report_id|signature)\b", line, re.IGNORECASE):
             offenders.append(f"{line_no}: {line.strip()}")
     assert offenders == [], "a generated number is filling an evidence field:\n" + "\n".join(offenders)
 

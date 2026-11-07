@@ -23,11 +23,10 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 import uuid
 from collections import deque
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Callable, Optional
 
 from aureon.thifur.thifur_h import AtroxSignal
 
@@ -57,7 +56,7 @@ class AtroxLive:
         get_session: Callable[[], object],
         get_kraken_price: Callable[[str], float],
         set_pending_signal: Callable[[AtroxSignal], None],
-        get_pending_signal: Callable[[], Optional[AtroxSignal]],
+        get_pending_signal: Callable[[], AtroxSignal | None],
         is_auto_close_armed: Callable[[], bool],
         consume_auto_close_cycle: Callable[[], bool],
         execute_close_signal: Callable[[AtroxSignal, str, bool], dict],
@@ -75,7 +74,7 @@ class AtroxLive:
         self.interval_sec = interval_sec
 
         self.price_history: deque = deque(maxlen=LOOKBACK_CANDLES)
-        self.last_tick_at: Optional[str] = None
+        self.last_tick_at: str | None = None
         self.last_decision: dict = {"type": "init", "ts": _now_iso()}
         self.tick_count = 0
         self.lock = threading.Lock()

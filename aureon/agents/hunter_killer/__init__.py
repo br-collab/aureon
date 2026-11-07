@@ -17,4 +17,4 @@ HUNTER_KILLER_AGENTS: dict[str, type[HunterKillerAgent]] = {
     "THIFUR_H": ThifurHAgent,
 }
 
-__all__ = ["HunterKillerAgent", "ThifurHAgent", "HUNTER_KILLER_AGENTS"]
+__all__ = ["HUNTER_KILLER_AGENTS", "HunterKillerAgent", "ThifurHAgent"]

@@ -30,11 +30,11 @@
 import hashlib
 import json
 import os
-import urllib.request
-import urllib.parse
 import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Optional
 
 # ── Tradier API Config ────────────────────────────────────────────────────────
 TRADIER_LIVE_BASE    = "https://api.tradier.com/v1"
@@ -73,7 +73,7 @@ class TradierClient:
         hv = client.get_historical_volatility("SPY", interval="weekly")
     """
 
-    def __init__(self, api_token: Optional[str] = None, sandbox: bool = False):
+    def __init__(self, api_token: str | None = None, sandbox: bool = False):
         self._token   = api_token or os.environ.get("TRADIER_API_TOKEN", "")
         self._sandbox = sandbox or os.environ.get("TRADIER_SANDBOX", "").lower() == "true"
         self._base    = TRADIER_SANDBOX_BASE if self._sandbox else TRADIER_LIVE_BASE
@@ -83,7 +83,7 @@ class TradierClient:
     def is_ready(self) -> bool:
         return self._ready
 
-    def _get(self, path: str, params: Optional[dict] = None) -> dict:
+    def _get(self, path: str, params: dict | None = None) -> dict:
         """GET request with provenance wrapping."""
         if not self._ready:
             raise RuntimeError(
@@ -149,7 +149,7 @@ class TradierClient:
     # EQUITY QUOTES
     # ─────────────────────────────────────────────────────────────────────────
 
-    def get_quotes(self, symbols: List[str]) -> dict:
+    def get_quotes(self, symbols: list[str]) -> dict:
         """
         Real-time equity quotes.
         Endpoint: GET /markets/quotes
@@ -186,7 +186,7 @@ class TradierClient:
             "greeks":     "true" if greeks else "false",
         })
 
-    def get_options_quotes(self, option_symbols: List[str], greeks: bool = True) -> dict:
+    def get_options_quotes(self, option_symbols: list[str], greeks: bool = True) -> dict:
         """
         Quote + greeks for specific option contracts.
         Endpoint: GET /markets/options/quotes
@@ -264,8 +264,8 @@ class TradierClient:
 
     def get_historical_volatility(self, symbol: str,
                                    interval: str = "daily",
-                                   start: Optional[str] = None,
-                                   end: Optional[str] = None) -> dict:
+                                   start: str | None = None,
+                                   end: str | None = None) -> dict:
         """
         Historical price bars — used to compute realized volatility.
         Endpoint: GET /markets/history
@@ -285,8 +285,8 @@ class TradierClient:
     # THIFUR STRESS PACKET
     # ─────────────────────────────────────────────────────────────────────────
 
-    def get_thifur_stress_packet(self, symbols: List[str],
-                                  expiration: Optional[str] = None) -> dict:
+    def get_thifur_stress_packet(self, symbols: list[str],
+                                  expiration: str | None = None) -> dict:
         """
         Full Thifur stress-test data packet for a list of symbols.
         Pulls: quotes, nearest expiration chain with greeks, HV.
@@ -338,7 +338,7 @@ class TradierClient:
 # Module-level pipe interface (matches atrox_client.py pattern)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def init_tradier_pipe(api_token: Optional[str] = None) -> "TradierClient":
+def init_tradier_pipe(api_token: str | None = None) -> "TradierClient":
     """Initialize (or re-initialize) the Tradier pipe client."""
     global _client
     _client = TradierClient(api_token=api_token)

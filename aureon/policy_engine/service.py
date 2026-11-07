@@ -24,13 +24,16 @@ from datetime import datetime, timezone
 from cannae_kernel.disposition import Disposition
 
 from aureon.mcp.cato_client import _is_usable_stress_reading
-from aureon.policy_engine.evidence import is_fabricated, provenance_of, stress_disposition
 from aureon.policy_engine.binding import (
     build_policy_record,
     persist_policy_record,
     pretrade_rules_digest,
 )
-
+from aureon.policy_engine.evidence import (
+    is_fabricated,
+    provenance_of,
+    stress_disposition,
+)
 
 #: Above this, an official reading warns and a proxy reading holds.
 MACRO_STRESS_WARN_THRESHOLD = 0.7

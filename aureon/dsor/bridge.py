@@ -136,7 +136,7 @@ class AureonStateDSORStore:
             return output.copy()
         return {"repr": str(output)}
 
-    def __enter__(self) -> "AureonStateDSORStore":
+    def __enter__(self) -> AureonStateDSORStore:
         return self
 
     def __exit__(self, *_: object) -> bool:

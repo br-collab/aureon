@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.3 - 7 Nov 2026
+
+Apply Ruff safe fixes and add per-file Ruff and strict mypy quality ratchets.
+
 ## 0.8.2 - 7 Nov 2026
 
 Allow builders to enable check-gated auto-merge while preserving Bill's sole release authority.

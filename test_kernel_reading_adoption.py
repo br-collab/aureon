@@ -20,13 +20,6 @@ Run: pytest -q test_kernel_reading_adoption.py
 from __future__ import annotations
 
 import pytest
-
-from aureon.policy_engine.evidence import (
-    KERNEL_PROVENANCE,
-    EvidenceProvenance,
-    reading_of,
-    stress_disposition,
-)
 from cannae_kernel.disposition import Disposition
 from cannae_kernel.measurement import (
     ADMISSIBLE_WITH_DERIVATION,
@@ -36,6 +29,13 @@ from cannae_kernel.measurement import (
     require_observation,
 )
 from cannae_kernel.provenance import Provenance
+
+from aureon.policy_engine.evidence import (
+    KERNEL_PROVENANCE,
+    EvidenceProvenance,
+    reading_of,
+    stress_disposition,
+)
 
 FABRICATED = {
     "source": "fallback",

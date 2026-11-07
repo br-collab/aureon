@@ -1,0 +1,31 @@
+name: Quality ratchet
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality-ratchet:
+    name: quality-ratchet
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.13"
+      - run: pip install pydantic==2.13.5 ruff==0.16.8 mypy==2.3.1 pytest==9.1.1
+
+      - name: Enforce per-file baselines
+        env:
+          QUALITY_MYPY_TARGETS: "aureon"
+          QUALITY_BASE_REF: origin/main
+        run: python tools/quality_ratchet.py
+      - name: Verify shared script checksum
+        run: pytest -q tests/test_quality_ratchet_checksum.py
+
