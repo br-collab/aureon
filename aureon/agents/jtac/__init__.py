@@ -2,9 +2,9 @@
 
 from aureon.agents.base import JTACAgent
 from aureon.agents.jtac._base import JTACConcreteBase, UnapprovedPathError
-from aureon.agents.jtac.pretrade_structuring import ThifurJ
-from aureon.agents.jtac.compliance import Compliance
 from aureon.agents.jtac.aml_kyc import AmlKyc
+from aureon.agents.jtac.compliance import Compliance
+from aureon.agents.jtac.pretrade_structuring import ThifurJ
 from aureon.agents.jtac.risk_reporting import RiskReporting
 from aureon.agents.jtac.trade_surveillance import TradeSurveillance
 
@@ -20,13 +20,13 @@ JTAC_AGENTS: dict[str, type[JTACAgent]] = {
 }
 
 __all__ = [
+    "JTAC_AGENTS",
+    "AmlKyc",
+    "Compliance",
     "JTACAgent",
     "JTACConcreteBase",
-    "UnapprovedPathError",
-    "ThifurJ",
-    "Compliance",
-    "AmlKyc",
     "RiskReporting",
+    "ThifurJ",
     "TradeSurveillance",
-    "JTAC_AGENTS",
+    "UnapprovedPathError",
 ]

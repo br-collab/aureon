@@ -19,11 +19,11 @@ SettlementOperationsAnalyst.)
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
-
+from atreides.agents.tier1.outputs import SettlementKind, SettlementRail
 from atreides.cockpit import (
     BreakLeg,
     ClearingCockpit,
@@ -32,15 +32,14 @@ from atreides.cockpit import (
     PackageDisposition,
     PortalRegime,
 )
-from atreides.agents.tier1.outputs import SettlementKind, SettlementRail
 from atreides.contracts.dsor_stub import CAOMTier
 
 SETTLE_DATE = datetime(2026, 7, 16, tzinfo=timezone.utc)
 
 
-def _capture(cockpit, *, regime=PortalRegime.CCP, clean=True, notional=Decimal("1000000"),
-             clearing_ok=True, credit_limit=Decimal("100000000"),
-             credit_usage=Decimal("10000000"), net_delivery=Decimal("1000000"),
+def _capture(cockpit, *, regime=PortalRegime.CCP, clean=True, notional=Decimal(1000000),
+             clearing_ok=True, credit_limit=Decimal(100000000),
+             credit_usage=Decimal(10000000), net_delivery=Decimal(1000000),
              ficc_published=None):
     return cockpit.capture_tasking(
         regime=regime,
@@ -84,8 +83,8 @@ def test_full_cycle_emits_package_and_reconciles_clean():
         operation_id=t.operation_id, regime=PortalRegime.CCP,
         position_balance=t.net_delivery_quantity,
         ccp_net_obligation=t.net_payment_amount,
-        clearing_fund_deficit=Decimal("0"),
-        intraday_credit_usage=Decimal("10000000"),
+        clearing_fund_deficit=Decimal(0),
+        intraday_credit_usage=Decimal(10000000),
     )
     recon = cp.reconcile_expected_actual(pkg, rb)
     assert recon.matched is True
@@ -116,7 +115,7 @@ def test_clearing_fund_deficiency_holds_gate_no_package():
 
 def test_intraday_credit_at_limit_holds_gate():
     cp = ClearingCockpit()
-    t = _capture(cp, credit_limit=Decimal("50000000"), credit_usage=Decimal("50000000"))
+    t = _capture(cp, credit_limit=Decimal(50000000), credit_usage=Decimal(50000000))
     gate = cp.run_validation_gates(t)
     assert gate.passed is False
     assert gate.discrepancy_code == "intraday_credit_threshold"
@@ -124,7 +123,7 @@ def test_intraday_credit_at_limit_holds_gate():
 
 def test_net_obligation_mismatch_holds_gate():
     cp = ClearingCockpit()
-    t = _capture(cp, net_delivery=Decimal("1000000"), ficc_published=Decimal("999999"))
+    t = _capture(cp, net_delivery=Decimal(1000000), ficc_published=Decimal(999999))
     gate = cp.run_validation_gates(t)
     assert gate.passed is False
     assert gate.discrepancy_code == "net_obligation_mismatch"
@@ -136,8 +135,8 @@ def test_net_obligation_mismatch_holds_gate():
 
 
 def test_material_magnitude_holds_for_quorum_under_caom():
-    cp = ClearingCockpit(material_magnitude_threshold=Decimal("50000000"))
-    t = _capture(cp, notional=Decimal("75000000"))  # above threshold
+    cp = ClearingCockpit(material_magnitude_threshold=Decimal(50000000))
+    t = _capture(cp, notional=Decimal(75000000))  # above threshold
     gate = cp.run_validation_gates(t)
     assert gate.passed is True  # gates pass; the HOLD is a magnitude routing decision
 
@@ -149,8 +148,8 @@ def test_material_magnitude_holds_for_quorum_under_caom():
 
 
 def test_submaterial_magnitude_emits():
-    cp = ClearingCockpit(material_magnitude_threshold=Decimal("50000000"))
-    t = _capture(cp, notional=Decimal("49999999"))
+    cp = ClearingCockpit(material_magnitude_threshold=Decimal(50000000))
+    t = _capture(cp, notional=Decimal(49999999))
     gate = cp.run_validation_gates(t)
     pkg = cp.emit_instruction_package(t, gate)
     assert pkg.disposition is PackageDisposition.EMIT_FOR_HUMAN_ENTRY
@@ -187,10 +186,10 @@ def test_reconcile_classifies_breaks_by_leg_and_routes_to_workbench():
 
     rb = cp.ingest_portal_readback(
         operation_id=t.operation_id, regime=PortalRegime.CCP,
-        position_balance=Decimal("999000"),               # POSITION break
-        ccp_net_obligation=Decimal("1234567"),            # NET_OBLIGATION break
-        clearing_fund_deficit=Decimal("250000"),          # CLEARING_FUND break
-        intraday_credit_usage=Decimal("100000000"),       # FUNDING break (>= limit)
+        position_balance=Decimal(999000),               # POSITION break
+        ccp_net_obligation=Decimal(1234567),            # NET_OBLIGATION break
+        clearing_fund_deficit=Decimal(250000),          # CLEARING_FUND break
+        intraday_credit_usage=Decimal(100000000),       # FUNDING break (>= limit)
     )
     recon = cp.reconcile_expected_actual(pkg, rb)
     assert recon.matched is False
@@ -266,7 +265,11 @@ def test_instruction_package_is_never_a_submission():
 
 def test_no_credential_field_anywhere_on_models():
     from atreides.cockpit.clearing_cockpit import (
-        CockpitTasking, InstructionPackage as IP, PortalReadback,
+        CockpitTasking,
+        PortalReadback,
+    )
+    from atreides.cockpit.clearing_cockpit import (
+        InstructionPackage as IP,
     )
     for model in (CockpitTasking, IP, PortalReadback):
         fields = set(model.model_fields)

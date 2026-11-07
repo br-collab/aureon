@@ -49,7 +49,7 @@ import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from aureon.agents.base import HunterKillerAgent, NotActivatedError, Intent, Advisory
+from aureon.agents.base import Advisory, HunterKillerAgent, Intent, NotActivatedError
 
 if TYPE_CHECKING:
     from aureon.agents.c2.coordinator import ThifurC2

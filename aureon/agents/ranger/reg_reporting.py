@@ -22,12 +22,11 @@
 
 import hashlib
 import threading
-import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from aureon.agents.ranger._base import RangerConcreteBase
 from aureon.agents.base import Escalation
+from aureon.agents.ranger._base import RangerConcreteBase
 
 if TYPE_CHECKING:
     from aureon.agents.c2.coordinator import ThifurC2

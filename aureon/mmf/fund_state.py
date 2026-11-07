@@ -34,8 +34,8 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Callable
 from decimal import Decimal
-from typing import Callable, Optional
 
 from aureon.mmf import nav_engine, persistence
 
@@ -51,7 +51,7 @@ log = logging.getLogger("aureon.mmf.fund_state")
 # events flow into aureon_state["operational_journal"] and ride the
 # existing aureon-state persistence layer. None means standalone
 # (in-memory) mode, same behavior as Phase 1.
-_journal_sink: Optional[Callable[[dict], None]] = None
+_journal_sink: Callable[[dict], None] | None = None
 
 
 def bind_journal_sink(fn: Callable[[dict], None]) -> None:
@@ -65,12 +65,12 @@ def bind_journal_sink(fn: Callable[[dict], None]) -> None:
 _state_lock = threading.RLock()
 
 _state: dict = {
-    "shares_f": Decimal("0"),                 # Class F shares outstanding
-    "shares_d": Decimal("0"),                 # Class D shares outstanding
-    "aum_f":    Decimal("0"),                 # Class F AUM in USD
-    "aum_d":    Decimal("0"),                 # Class D AUM in USD
-    "daily_redemptions_f": Decimal("0"),      # reset at each sweep
-    "daily_redemptions_d": Decimal("0"),      # reset at each sweep
+    "shares_f": Decimal(0),                 # Class F shares outstanding
+    "shares_d": Decimal(0),                 # Class D shares outstanding
+    "aum_f":    Decimal(0),                 # Class F AUM in USD
+    "aum_d":    Decimal(0),                 # Class D AUM in USD
+    "daily_redemptions_f": Decimal(0),      # reset at each sweep
+    "daily_redemptions_d": Decimal(0),      # reset at each sweep
     "total_subscriptions": 0,
     "total_redemptions":   0,
     # investors: investor_id -> {"lane": "F"|"D", "shares": Decimal, "cost_basis": Decimal}
@@ -172,7 +172,7 @@ def get_state() -> dict:
         }
 
 
-def get_investor(investor_id: str) -> Optional[dict]:
+def get_investor(investor_id: str) -> dict | None:
     """Return a single investor record as a Decimal-preserving dict,
     or None if not seen. Used by redemption_engine to resolve lane +
     share balance before processing a redemption."""
@@ -260,7 +260,7 @@ def apply_redemption(investor_id: str, shares_removed: Decimal,
             ratio = shares_removed / (rec["shares"] + shares_removed)
             rec["cost_basis"] -= rec["cost_basis"] * ratio
         if rec["shares"] == 0:
-            rec["cost_basis"] = Decimal("0")
+            rec["cost_basis"] = Decimal(0)
 
         if lane == "F":
             _state["shares_f"] -= shares_removed
@@ -279,8 +279,8 @@ def reset_daily_counters() -> None:
     calls this at the end of a successful sweep so the next 24h
     liquidity-fee threshold window starts clean."""
     with _state_lock:
-        _state["daily_redemptions_f"] = Decimal("0")
-        _state["daily_redemptions_d"] = Decimal("0")
+        _state["daily_redemptions_f"] = Decimal(0)
+        _state["daily_redemptions_d"] = Decimal(0)
     _persist_snapshot()
 
 

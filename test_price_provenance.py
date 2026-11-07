@@ -27,7 +27,7 @@ import pytest
 
 os.environ.setdefault("RAILWAY_VOLUME_MOUNT_PATH", tempfile.mkdtemp(prefix="aureon-price-test-"))
 
-import server  # noqa: E402
+import server
 
 
 @pytest.fixture

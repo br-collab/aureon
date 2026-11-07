@@ -20,9 +20,10 @@ import pytest
 
 os.environ.setdefault("RAILWAY_VOLUME_MOUNT_PATH", tempfile.mkdtemp(prefix="aureon-auth-test-"))
 
-import server  # noqa: E402
-from cannae_kernel.effects import ExternalEffect  # noqa: E402
-from aureon.approval_service.operator_auth import (  # noqa: E402
+from cannae_kernel.effects import ExternalEffect
+
+import server
+from aureon.approval_service.operator_auth import (
     BOOT_SERVICE_ACTOR,
     OPERATOR_ACTOR,
     NonceCache,

@@ -30,22 +30,29 @@ import pytest
 
 os.environ.setdefault("RAILWAY_VOLUME_MOUNT_PATH", tempfile.mkdtemp(prefix="aureon-booking-test-"))
 
-from cannae_kernel.provenance import Provenance  # noqa: E402
-from cannae_kernel.session import BusinessDate, MarketSession, SessionContext  # noqa: E402
+from cannae_kernel.provenance import Provenance
+from cannae_kernel.session import (
+    BusinessDate,
+    MarketSession,
+    SessionContext,
+)
 
-from aureon.approval_service.operator_auth import OPERATOR_ACTOR  # noqa: E402
-from aureon.approval_service.release import find_release  # noqa: E402
-from aureon.approval_service.service import resolve_pending_decision  # noqa: E402
-from aureon.booking.consumer import book_fill  # noqa: E402
-from aureon.booking.reconcile import PRICE_TOLERANCE_BPS, compare_intent_with_execution  # noqa: E402
-from aureon.integration_adapters.paper_venue import (  # noqa: E402
+from aureon.approval_service.operator_auth import OPERATOR_ACTOR
+from aureon.approval_service.release import find_release
+from aureon.approval_service.service import resolve_pending_decision
+from aureon.booking.consumer import book_fill
+from aureon.booking.reconcile import (
+    PRICE_TOLERANCE_BPS,
+    compare_intent_with_execution,
+)
+from aureon.integration_adapters.paper_venue import (
     PaperFill,
     PaperVenue,
     PriceObservation,
     VenueRejection,
 )
-from aureon.policy_engine.binding import pretrade_rules_digest  # noqa: E402
-from aureon.policy_engine.service import evaluate_pretrade_decision  # noqa: E402
+from aureon.policy_engine.binding import pretrade_rules_digest
+from aureon.policy_engine.service import evaluate_pretrade_decision
 
 RISK = {"drawdown_warn_pct": 5.0, "drawdown_fail_pct": 8.0}
 RULES = pretrade_rules_digest(risk_policy=RISK, operating_cash_floor_pct=0.03, ofac_blocked_isins={})
@@ -116,7 +123,7 @@ def test_approval_changes_no_cash_position_or_trade() -> None:
 
 
 def test_the_approval_service_has_no_booking_code() -> None:
-    import aureon.approval_service.service as service
+    from aureon.approval_service import service
     source = pathlib.Path(service.__file__).read_text(encoding="utf-8")
     for forbidden in ('["cash"]', '"positions"', '"trades"', "_apply_trade", "build_trade_report"):
         assert forbidden not in source, forbidden
@@ -269,7 +276,7 @@ def test_a_discrepant_fill_books_and_raises_a_break() -> None:
 
 
 def test_c2_no_longer_builds_a_confirmation_from_the_decision() -> None:
-    import aureon.agents.c2.coordinator as coordinator
+    from aureon.agents.c2 import coordinator
     source = pathlib.Path(coordinator.__file__).read_text(encoding="utf-8")
     assert source.count("ExecutionConfirmation(") == 1
     block = source[source.index("ExecutionConfirmation("):]

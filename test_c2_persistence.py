@@ -19,8 +19,8 @@ import os
 import tempfile
 import threading
 
-from aureon.agents.c2.coordinator import ThifurC2, AGENT_J, AGENT_R
-from aureon.persistence.store import save_state, load_state
+from aureon.agents.c2.coordinator import AGENT_J, AGENT_R, ThifurC2
+from aureon.persistence.store import load_state, save_state
 
 
 def _mk_packet():

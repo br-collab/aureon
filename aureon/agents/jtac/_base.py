@@ -47,14 +47,13 @@ import json
 import os
 import threading
 from datetime import datetime, timezone
-from typing import Optional
 
 from aureon.agents.base import JTACAgent, Tasking
 from aureon.agents.payloads import (
-    ApprovedPath,
-    JTACPathSelection,
     ApprovalGateContext,
+    ApprovedPath,
     ConflictResolution,
+    JTACPathSelection,
 )
 
 # ── Doctrine paths ────────────────────────────────────────────────────────────
@@ -115,15 +114,15 @@ class JTACConcreteBase(JTACAgent):
         super().__init__(aureon_state, state_lock)
         self._approved_paths: dict[str, ApprovedPath] = {}
         self._conflict_registry: dict[str, dict] = {}
-        self._paths_source: Optional[str] = None
-        self._conflicts_source: Optional[str] = None
+        self._paths_source: str | None = None
+        self._conflicts_source: str | None = None
 
     # ─────────────────────────────────────────────────────────────────────────
     # APPROVED-PATH LOADING
     # ─────────────────────────────────────────────────────────────────────────
 
     def load_approved_paths(self, role_id: str,
-                            source_path: Optional[str] = None) -> dict[str, ApprovedPath]:
+                            source_path: str | None = None) -> dict[str, ApprovedPath]:
         """Load the approved-path set for *role_id*.
 
         Default source is the doctrine JSON file at
@@ -181,7 +180,7 @@ class JTACConcreteBase(JTACAgent):
     # CONFLICT REGISTRY
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _ensure_conflicts_loaded(self, source_path: Optional[str] = None) -> None:
+    def _ensure_conflicts_loaded(self, source_path: str | None = None) -> None:
         """Lazy-load the conflict registry on first detect_conflict call.
         Registry is shared across all JTAC roles so loading is idempotent."""
         if self._conflict_registry:
@@ -200,8 +199,8 @@ class JTACConcreteBase(JTACAgent):
                         path: ApprovedPath,
                         regulatory_context: dict,
                         task_id: str,
-                        source_path: Optional[str] = None
-                        ) -> Optional[ConflictResolution]:
+                        source_path: str | None = None
+                        ) -> ConflictResolution | None:
         """Return a ConflictResolution if any conflict_key on the selected
         path is triggered by the regulatory_context, else None.
 
@@ -253,8 +252,8 @@ class JTACConcreteBase(JTACAgent):
                              task_id: str,
                              path: ApprovedPath,
                              rationale: str,
-                             regulatory_context: Optional[dict] = None,
-                             doctrine_version: Optional[str] = None,
+                             regulatory_context: dict | None = None,
+                             doctrine_version: str | None = None,
                              ) -> JTACPathSelection:
         """Assemble a JTACPathSelection for *path*. Honors the path's
         requires_approval flag and runs detect_conflict against the
@@ -300,8 +299,8 @@ class JTACConcreteBase(JTACAgent):
 
     def escalate_for_approval(self,
                               path_selection: JTACPathSelection,
-                              intent_summary: Optional[dict] = None,
-                              risk_summary: Optional[dict] = None,
+                              intent_summary: dict | None = None,
+                              risk_summary: dict | None = None,
                               ) -> ApprovalGateContext:
         """Build the payload C2 receives when the lifecycle must halt pending
         single-authority operator approval. Writes a compliance-log entry on

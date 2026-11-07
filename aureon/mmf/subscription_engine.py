@@ -55,11 +55,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal, ROUND_DOWN
+from decimal import ROUND_DOWN, Decimal
 from zoneinfo import ZoneInfo
 
-from typing import Callable
 from aureon.agents.base import DSORRecord
 from aureon.mmf import fund_state, nav_engine
 

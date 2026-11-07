@@ -22,8 +22,7 @@ import sys
 import threading
 import time
 import traceback
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import datetime
 
 
 def _discover_registries() -> dict:
@@ -204,7 +203,7 @@ def cmd_call(args):
 
     print(json.dumps(result, indent=2, default=_serialize))
     print()
-    print(f"--- metadata ---")
+    print("--- metadata ---")
     print(f"role_id:  {role_id}")
     print(f"method:   {method_name}")
     print(f"elapsed:  {elapsed:.4f}s")

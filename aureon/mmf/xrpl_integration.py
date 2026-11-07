@@ -57,14 +57,13 @@ import json
 import logging
 import os
 import threading
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from xrpl.clients import JsonRpcClient
-from xrpl.wallet import Wallet, generate_faucet_wallet
+from xrpl.models.amounts import IssuedCurrencyAmount
 from xrpl.models.transactions import (
     AccountSet,
     AccountSetAsfFlag,
@@ -76,9 +75,8 @@ from xrpl.models.transactions import (
     TrustSet,
     TrustSetFlag,
 )
-from xrpl.models.requests import AccountLines
-from xrpl.models.amounts import IssuedCurrencyAmount
 from xrpl.transaction import submit_and_wait
+from xrpl.wallet import Wallet, generate_faucet_wallet
 
 log = logging.getLogger("aureon.mmf.xrpl_integration")
 
@@ -158,7 +156,7 @@ _load_state()
 
 
 # ─── XRPL primitives ────────────────────────────────────────────────────────
-_client: Optional[JsonRpcClient] = None
+_client: JsonRpcClient | None = None
 _operation_lock = threading.RLock()
 _operations: dict[str, dict] = {}
 
@@ -259,12 +257,12 @@ def _economic_key(flow: str, investor_id: str, first: Decimal, second: Decimal) 
     return hashlib.sha256(identity.encode("utf-8")).hexdigest()
 
 
-def _lookup_prior_attempt(operation_id: str, prior: dict) -> Optional[dict]:
+def _lookup_prior_attempt(operation_id: str, prior: dict) -> dict | None:
     """Lookup-before-retry hook; fake-ledger tests replace it in process."""
     return None
 
 
-def _begin_operation(operation_id: str) -> Optional[dict]:
+def _begin_operation(operation_id: str) -> dict | None:
     with _operation_lock:
         prior = _operations.get(operation_id)
     if prior is None:
@@ -288,8 +286,8 @@ def _reset_operation_registry_for_tests() -> None:
 
 
 def _compensate(*, investor: Wallet, cash_issuer: Wallet, share_issuer: Wallet,
-                amount: Decimal, pre_fund_step: Optional[dict] = None,
-                offer_step: Optional[dict] = None) -> list[dict]:
+                amount: Decimal, pre_fund_step: dict | None = None,
+                offer_step: dict | None = None) -> list[dict]:
     """INST-1 R-M2: compensate every already-successful reversible step."""
     compensation: list[dict] = []
     if offer_step and offer_step.get("engine_result") == "tesSUCCESS":
@@ -564,7 +562,7 @@ def register_investor(investor_id: str) -> dict:
     }
 
 
-def _get_investor_wallet(investor_id: str) -> Optional[Wallet]:
+def _get_investor_wallet(investor_id: str) -> Wallet | None:
     with _state_lock:
         rec = _state["investors"].get(investor_id)
     if not rec or not rec.get("seed"):
@@ -662,7 +660,7 @@ def register_investor_unauthorized(investor_id: str) -> dict:
     }
 
 
-def get_investor_xrpl_address(investor_id: str) -> Optional[str]:
+def get_investor_xrpl_address(investor_id: str) -> str | None:
     """Return the investor's registered XRPL address, or None if not
     registered. Used by subscription_engine to decide whether Lane D
     can proceed."""

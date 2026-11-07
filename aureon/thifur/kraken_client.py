@@ -15,18 +15,18 @@ Doctrine constants tightened for live account:
 Author: Project Aureon · Guillermo "Bill" Ravelo
 """
 
-import hmac
-import hashlib
 import base64
-import urllib.parse
-import urllib.request
-import urllib.error
+import hashlib
+import hmac
 import json
-import time
 import logging
 import os
-from decimal import Decimal
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from collections.abc import Callable
+from decimal import Decimal
 from typing import ClassVar
 
 logger = logging.getLogger("thifur_h.kraken")

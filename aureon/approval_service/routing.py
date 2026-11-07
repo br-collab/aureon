@@ -7,7 +7,6 @@ from typing import Any
 
 from aureon.core.models import GovernedDecision
 
-
 PHASE1_MATERIALITY_THRESHOLD = 400_000
 
 

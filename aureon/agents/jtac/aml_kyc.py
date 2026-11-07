@@ -40,10 +40,9 @@ import json
 import os
 import threading
 from datetime import datetime, timezone
-from typing import Optional
 
+from aureon.agents.base import Advisory, Intent, Result, Tasking
 from aureon.agents.jtac._base import JTACConcreteBase
-from aureon.agents.base import Intent, Advisory, Tasking, Result
 from aureon.agents.payloads import CounterpartyScreeningRequest, JTACPathSelection
 
 AGENT_AML_VERSION = "0.1"
@@ -89,7 +88,7 @@ class AmlKyc(JTACConcreteBase):
     # REGISTRY FIXTURE LOADING
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _load_registry_fixture(self, source_path: Optional[str] = None) -> None:
+    def _load_registry_fixture(self, source_path: str | None = None) -> None:
         """Lazy-load the KYC registry fixture. Case-folded exact-match on
         primary names and aliases, mirroring the SDN loader. *source_path*
         is the doctrine seam for a future KYC-utility integration."""
@@ -195,7 +194,7 @@ class AmlKyc(JTACConcreteBase):
     # ─────────────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _is_expired(expires_at: Optional[str]) -> bool:
+    def _is_expired(expires_at: str | None) -> bool:
         """True if *expires_at* (ISO-8601, Z-suffixed) is in the past.
         A missing or unparseable expiry is treated as expired — the
         conservative reading; silent eligibility is never the default."""
@@ -210,7 +209,7 @@ class AmlKyc(JTACConcreteBase):
     def _select(self,
                 request: CounterpartyScreeningRequest,
                 path_id: str,
-                entry: Optional[dict],
+                entry: dict | None,
                 rationale: str) -> JTACPathSelection:
         """Select a path by id, build the JTACPathSelection, log the outcome."""
         path = self.select_path_by_id(path_id)

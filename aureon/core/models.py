@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-
 DEFAULT_REQUIRED_APPROVALS = ["TRADER"]
 
 
@@ -36,7 +35,7 @@ class GovernedDecision:
     signal_type: str | None = None
 
     @classmethod
-    def from_mapping(cls, raw: dict[str, Any]) -> "GovernedDecision":
+    def from_mapping(cls, raw: dict[str, Any]) -> GovernedDecision:
         """Normalize a dict-shaped decision into a governed decision model."""
         return cls(
             id=raw["id"],

@@ -4,7 +4,6 @@ from pathlib import Path
 
 from server import CANONICAL_DOCTRINE_VERSION, app
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

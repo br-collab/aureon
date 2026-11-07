@@ -36,7 +36,6 @@ import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
 
 log = logging.getLogger("aureon.mmf.persistence")
 
@@ -91,7 +90,7 @@ def save_snapshot(key: str, snapshot: dict) -> bool:
         return False
 
 
-def load_snapshot(key: str) -> Optional[dict]:
+def load_snapshot(key: str) -> dict | None:
     """Load the snapshot dict for the given key, or None if the file
     doesn't exist or is unreadable/malformed. Non-fatal on error —
     the engine falls back to fresh state.

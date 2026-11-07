@@ -40,22 +40,18 @@ import json
 import os
 import threading
 from datetime import datetime, timezone
-from typing import Optional
 
-from aureon.agents.base import Intent, Advisory, Tasking, Result
+from aureon.agents.base import Advisory, Intent, Result, Tasking
 from aureon.agents.jtac._base import JTACConcreteBase
 from aureon.agents.payloads import (
-    ApprovedPath,
-    JTACPathSelection,
-    ApprovalGateContext,
-    ConflictResolution,
-    CounterpartyScreeningRequest,
-    PreTradePolicyCheckRequest,
-    PreTradePolicyCheckResult,
-    IPSEligibilityResult,
     AlgoInventoryCheckRequest,
     AlgoInventoryCheckResult,
     ApprovalLineageRequirement,
+    CounterpartyScreeningRequest,
+    IPSEligibilityResult,
+    JTACPathSelection,
+    PreTradePolicyCheckRequest,
+    PreTradePolicyCheckResult,
 )
 
 AGENT_COMP_VERSION = "1.0"
@@ -122,7 +118,7 @@ class Compliance(JTACConcreteBase):
     # SDN FIXTURE LOADING
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _load_sdn_fixture(self, source_path: Optional[str] = None) -> None:
+    def _load_sdn_fixture(self, source_path: str | None = None) -> None:
         """Lazy-load the SDN fixture. Populates a case-folded primary-name set
         and alias-name set for O(1) exact-match checks. Keeping primary and
         alias sets separate preserves sdn_id attribution on match."""
@@ -387,7 +383,7 @@ class Compliance(JTACConcreteBase):
         self._log_policy_result(result)
         return result
 
-    def get_pending_policy_selection(self, task_id: str) -> Optional[JTACPathSelection]:
+    def get_pending_policy_selection(self, task_id: str) -> JTACPathSelection | None:
         """Retrieve the cached JTACPathSelection built during the last
         check_pretrade_policy call for task_id. Used by C2 halt-and-pend."""
         cache = getattr(self, "_pending_policy_selections", {}) or {}
@@ -573,7 +569,7 @@ class Compliance(JTACConcreteBase):
         self._log_algo_inventory_result(result, inventory_version=inventory.get("inventory_version", ""))
         return result
 
-    def get_pending_algo_selection(self, task_id: str) -> Optional[JTACPathSelection]:
+    def get_pending_algo_selection(self, task_id: str) -> JTACPathSelection | None:
         """Retrieve the cached selection from the last check_algo_inventory
         call for task_id. Used by the /api/c2/algo-inventory-check endpoint
         to persist a paused_lifecycle on MISSING_REGISTRATION."""
@@ -588,7 +584,7 @@ class Compliance(JTACConcreteBase):
                                    *,
                                    pause_reason: str,
                                    task_id: str,
-                                   source_path: Optional[str] = None
+                                   source_path: str | None = None
                                    ) -> ApprovalLineageRequirement:
         """Look up the required human authorities for a given pause_reason.
 
@@ -682,7 +678,7 @@ class Compliance(JTACConcreteBase):
                                counterparty_jurisdiction: str,
                                selected_path_id: str,
                                hit: bool,
-                               sdn_id: Optional[str]) -> None:
+                               sdn_id: str | None) -> None:
         """Write the screening outcome to c2_j_compliance_log."""
         ts = datetime.now(timezone.utc).isoformat()
         entry = {

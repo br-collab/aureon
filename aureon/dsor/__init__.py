@@ -97,19 +97,19 @@ class DSORStore:
             action_class=ActionClass.WRITE_CORE_RECORD,
         )
 
-    def __enter__(self) -> "DSORStore":
+    def __enter__(self) -> DSORStore:
         return self
 
     def __exit__(self, *_: object) -> bool:
         return False
 
 
-from aureon.dsor.bridge import AureonStateDSORStore, BridgedDSORRecord  # noqa: E402
+from aureon.dsor.bridge import AureonStateDSORStore, BridgedDSORRecord
 
 __all__ = [
-    "DSORStore",
-    "DSORRecord",
-    "DSORAppendOnlyError",
     "AureonStateDSORStore",
     "BridgedDSORRecord",
+    "DSORAppendOnlyError",
+    "DSORRecord",
+    "DSORStore",
 ]

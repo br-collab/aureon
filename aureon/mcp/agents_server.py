@@ -11,7 +11,7 @@ import json
 import sys
 import threading
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime
 
 
 def _discover_registries() -> dict:
