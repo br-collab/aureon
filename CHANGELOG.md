@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1 - 7 Nov 2026
+
+Clarify merge authority and use the established Decision System of Record expansion in the
+settlement dashboard.
+
 ## 0.8.0 - 7 Nov 2026
 
 Port ONB-1 regulatory alignment and add shared DSOR decision metadata with append-only migration
