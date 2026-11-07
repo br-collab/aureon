@@ -86,3 +86,8 @@ Per Aureon deploy convention: **commit every file before pushing** — Railway f
 - `Close + Audit` generates a formal KYC Audit Summary intended for regulatory review.
 
 This is advisory tooling. Nothing here executes; all decisions remain with the operator under CAOM-001 authority.
+# Data boundary
+
+Intake text is sent to an external model application programming interface. This demo must never
+receive real personal data, including names, identifiers, addresses, or documents. It uses
+synthetic data only and is not part of the governed onboarding path built by ONB-1.

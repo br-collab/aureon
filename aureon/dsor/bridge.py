@@ -26,6 +26,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from cannae_kernel.governance import ActionClass, AutonomyLevel
+
 
 class DSORAppendOnlyError(Exception):
     """Raised when an append would overwrite an existing (non-correction)
@@ -42,6 +44,8 @@ class BridgedDSORRecord:
     kind: str
     record_id: uuid.UUID = field(default_factory=uuid.uuid4)
     correction_of: uuid.UUID | None = None
+    autonomy_level: AutonomyLevel | None = None
+    action_class: ActionClass | None = None
 
 
 class AureonStateDSORStore:
@@ -60,7 +64,7 @@ class AureonStateDSORStore:
         self._by_id: dict[uuid.UUID, Any] = {}
         self._originals: set = set()
 
-    def append(self, output, *, dtg: datetime | None = None, correction_of=None) -> BridgedDSORRecord:
+    def append(self, output, *, dtg: datetime | None = None, correction_of=None, autonomy_level=None, action_class=None) -> BridgedDSORRecord:
         dtg = dtg or datetime.now(tz=timezone.utc)
         op = getattr(output, "operation_id", None)
         if correction_of is None and op is not None and op in self._originals:
@@ -71,8 +75,10 @@ class AureonStateDSORStore:
         rec = BridgedDSORRecord(
             output=output,
             dtg=dtg,
-            kind=getattr(output, "kind", "unknown"),
+            kind=output.get("kind", "unknown") if isinstance(output, dict) else getattr(output, "kind", "unknown"),
             correction_of=correction_of,
+            autonomy_level=AutonomyLevel(autonomy_level) if autonomy_level else None,
+            action_class=ActionClass(action_class) if action_class else None,
         )
         self._by_id[rec.record_id] = output
         if correction_of is None and op is not None:
@@ -84,6 +90,8 @@ class AureonStateDSORStore:
             "kind": rec.kind,
             "operation_id": str(op) if op is not None else None,
             "correction_of": str(correction_of) if correction_of is not None else None,
+            "autonomy_level": rec.autonomy_level.value if rec.autonomy_level else None,
+            "action_class": rec.action_class.value if rec.action_class else None,
             "payload": self._compact(output),
         }
         with self._lock:
@@ -96,6 +104,26 @@ class AureonStateDSORStore:
     def replay(self, record_id: uuid.UUID):
         return self._by_id[record_id]
 
+    def append_metadata_migration(
+        self, record_ids, *, autonomy_level, action_class, classification_basis,
+        classifier_version, migrated_at
+    ) -> BridgedDSORRecord:
+        event = {
+            "kind": "dsor_metadata_migration",
+            "schema_version": "3",
+            "record_ids": [str(value) for value in record_ids],
+            "autonomy_level": AutonomyLevel(autonomy_level).value,
+            "action_class": ActionClass(action_class).value,
+            "classification_basis": classification_basis,
+            "classifier_version": classifier_version,
+            "migrated_at": migrated_at.isoformat(),
+        }
+        return self.append(
+            event, dtg=migrated_at,
+            autonomy_level=AutonomyLevel.CONSTRAINED_EXECUTION,
+            action_class=ActionClass.WRITE_CORE_RECORD,
+        )
+
     @staticmethod
     def _compact(output) -> dict:
         """JSON-safe projection of the agent output for the persisted log."""
@@ -104,6 +132,8 @@ class AureonStateDSORStore:
                 return output.model_dump(mode="json")
             except Exception:
                 pass
+        if isinstance(output, dict):
+            return output.copy()
         return {"repr": str(output)}
 
     def __enter__(self) -> "AureonStateDSORStore":

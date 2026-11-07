@@ -21,6 +21,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from cannae_kernel.governance import ActionClass, AutonomyLevel
+
 
 class DSORAppendOnlyError(Exception):
     """Raised when an append would overwrite an existing (non-correction)
@@ -36,6 +38,8 @@ class DSORRecord:
     kind: str
     record_id: uuid.UUID = field(default_factory=uuid.uuid4)
     correction_of: uuid.UUID | None = None
+    autonomy_level: AutonomyLevel | None = None
+    action_class: ActionClass | None = None
 
 
 class DSORStore:
@@ -49,7 +53,7 @@ class DSORStore:
         self._by_id: dict[uuid.UUID, Any] = {}
         self._originals: set = set()
 
-    def append(self, output, *, dtg=None, correction_of=None) -> DSORRecord:
+    def append(self, output, *, dtg=None, correction_of=None, autonomy_level=None, action_class=None) -> DSORRecord:
         dtg = dtg or datetime.now(tz=timezone.utc)
         op = getattr(output, "operation_id", None)
         if correction_of is None and op is not None and op in self._originals:
@@ -60,8 +64,10 @@ class DSORStore:
         rec = DSORRecord(
             output=output,
             dtg=dtg,
-            kind=getattr(output, "kind", "unknown"),
+            kind=output.get("kind", "unknown") if isinstance(output, dict) else getattr(output, "kind", "unknown"),
             correction_of=correction_of,
+            autonomy_level=AutonomyLevel(autonomy_level) if autonomy_level else None,
+            action_class=ActionClass(action_class) if action_class else None,
         )
         self._by_id[rec.record_id] = output
         if correction_of is None and op is not None:
@@ -70,6 +76,26 @@ class DSORStore:
 
     def replay(self, record_id: uuid.UUID):
         return self._by_id[record_id]
+
+    def append_metadata_migration(
+        self, record_ids, *, autonomy_level, action_class, classification_basis,
+        classifier_version, migrated_at
+    ) -> DSORRecord:
+        event = {
+            "kind": "dsor_metadata_migration",
+            "schema_version": "3",
+            "record_ids": [str(value) for value in record_ids],
+            "autonomy_level": AutonomyLevel(autonomy_level).value,
+            "action_class": ActionClass(action_class).value,
+            "classification_basis": classification_basis,
+            "classifier_version": classifier_version,
+            "migrated_at": migrated_at.isoformat(),
+        }
+        return self.append(
+            event, dtg=migrated_at,
+            autonomy_level=AutonomyLevel.CONSTRAINED_EXECUTION,
+            action_class=ActionClass.WRITE_CORE_RECORD,
+        )
 
     def __enter__(self) -> "DSORStore":
         return self
