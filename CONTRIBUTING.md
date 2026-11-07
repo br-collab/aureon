@@ -17,7 +17,8 @@ and reproduction steps.
 - Preserve provenance and explain the reason for every absence or refusal.
 - Never commit credentials, tokens, private doctrine, or files excluded by the repository's
   protected `Project Atreides - Custody/` rule.
-- Aureon deploys automatically when Bill merges to `main`; never push directly to `main`.
+- Aureon deploys automatically after a builder's pull request passes every required check and
+  auto-merges to `main`; never push directly to `main`. Only Bill creates tags and releases.
 
 ## Checks
 
