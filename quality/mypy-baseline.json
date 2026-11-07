@@ -29,7 +29,7 @@
     "aureon/contracts/approved_intent.py": 9,
     "aureon/data/market_data.py": 8,
     "aureon/dsor/__init__.py": 6,
-    "aureon/dsor/bridge.py": 10,
+    "aureon/dsor/bridge.py": 9,
     "aureon/evidence_service/service.py": 1,
     "aureon/integration_adapters/ems_adapter.py": 2,
     "aureon/integration_adapters/fix_adapter.py": 2,
@@ -63,5 +63,5 @@
     "aureon/thifur/thifur_h.py": 34,
     "server.py": 1669
   },
-  "total": 2658
+  "total": 2657
 }
