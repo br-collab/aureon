@@ -79,14 +79,14 @@ class AureonStateDSORStore:
         self._by_id: dict[uuid.UUID, Any] = {
             uuid.UUID(entry["record_id"]): entry["payload"] for entry in persisted
         }
-        self._originals: set = {
+        self._originals: set[str] = {
             entry["operation_id"]
             for entry in persisted
             if entry.get("operation_id") is not None and entry.get("correction_of") is None
         }
 
     @property
-    def header(self) -> dict:
+    def header(self) -> dict[str, object]:
         return dict(self._state[self._header_key])
 
     def append(self, output, *, dtg: datetime | None = None, correction_of=None, autonomy_level=None, action_class=None) -> BridgedDSORRecord:
