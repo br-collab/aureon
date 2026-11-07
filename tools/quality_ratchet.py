@@ -12,6 +12,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+# fmt: off
+
 ROOT = Path(__file__).resolve().parents[1]
 QUALITY = ROOT / "quality"
 RUFF_BASELINE = QUALITY / "ruff-baseline.json"
@@ -21,7 +23,9 @@ ERROR_RE = re.compile(r"^(.+?):\d+(?::\d+)?: error:", re.MULTILINE)
 
 
 def run(command: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+    return subprocess.run(
+        command, cwd=ROOT, text=True, capture_output=True, check=False
+    )
 
 
 def ruff_counts() -> dict[str, int]:
@@ -30,7 +34,9 @@ def ruff_counts() -> dict[str, int]:
         rows = json.loads(result.stdout or "[]")
     except json.JSONDecodeError as exc:
         raise SystemExit(f"ruff output was not JSON: {exc}") from exc
-    counts = Counter(str(Path(row["filename"]).resolve().relative_to(ROOT)) for row in rows)
+    counts = Counter(
+        str(Path(row["filename"]).resolve().relative_to(ROOT)) for row in rows
+    )
     return dict(sorted(counts.items()))
 
 
@@ -106,8 +112,12 @@ def main() -> int:
     mypy = mypy_counts()
     if args.write_baseline:
         QUALITY.mkdir(exist_ok=True)
-        RUFF_BASELINE.write_text(json.dumps(payload(ruff), indent=2, sort_keys=True) + "\n")
-        MYPY_BASELINE.write_text(json.dumps(payload(mypy), indent=2, sort_keys=True) + "\n")
+        RUFF_BASELINE.write_text(
+            json.dumps(payload(ruff), indent=2, sort_keys=True) + "\n"
+        )
+        MYPY_BASELINE.write_text(
+            json.dumps(payload(mypy), indent=2, sort_keys=True) + "\n"
+        )
         return 0
     verify_checksum()
     failures = compare("ruff", ruff, RUFF_BASELINE)
@@ -115,10 +125,12 @@ def main() -> int:
     if failures:
         print("\n".join(failures))
         return 1
-    print(f"quality ratchet passed: Ruff {sum(ruff.values())}, mypy {sum(mypy.values())}")
+    print(
+        f"quality ratchet passed: Ruff {sum(ruff.values())}, mypy {sum(mypy.values())}"
+    )
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
-
+# fmt: on

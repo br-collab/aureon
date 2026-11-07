@@ -9,4 +9,3 @@ def test_quality_ratchet_checksum() -> None:
     expected = (root / "quality" / "quality-ratchet.sha256").read_text().strip()
     actual = sha256((root / "tools" / "quality_ratchet.py").read_bytes()).hexdigest()
     assert actual == expected
-
