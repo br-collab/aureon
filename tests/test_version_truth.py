@@ -29,7 +29,10 @@ def test_pages_do_not_embed_stale_atreides_or_doctrine_fallbacks():
 def test_readme_atreides_pin_matches_requirements():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
-    pin_pattern = r"atreides\s*@\s*git\+https://github\.com/br-collab/Project-Atreides\.git@(v\d+\.\d+\.\d+)"
+    pin_pattern = (
+        r"atreides\s*@\s*git\+https://github\.com/br-collab/Project-Atreides\.git@"
+        r"(v\d+\.\d+\.\d+|[0-9a-f]{40})"
+    )
 
     readme_pin = re.search(pin_pattern, readme)
     requirements_pin = re.search(pin_pattern, requirements)
