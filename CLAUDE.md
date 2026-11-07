@@ -342,4 +342,6 @@ These are non-negotiable design constraints:
 - Operational journal entries use military DTG format (YYYYMMDDHHMM)
 ## Merge authority
 
-Builders open pull requests. Only Bill merges pull requests or creates tags. Builders must not enable auto-merge.
+Builders open pull requests and may enable auto-merge. A pull request merges only when every
+required status check passes on an up-to-date branch. Builders never bypass required checks,
+use an admin override, or force-push to main. Only Bill creates tags and releases.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.2 - 7 Nov 2026
+
+Allow builders to enable check-gated auto-merge while preserving Bill's sole release authority.
+
 ## 0.8.1 - 7 Nov 2026
 
 Clarify merge authority and use the established Decision System of Record expansion in the
