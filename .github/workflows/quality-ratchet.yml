@@ -20,6 +20,8 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install pydantic==2.13.5 ruff==0.16.8 mypy==2.3.1 pytest==9.1.1
+      - name: Install locked application dependencies
+        run: pip install --no-deps -r requirements.lock.txt
 
       - name: Enforce per-file baselines
         env:
