@@ -67,6 +67,9 @@ def save_state(*, state, lock, state_file, resolve_mmf_provider, log_error):
                 # Must survive a deploy — the cockpit cycle is audit-bearing.
                 "cockpit_dsor_log":  list(state.get("cockpit_dsor_log", [])),
                 "cockpit_dsor_header": dict(state.get("cockpit_dsor_header", {})),
+                "cockpit_dsor_original_operation_ids": list(
+                    state.get("cockpit_dsor_original_operation_ids", [])
+                ),
                 # ── WS-2.2 AML/KYC (AUR-J-AML-001) ─────────────────
                 "c2_j_amlkyc_log":   list(state.get("c2_j_amlkyc_log", [])),
                 # ── WS-2.3 Risk Reporting (AUR-J-RISK-001) ─────────
