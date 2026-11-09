@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.5 - 9 Nov 2026
+
+Preserve original DSOR operation identifiers outside the capped display log so duplicate
+operations remain refused after eviction and restart.
+
 ## 0.8.4 - 7 Nov 2026
 
 Persist Decision System of Record replay metadata and reconcile merge authority.

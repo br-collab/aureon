@@ -63,12 +63,14 @@ class AureonStateDSORStore:
         *,
         log_key: str = "cockpit_dsor_log",
         header_key: str = "cockpit_dsor_header",
+        operation_ids_key: str = "cockpit_dsor_original_operation_ids",
         cap: int = 500,
     ) -> None:
         self._state = state
         self._lock = lock
         self._log_key = log_key
         self._header_key = header_key
+        self._operation_ids_key = operation_ids_key
         self._cap = cap
         with self._lock:
             self._state.setdefault(
@@ -76,10 +78,11 @@ class AureonStateDSORStore:
                 {"schema_version": "aureon.cockpit_dsor_log/1", "append_only": True},
             )
             persisted = list(self._state.get(self._log_key, []))
+            persisted_operation_ids = set(self._state.get(self._operation_ids_key, []))
         self._by_id: dict[uuid.UUID, Any] = {
             uuid.UUID(entry["record_id"]): entry["payload"] for entry in persisted
         }
-        self._originals: set[str] = {
+        self._originals: set[str] = persisted_operation_ids | {
             entry["operation_id"]
             for entry in persisted
             if entry.get("operation_id") is not None and entry.get("correction_of") is None
@@ -105,10 +108,6 @@ class AureonStateDSORStore:
             autonomy_level=AutonomyLevel(autonomy_level) if autonomy_level else None,
             action_class=ActionClass(action_class) if action_class else None,
         )
-        self._by_id[rec.record_id] = output
-        if correction_of is None and op is not None:
-            self._originals.add(str(op))
-
         entry = {
             "record_id": str(rec.record_id),
             "dtg": dtg.isoformat(),
@@ -119,7 +118,11 @@ class AureonStateDSORStore:
             "action_class": rec.action_class.value if rec.action_class else None,
             "payload": self._compact(output),
         }
+        self._by_id[rec.record_id] = entry["payload"]
+        if correction_of is None and op is not None:
+            self._originals.add(str(op))
         with self._lock:
+            self._state[self._operation_ids_key] = sorted(self._originals)
             log = self._state.setdefault(self._log_key, [])
             log.insert(0, entry)
             if len(log) > self._cap:

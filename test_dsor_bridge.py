@@ -16,6 +16,7 @@ import threading
 from datetime import datetime, timezone
 from decimal import Decimal
 
+import pytest
 from atreides.agents.tier1.outputs import SettlementKind, SettlementRail
 from atreides.cockpit import ClearingCockpit, PortalRegime
 from atreides.contracts.dsor_stub import CAOMTier
@@ -46,7 +47,7 @@ def unit_tests():
     r1 = store.append(FakeOut(op, "settlement_telemetry"))
     ck("append returns record with record_id", hasattr(r1, "record_id"))
     ck("mirrored into state log", state["cockpit_dsor_log"][0]["operation_id"] == str(op))
-    ck("replay returns the output", store.replay(r1.record_id).kind == "settlement_telemetry")
+    ck("replay returns the output", store.replay(r1.record_id)["kind"] == "settlement_telemetry")
     try:
         store.append(FakeOut(op, "settlement_telemetry")); ck("append-only enforced", False)
     except DSORAppendOnlyError:
@@ -144,6 +145,33 @@ def test_fresh_store_replays_migration_fields_and_persisted_header(tmp_path):
     assert replayed["classifier_version"] == "onb-1c/1"
     assert replayed["migrated_at"] == SD.isoformat()
     assert fresh.header == expected_header
+
+
+def test_capped_operation_id_still_refuses_duplicate_after_restart(tmp_path):
+    import uuid
+
+    state, lock = {}, threading.Lock()
+    first = AureonStateDSORStore(state, lock, cap=1)
+    evicted_operation_id = uuid.uuid4()
+    first.append(FakeOut(evicted_operation_id, "settlement_telemetry"), dtg=SD)
+    first.append(FakeOut(uuid.uuid4(), "settlement_telemetry"), dtg=SD)
+    assert state["cockpit_dsor_log"][0]["operation_id"] != str(evicted_operation_id)
+
+    state.setdefault("positions", [])
+    state.setdefault("trades", [])
+    state_file = tmp_path / "state.json"
+    save_state(
+        state=state,
+        lock=lock,
+        state_file=str(state_file),
+        resolve_mmf_provider=lambda provider: provider or "FIX",
+        log_error=lambda *args: None,
+    )
+    reloaded = load_state(state_file=str(state_file), log_error=lambda *args: None)
+    restarted = AureonStateDSORStore(reloaded, threading.Lock(), cap=1)
+
+    with pytest.raises(DSORAppendOnlyError, match="already exists"):
+        restarted.append(FakeOut(evicted_operation_id, "settlement_telemetry"), dtg=SD)
 
 
 if __name__ == "__main__":
