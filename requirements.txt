@@ -6,6 +6,8 @@ python-dotenv>=1.2.4
 gunicorn>=21.2.0
 requests>=2.31.0
 flask-cors>=4.0.0
+# CVE-2026-126190 is fixed in 4.0.0. Beautiful Soup otherwise permits 3.x.
+soupsieve>=4.0.0
 # WS-1 Clearing Cockpit (AUR-COCKPIT-001) + custody domain layer.
 # Formerly vendored into aureon/{cockpit,agents/tier1,contracts}; retired in
 # favour of a declared dependency per AUR-ADD-006 SV step 3. The vendoring is
