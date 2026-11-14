@@ -22,6 +22,7 @@ in the production server and in tests.
 from __future__ import annotations
 
 import uuid
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -32,6 +33,14 @@ from cannae_kernel.governance import ActionClass, AutonomyLevel
 class DSORAppendOnlyError(Exception):
     """Raised when an append would overwrite an existing (non-correction)
     record for an ``operation_id``. Per Axiom 4 (immutable lineage)."""
+
+
+class DSORReplayUnavailableError(LookupError):
+    """Raised when a known record body was trimmed past the configured cap."""
+
+
+class DSORRecordNotFoundError(LookupError):
+    """Raised when a record identifier was never stored."""
 
 
 @dataclass(frozen=True)
@@ -64,6 +73,7 @@ class AureonStateDSORStore:
         log_key: str = "cockpit_dsor_log",
         header_key: str = "cockpit_dsor_header",
         operation_ids_key: str = "cockpit_dsor_original_operation_ids",
+        record_ids_key: str = "cockpit_dsor_record_ids",
         cap: int = 500,
     ) -> None:
         self._state = state
@@ -71,6 +81,7 @@ class AureonStateDSORStore:
         self._log_key = log_key
         self._header_key = header_key
         self._operation_ids_key = operation_ids_key
+        self._record_ids_key = record_ids_key
         self._cap = cap
         with self._lock:
             self._state.setdefault(
@@ -79,6 +90,7 @@ class AureonStateDSORStore:
             )
             persisted = list(self._state.get(self._log_key, []))
             persisted_operation_ids = set(self._state.get(self._operation_ids_key, []))
+            persisted_record_ids = set(self._state.get(self._record_ids_key, []))
         self._by_id: dict[uuid.UUID, Any] = {
             uuid.UUID(entry["record_id"]): entry["payload"] for entry in persisted
         }
@@ -86,6 +98,9 @@ class AureonStateDSORStore:
             entry["operation_id"]
             for entry in persisted
             if entry.get("operation_id") is not None and entry.get("correction_of") is None
+        }
+        self._record_ids: set[str] = persisted_record_ids | {
+            entry["record_id"] for entry in persisted
         }
 
     @property
@@ -119,10 +134,12 @@ class AureonStateDSORStore:
             "payload": self._compact(output),
         }
         self._by_id[rec.record_id] = entry["payload"]
+        self._record_ids.add(str(rec.record_id))
         if correction_of is None and op is not None:
             self._originals.add(str(op))
         with self._lock:
             self._state[self._operation_ids_key] = sorted(self._originals)
+            self._state[self._record_ids_key] = sorted(self._record_ids)
             log = self._state.setdefault(self._log_key, [])
             log.insert(0, entry)
             if len(log) > self._cap:
@@ -130,7 +147,14 @@ class AureonStateDSORStore:
         return rec
 
     def replay(self, record_id: uuid.UUID):
-        return self._by_id[record_id]
+        payload = self._by_id.get(record_id)
+        if payload is not None:
+            return deepcopy(payload)
+        if str(record_id) in self._record_ids:
+            raise DSORReplayUnavailableError(
+                f"DSOR record {record_id} was trimmed past the configured replay cap"
+            )
+        raise DSORRecordNotFoundError(f"DSOR record {record_id} was never stored")
 
     def append_metadata_migration(
         self, record_ids, *, autonomy_level, action_class, classification_basis,
@@ -171,4 +195,10 @@ class AureonStateDSORStore:
         return False
 
 
-__all__ = ["AureonStateDSORStore", "BridgedDSORRecord", "DSORAppendOnlyError"]
+__all__ = [
+    "AureonStateDSORStore",
+    "BridgedDSORRecord",
+    "DSORAppendOnlyError",
+    "DSORRecordNotFoundError",
+    "DSORReplayUnavailableError",
+]
