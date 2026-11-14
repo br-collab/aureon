@@ -21,7 +21,12 @@ from atreides.agents.tier1.outputs import SettlementKind, SettlementRail
 from atreides.cockpit import ClearingCockpit, PortalRegime
 from atreides.contracts.dsor_stub import CAOMTier
 
-from aureon.dsor.bridge import AureonStateDSORStore, DSORAppendOnlyError
+from aureon.dsor.bridge import (
+    AureonStateDSORStore,
+    DSORAppendOnlyError,
+    DSORRecordNotFoundError,
+    DSORReplayUnavailableError,
+)
 from aureon.persistence.store import load_state, save_state
 
 FAIL = []
@@ -153,7 +158,7 @@ def test_capped_operation_id_still_refuses_duplicate_after_restart(tmp_path):
     state, lock = {}, threading.Lock()
     first = AureonStateDSORStore(state, lock, cap=1)
     evicted_operation_id = uuid.uuid4()
-    first.append(FakeOut(evicted_operation_id, "settlement_telemetry"), dtg=SD)
+    evicted = first.append(FakeOut(evicted_operation_id, "settlement_telemetry"), dtg=SD)
     first.append(FakeOut(uuid.uuid4(), "settlement_telemetry"), dtg=SD)
     assert state["cockpit_dsor_log"][0]["operation_id"] != str(evicted_operation_id)
 
@@ -170,8 +175,23 @@ def test_capped_operation_id_still_refuses_duplicate_after_restart(tmp_path):
     reloaded = load_state(state_file=str(state_file), log_error=lambda *args: None)
     restarted = AureonStateDSORStore(reloaded, threading.Lock(), cap=1)
 
+    with pytest.raises(DSORReplayUnavailableError, match="trimmed past"):
+        restarted.replay(evicted.record_id)
+    with pytest.raises(DSORRecordNotFoundError, match="never stored"):
+        restarted.replay(uuid.uuid4())
+
     with pytest.raises(DSORAppendOnlyError, match="already exists"):
         restarted.append(FakeOut(evicted_operation_id, "settlement_telemetry"), dtg=SD)
+
+
+def test_replay_returns_a_copy() -> None:
+    import uuid
+
+    store = AureonStateDSORStore({}, threading.Lock())
+    record = store.append(FakeOut(uuid.uuid4(), "settlement_telemetry"), dtg=SD)
+    replayed = store.replay(record.record_id)
+    replayed["kind"] = "mutated"
+    assert store.replay(record.record_id)["kind"] == "settlement_telemetry"
 
 
 if __name__ == "__main__":
