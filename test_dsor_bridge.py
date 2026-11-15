@@ -161,6 +161,8 @@ def test_capped_operation_id_still_refuses_duplicate_after_restart(tmp_path):
     evicted = first.append(FakeOut(evicted_operation_id, "settlement_telemetry"), dtg=SD)
     first.append(FakeOut(uuid.uuid4(), "settlement_telemetry"), dtg=SD)
     assert state["cockpit_dsor_log"][0]["operation_id"] != str(evicted_operation_id)
+    assert len(state["cockpit_dsor_record_ids"]) == 1
+    assert str(evicted.record_id) in state["cockpit_dsor_trimmed_record_ids"]
 
     state.setdefault("positions", [])
     state.setdefault("trades", [])

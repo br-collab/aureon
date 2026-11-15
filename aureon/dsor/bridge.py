@@ -74,6 +74,7 @@ class AureonStateDSORStore:
         header_key: str = "cockpit_dsor_header",
         operation_ids_key: str = "cockpit_dsor_original_operation_ids",
         record_ids_key: str = "cockpit_dsor_record_ids",
+        tombstone_ids_key: str = "cockpit_dsor_trimmed_record_ids",
         cap: int = 500,
     ) -> None:
         self._state = state
@@ -82,6 +83,7 @@ class AureonStateDSORStore:
         self._header_key = header_key
         self._operation_ids_key = operation_ids_key
         self._record_ids_key = record_ids_key
+        self._tombstone_ids_key = tombstone_ids_key
         self._cap = cap
         with self._lock:
             self._state.setdefault(
@@ -91,6 +93,7 @@ class AureonStateDSORStore:
             persisted = list(self._state.get(self._log_key, []))
             persisted_operation_ids = set(self._state.get(self._operation_ids_key, []))
             persisted_record_ids = set(self._state.get(self._record_ids_key, []))
+            persisted_tombstones = set(self._state.get(self._tombstone_ids_key, []))
         self._by_id: dict[uuid.UUID, Any] = {
             uuid.UUID(entry["record_id"]): entry["payload"] for entry in persisted
         }
@@ -99,9 +102,11 @@ class AureonStateDSORStore:
             for entry in persisted
             if entry.get("operation_id") is not None and entry.get("correction_of") is None
         }
-        self._record_ids: set[str] = persisted_record_ids | {
-            entry["record_id"] for entry in persisted
-        }
+        live_ids = {entry["record_id"] for entry in persisted}
+        self._record_ids: set[str] = live_ids
+        self._trimmed_record_ids: set[str] = (
+            persisted_tombstones | (persisted_record_ids - live_ids)
+        )
 
     @property
     def header(self) -> dict[str, object]:
@@ -139,18 +144,25 @@ class AureonStateDSORStore:
             self._originals.add(str(op))
         with self._lock:
             self._state[self._operation_ids_key] = sorted(self._originals)
-            self._state[self._record_ids_key] = sorted(self._record_ids)
             log = self._state.setdefault(self._log_key, [])
             log.insert(0, entry)
             if len(log) > self._cap:
+                trimmed = log[self._cap:]
                 del log[self._cap:]
+                for old in trimmed:
+                    old_id = str(old["record_id"])
+                    self._record_ids.discard(old_id)
+                    self._by_id.pop(uuid.UUID(old_id), None)
+                    self._trimmed_record_ids.add(old_id)
+            self._state[self._record_ids_key] = sorted(self._record_ids)
+            self._state[self._tombstone_ids_key] = sorted(self._trimmed_record_ids)
         return rec
 
     def replay(self, record_id: uuid.UUID):
         payload = self._by_id.get(record_id)
         if payload is not None:
             return deepcopy(payload)
-        if str(record_id) in self._record_ids:
+        if str(record_id) in self._trimmed_record_ids:
             raise DSORReplayUnavailableError(
                 f"DSOR record {record_id} was trimmed past the configured replay cap"
             )
