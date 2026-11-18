@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.0 - 17 Nov 2026
+
+Close the declared-synthetic retail minimum viable product from MVP-0 through MVP-5B. Decision
+System of Record replay metadata now uses a bounded sequence watermark while preserving exact
+trimmed-record and never-stored errors at the replay cap.
+
 ## 0.8.5 - 9 Nov 2026
 
 Preserve original DSOR operation identifiers outside the capped display log so duplicate

@@ -161,8 +161,9 @@ def test_capped_operation_id_still_refuses_duplicate_after_restart(tmp_path):
     evicted = first.append(FakeOut(evicted_operation_id, "settlement_telemetry"), dtg=SD)
     first.append(FakeOut(uuid.uuid4(), "settlement_telemetry"), dtg=SD)
     assert state["cockpit_dsor_log"][0]["operation_id"] != str(evicted_operation_id)
-    assert len(state["cockpit_dsor_record_ids"]) == 1
-    assert str(evicted.record_id) in state["cockpit_dsor_trimmed_record_ids"]
+    assert state["cockpit_dsor_trim_watermark"] == evicted.record_id.int
+    assert state["cockpit_dsor_next_sequence"] == 3
+    assert "cockpit_dsor_trimmed_record_ids" not in state
 
     state.setdefault("positions", [])
     state.setdefault("trades", [])
@@ -180,7 +181,7 @@ def test_capped_operation_id_still_refuses_duplicate_after_restart(tmp_path):
     with pytest.raises(DSORReplayUnavailableError, match="trimmed past"):
         restarted.replay(evicted.record_id)
     with pytest.raises(DSORRecordNotFoundError, match="never stored"):
-        restarted.replay(uuid.uuid4())
+        restarted.replay(uuid.UUID(int=state["cockpit_dsor_next_sequence"] + 100))
 
     with pytest.raises(DSORAppendOnlyError, match="already exists"):
         restarted.append(FakeOut(evicted_operation_id, "settlement_telemetry"), dtg=SD)
