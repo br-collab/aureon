@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1 - 18 Nov 2026
+
+Keep legacy Decision System of Record identifiers in a cap-bounded tombstone list when their
+records are trimmed. Legacy identifiers no longer inflate the sequence watermark, so an unrelated
+identifier still reports that it was never stored.
+
 ## 1.0.0 - 17 Nov 2026
 
 Close the declared-synthetic retail minimum viable product from MVP-0 through MVP-5B. Decision

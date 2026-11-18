@@ -197,6 +197,59 @@ def test_replay_returns_a_copy() -> None:
     assert store.replay(record.record_id)["kind"] == "settlement_telemetry"
 
 
+def test_legacy_trim_keeps_unknown_ids_never_stored_and_watermark_zero(tmp_path) -> None:
+    import uuid
+
+    legacy_id = uuid.uuid4()
+    unknown_id = uuid.uuid4()
+    legacy_state = {
+        "cockpit_dsor_log": [
+            {
+                "record_id": str(legacy_id),
+                "dtg": SD.isoformat(),
+                "kind": "settlement_telemetry",
+                "operation_id": None,
+                "correction_of": None,
+                "autonomy_level": None,
+                "action_class": None,
+                "payload": {"kind": "legacy"},
+            }
+        ],
+        "cockpit_dsor_trim_watermark": 0,
+        "positions": [],
+        "trades": [],
+    }
+    state_file = tmp_path / "legacy-state.json"
+    save_state(
+        state=legacy_state,
+        lock=threading.Lock(),
+        state_file=str(state_file),
+        resolve_mmf_provider=lambda provider: provider or "FIX",
+        log_error=lambda *args: None,
+    )
+    reloaded = load_state(state_file=str(state_file), log_error=lambda *args: None)
+    store = AureonStateDSORStore(reloaded, threading.Lock(), cap=1)
+    store.append(FakeOut(uuid.uuid4(), "settlement_telemetry"), dtg=SD)
+
+    assert reloaded["cockpit_dsor_trim_watermark"] == 0
+    assert reloaded["cockpit_dsor_legacy_trimmed_record_ids"] == [str(legacy_id)]
+    with pytest.raises(DSORReplayUnavailableError, match="legacy record.*trimmed past"):
+        store.replay(legacy_id)
+    with pytest.raises(DSORRecordNotFoundError, match="never stored"):
+        store.replay(unknown_id)
+
+
+def test_legacy_tombstones_are_bounded_by_log_cap() -> None:
+    import uuid
+
+    legacy_ids = [uuid.uuid4() for _ in range(3)]
+    state = {
+        "cockpit_dsor_legacy_trimmed_record_ids": [str(value) for value in legacy_ids],
+    }
+    AureonStateDSORStore(state, threading.Lock(), cap=2)
+    assert len(state["cockpit_dsor_legacy_trimmed_record_ids"]) == 2
+
+
 if __name__ == "__main__":
     print("— unit —");            unit_tests()
     print("— cockpit integ —");   st = cockpit_integration()
