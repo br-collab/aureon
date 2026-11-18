@@ -75,6 +75,7 @@ class AureonStateDSORStore:
         operation_ids_key: str = "cockpit_dsor_original_operation_ids",
         next_sequence_key: str = "cockpit_dsor_next_sequence",
         trim_watermark_key: str = "cockpit_dsor_trim_watermark",
+        legacy_trimmed_ids_key: str = "cockpit_dsor_legacy_trimmed_record_ids",
         cap: int = 500,
     ) -> None:
         self._state = state
@@ -84,6 +85,7 @@ class AureonStateDSORStore:
         self._operation_ids_key = operation_ids_key
         self._next_sequence_key = next_sequence_key
         self._trim_watermark_key = trim_watermark_key
+        self._legacy_trimmed_ids_key = legacy_trimmed_ids_key
         self._cap = cap
         with self._lock:
             self._state.setdefault(
@@ -94,6 +96,9 @@ class AureonStateDSORStore:
             persisted_operation_ids = set(self._state.get(self._operation_ids_key, []))
             self._next_sequence = int(self._state.get(self._next_sequence_key, 1))
             self._trim_watermark = int(self._state.get(self._trim_watermark_key, 0))
+            legacy_trimmed_ids = list(self._state.get(self._legacy_trimmed_ids_key, []))
+            self._legacy_trimmed_ids = set(legacy_trimmed_ids[-self._cap :])
+            self._state[self._legacy_trimmed_ids_key] = legacy_trimmed_ids[-self._cap :]
         self._by_id: dict[uuid.UUID, Any] = {
             uuid.UUID(entry["record_id"]): entry["payload"] for entry in persisted
         }
@@ -151,10 +156,14 @@ class AureonStateDSORStore:
                 for old in trimmed:
                     old_id = uuid.UUID(str(old["record_id"]))
                     self._by_id.pop(old_id, None)
-                    self._trim_watermark = max(
-                        self._trim_watermark,
-                        int(old.get("record_sequence", old_id.int)),
-                    )
+                    sequence = old.get("record_sequence")
+                    if sequence is None:
+                        self._legacy_trimmed_ids.add(str(old_id))
+                    else:
+                        self._trim_watermark = max(self._trim_watermark, int(sequence))
+            legacy_ids = sorted(self._legacy_trimmed_ids)[-self._cap :]
+            self._legacy_trimmed_ids = set(legacy_ids)
+            self._state[self._legacy_trimmed_ids_key] = legacy_ids
             self._state[self._trim_watermark_key] = self._trim_watermark
         return rec
 
@@ -162,6 +171,10 @@ class AureonStateDSORStore:
         payload = self._by_id.get(record_id)
         if payload is not None:
             return deepcopy(payload)
+        if str(record_id) in self._legacy_trimmed_ids:
+            raise DSORReplayUnavailableError(
+                f"DSOR legacy record {record_id} was trimmed past the configured replay cap"
+            )
         if 0 < record_id.int <= self._trim_watermark:
             raise DSORReplayUnavailableError(
                 f"DSOR record {record_id} was trimmed past the configured replay cap"

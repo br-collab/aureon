@@ -76,6 +76,9 @@ def save_state(*, state, lock, state_file, resolve_mmf_provider, log_error):
                 "cockpit_dsor_trim_watermark": int(
                     state.get("cockpit_dsor_trim_watermark", 0)
                 ),
+                "cockpit_dsor_legacy_trimmed_record_ids": list(
+                    state.get("cockpit_dsor_legacy_trimmed_record_ids", [])
+                ),
                 # ── WS-2.2 AML/KYC (AUR-J-AML-001) ─────────────────
                 "c2_j_amlkyc_log":   list(state.get("c2_j_amlkyc_log", [])),
                 # ── WS-2.3 Risk Reporting (AUR-J-RISK-001) ─────────
