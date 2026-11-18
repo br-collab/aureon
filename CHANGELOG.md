@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.0 - 17 Nov 2026
+
+Close the declared-synthetic retail minimum viable product from MVP-0 through MVP-5B. Decision
+System of Record replay metadata now uses a bounded sequence watermark while preserving exact
+trimmed-record and never-stored errors at the replay cap.
+
+On 18 November 2026, Bill decided that the required npm vulnerability gate covers production
+dependencies (`npm audit --omit=dev --audit-level=high`). The full audit remains visible as a
+separate non-blocking job and reports GHSA-fc5q-39xc-vjpf in picomatch, reached as a development
+dependency through Vite; the advisory had no patched version on the decision date.
+
 ## 0.8.5 - 9 Nov 2026
 
 Preserve original DSOR operation identifiers outside the capped display log so duplicate
