@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -17,8 +18,8 @@ def record(
     close: str = "100",
 ) -> EquityOrderFill:
     return EquityOrderFill(
-        order_id, side, owner, datetime(2026, 11, 18, 15, minute, tzinfo=UTC),
-        Decimal(price), Decimal(close), Decimal(volume),
+        order_id, side, owner, datetime(2026, 11, 18, 20, minute, tzinfo=UTC),
+        Decimal(price), Decimal(close), Decimal(volume), "SYNTHETIC-ABC", Decimal(10),
     )
 
 
@@ -43,6 +44,16 @@ def test_surveillance_missing_beneficial_owner_is_data_incomplete() -> None:
     assert result.missing == ("beneficial_owner_id",)
 
 
+def test_empty_surveillance_is_data_incomplete() -> None:
+    assert screen_equities(()).disposition == "SURVEIL_DATA_INCOMPLETE"
+
+
+def test_wash_match_requires_symbol_time_and_quantity() -> None:
+    buy = record("B", "BUY", "OWNER-1")
+    wrong_symbol = replace(record("S", "SELL", "OWNER-1"), symbol="SYNTHETIC-OTHER")
+    assert "WASH_TRADE" not in screen_equities((buy, wrong_symbol)).matched
+
+
 def test_aml_agent_output_is_advisory_without_decision() -> None:
     draft = draft_case_narrative(case_id="CASE-1", alert_facts=("fact one", "fact two"))
     assert draft.label == "ADVISORY_DRAFT_NOT_A_DECISION"
@@ -55,3 +66,9 @@ def test_aureon_cat_stub_never_returns_ready() -> None:
     assert result["submission_status"] == "NOT_VALIDATED"
     assert result["deprecated"] is True
     assert result["validator_owner"] == "L.C."
+
+
+def test_cftc_part45_is_not_validated() -> None:
+    agent = RegReporting({}, __import__("threading").Lock())
+    result = agent.generate_cftc_part45_report({"id": "SYNTHETIC-SWAP-1"})
+    assert result["submission_status"] == "NOT_VALIDATED"
