@@ -227,19 +227,19 @@ class RegReporting(RangerConcreteBase):
             "floating_index":     swap_record.get("floating_index", ""),
             "audit_trail_ref":    swap_record.get("authority_hash", ""),
             "doctrine_version":   swap_record.get("doctrine_version", "unknown"),
-            "submission_status":  "READY",
+            "submission_status":  "NOT_VALIDATED",
         }
 
         self._write_regrep_log(
             task_id=swap_record.get("task_id", ""),
             ts=ts,
             action="CFTC_PART45_REPORT",
-            status="READY",
+            status="NOT_VALIDATED",
             authority_hash=swap_record.get("authority_hash", ""),
             doctrine_version=swap_record.get("doctrine_version", "unknown"),
         )
 
-        print(f"[REG-REPORTING] CFTC Part 45: READY | "
+        print(f"[REG-REPORTING] CFTC Part 45: NOT_VALIDATED | "
               f"USI: {usi[:16]}... | {swap_record.get('symbol', '?')}")
 
         return report

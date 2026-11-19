@@ -22,3 +22,11 @@ handling, or missing evidence being treated as approval are especially welcome.
 ## Supported versions
 
 Only the latest commit on `main` is supported.
+
+## Temporary development dependency audit decision
+
+The required npm audit covers production dependencies with
+`npm audit --omit=dev --audit-level=high`. The full development audit remains visible and
+non-blocking for GHSA-fc5q-39xc-vjpf in picomatch through Vite. This exception expires on
+2027-03-31. On that date the full audit becomes blocking again unless a new recorded decision
+supersedes it.

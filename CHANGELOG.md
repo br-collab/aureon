@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 - 18 Nov 2026
+
+Correct equities surveillance to require symbol, side, time and quantity agreement for wash
+matches, use the America/New_York close, and treat empty input as data incomplete. Mark the CFTC
+Part 45 compatibility output not validated. Migrate pre-upgrade DSOR tombstones without sorting
+UUIDs as age, and record the temporary development-audit expiry in SECURITY.md.
+
 ## 1.1.0 - 18 Nov 2026
 
 Retire the CAT label that returned `READY` without validation. The compatibility method now
