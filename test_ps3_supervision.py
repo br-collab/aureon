@@ -54,6 +54,37 @@ def test_wash_match_requires_symbol_time_and_quantity() -> None:
     assert "WASH_TRADE" not in screen_equities((buy, wrong_symbol)).matched
 
 
+def _at(when: datetime, **changes: object) -> EquityOrderFill:
+    base = record("B", "BUY", "OWNER-1", volume="25", price="101", close="100")
+    return replace(base, filled_at=when, **changes)
+
+
+def test_marking_the_close_uses_the_early_close_on_27_november_2026() -> None:
+    # 12:58 New York time: two minutes before the 1:00 p.m. early close (NYSE calendar).
+    early = screen_equities((_at(datetime(2026, 11, 27, 17, 58, tzinfo=UTC)),))
+    assert early.matched == ("MARKING_THE_CLOSE",)
+    # The same clock time on a regular day is three hours before the close.
+    regular = screen_equities((_at(datetime(2026, 11, 25, 17, 58, tzinfo=UTC)),))
+    assert "MARKING_THE_CLOSE" not in regular.matched
+
+
+def test_missing_symbol_or_quantity_is_data_incomplete_not_a_wash() -> None:
+    blank = screen_equities(
+        (
+            replace(record("B", "BUY", "OWNER-1"), symbol=None, quantity=None),
+            replace(record("S", "SELL", "OWNER-1"), symbol=None, quantity=None),
+        )
+    )
+    assert blank.disposition == "SURVEIL_DATA_INCOMPLETE"
+    assert blank.missing == ("symbol", "quantity")
+
+
+def test_a_day_outside_the_calendar_is_data_incomplete() -> None:
+    result = screen_equities((_at(datetime(2031, 3, 3, 20, 58, tzinfo=UTC)),))
+    assert result.disposition == "SURVEIL_DATA_INCOMPLETE"
+    assert result.missing == ("session_close",)
+
+
 def test_aml_agent_output_is_advisory_without_decision() -> None:
     draft = draft_case_narrative(case_id="CASE-1", alert_facts=("fact one", "fact two"))
     assert draft.label == "ADVISORY_DRAFT_NOT_A_DECISION"

@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, time
+from datetime import datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
+
+from aureon.agents.jtac.market_calendar import (
+    CalendarIndeterminateError,
+    load_us_equities_calendar,
+)
+
+NEW_YORK = ZoneInfo("America/New_York")
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,8 +24,8 @@ class EquityOrderFill:
     price: Decimal
     close_price: Decimal
     session_volume_percent: Decimal
-    symbol: str = "SYNTHETIC-UNKNOWN"
-    quantity: Decimal = Decimal(0)
+    symbol: str | None = None
+    quantity: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +47,21 @@ def screen_equities(
     missing = []
     if any(item.beneficial_owner_id is None for item in records):
         missing.append("beneficial_owner_id")
+    if any(not item.symbol for item in records):
+        missing.append("symbol")
+    if any(item.quantity is None or item.quantity <= 0 for item in records):
+        missing.append("quantity")
+    calendar = load_us_equities_calendar()
+    closes: list[datetime] = []
+    for item in records:
+        local_day = item.filled_at.astimezone(NEW_YORK).date()
+        try:
+            closes.append(
+                datetime.combine(local_day, calendar.session_close(local_day), tzinfo=NEW_YORK)
+            )
+        except (CalendarIndeterminateError, ValueError):
+            missing.append("session_close")
+            break
     if missing:
         return SurveillanceResult("SURVEIL_DATA_INCOMPLETE", (), tuple(missing), True)
 
@@ -57,18 +79,12 @@ def screen_equities(
         matched.append("WASH_TRADE")
 
     if any(
-        0 <= (
-            datetime.combine(
-                item.filled_at.astimezone(ZoneInfo("America/New_York")).date(),
-                time(16, 0),
-                tzinfo=ZoneInfo("America/New_York"),
-            )
-            - item.filled_at.astimezone(ZoneInfo("America/New_York"))
-        ).total_seconds()
+        0
+        <= (close - item.filled_at.astimezone(NEW_YORK)).total_seconds()
         <= close_window_seconds
         and item.session_volume_percent >= close_volume_threshold
         and item.price != item.close_price
-        for item in records
+        for item, close in zip(records, closes, strict=True)
     ):
         matched.append("MARKING_THE_CLOSE")
 
