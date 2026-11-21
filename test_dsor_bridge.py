@@ -13,6 +13,7 @@ import json
 import os
 import tempfile
 import threading
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -251,15 +252,29 @@ def test_legacy_tombstones_are_bounded_by_log_cap() -> None:
 
 
 def test_real_11c9db2_tombstone_fixture_migrates_and_evicts_by_age() -> None:
-    import uuid
+    import json
+    from pathlib import Path
 
-    oldest, middle, newest = (uuid.UUID(int=value) for value in (30, 10, 20))
-    state = {
-        "cockpit_dsor_trimmed_record_ids": [str(oldest), str(middle), str(newest)]
-    }
-    AureonStateDSORStore(state, threading.Lock(), cap=2)
+    fixture = Path(__file__).parent / "tests/fixtures/aureon-state-11c9db2.json"
+    state = json.loads(fixture.read_text())
+    AureonStateDSORStore(state, threading.Lock(), cap=3)
     assert "cockpit_dsor_trimmed_record_ids" not in state
-    assert state["cockpit_dsor_legacy_trimmed_record_ids"] == [str(middle), str(newest)]
+    assert state["cockpit_dsor_legacy_trimmed_record_ids"] == [
+        "00000000-0000-0000-0000-000000000003",
+        "00000000-0000-0000-0000-000000000004",
+        "00000000-0000-0000-0000-000000000005",
+    ]
+
+
+def test_legacy_tombstone_migration_keeps_newest_distinct_ids() -> None:
+    values = [str(uuid.UUID(int=value)) for value in (1, 2, 3, 4, 2, 2)]
+    state = {"cockpit_dsor_trimmed_record_ids": values}
+    AureonStateDSORStore(state, threading.Lock(), cap=3)
+    assert state["cockpit_dsor_legacy_trimmed_record_ids"] == [
+        str(uuid.UUID(int=3)),
+        str(uuid.UUID(int=4)),
+        str(uuid.UUID(int=2)),
+    ]
 
 
 if __name__ == "__main__":

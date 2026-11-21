@@ -100,8 +100,10 @@ class AureonStateDSORStore:
             legacy_trimmed_ids = [
                 *self._state.get(self._legacy_trimmed_ids_key, []),
                 *pre_upgrade_ids,
-            ][-self._cap :]
-            self._legacy_trimmed_ids = list(dict.fromkeys(legacy_trimmed_ids))
+            ]
+            self._legacy_trimmed_ids = self._newest_unique(
+                legacy_trimmed_ids, self._cap
+            )
             self._state[self._legacy_trimmed_ids_key] = list(self._legacy_trimmed_ids)
         self._by_id: dict[uuid.UUID, Any] = {
             uuid.UUID(entry["record_id"]): entry["payload"] for entry in persisted
@@ -167,7 +169,7 @@ class AureonStateDSORStore:
                             self._legacy_trimmed_ids.append(old_text)
                     else:
                         self._trim_watermark = max(self._trim_watermark, int(sequence))
-            legacy_ids = self._legacy_trimmed_ids[-self._cap :]
+            legacy_ids = self._newest_unique(self._legacy_trimmed_ids, self._cap)
             self._legacy_trimmed_ids = list(legacy_ids)
             self._state[self._legacy_trimmed_ids_key] = legacy_ids
             self._state[self._trim_watermark_key] = self._trim_watermark
@@ -186,6 +188,19 @@ class AureonStateDSORStore:
                 f"DSOR record {record_id} was trimmed past the configured replay cap"
             )
         raise DSORRecordNotFoundError(f"DSOR record {record_id} was never stored")
+
+    @staticmethod
+    def _newest_unique(record_ids: list[str], cap: int) -> list[str]:
+        """Keep the newest distinct legacy tombstones in chronological order."""
+        seen: set[str] = set()
+        newest_first: list[str] = []
+        for record_id in reversed(record_ids):
+            if record_id not in seen:
+                seen.add(record_id)
+                newest_first.append(record_id)
+            if len(newest_first) == cap:
+                break
+        return list(reversed(newest_first))
 
     def append_metadata_migration(
         self, record_ids, *, autonomy_level, action_class, classification_basis,
