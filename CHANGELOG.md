@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+Gate G3 correction to PS-3D Part 7 (#156): the export #156 read was a format L.C. never wrote, with close price, session volume and beneficial owner that L.C. does not record, so the test built the file and rule 7 stayed open. `screen_equities` now takes three named sources: the L.C. lifecycle export with exactly the row `lc/lifecycle_export.py` writes (L.C. #166), and only observed provenance (`FACT_EXTERNAL`, `FACT_SYNTHETIC`); an `aureon.close_reference/1` file for close price and session volume; and an `aureon.account_owners/1` record for beneficial owner. Session volume share is computed from the fill quantity and the session volume. A missing, malformed or foreign input in any source is `SURVEIL_DATA_INCOMPLETE` with the item named, never a crash. Phase A: no run writes these files yet.
+
 Phase A: equities surveillance reads order and fill rows from an L.C. (Legiones Cannenses) lifecycle export. `screen_equities` no longer accepts a caller-built tuple. A wash pair in that export is flagged. A row with the beneficial-owner field removed is `SURVEIL_DATA_INCOMPLETE`. No run writes the export yet.
 
 ## 1.2.0 - 18 Nov 2026
