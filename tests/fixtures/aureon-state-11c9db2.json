@@ -1,0 +1,51 @@
+{
+  "cockpit_dsor_header": {
+    "append_only": true,
+    "schema_version": "aureon.cockpit_dsor_log/1"
+  },
+  "cockpit_dsor_log": [
+    {
+      "action_class": null,
+      "autonomy_level": null,
+      "correction_of": null,
+      "dtg": "2026-11-21T20:44:46.720545+00:00",
+      "kind": "legacy-event",
+      "operation_id": null,
+      "payload": {"kind": "legacy-event", "ordinal": 8},
+      "record_id": "00000000-0000-0000-0000-000000000008"
+    },
+    {
+      "action_class": null,
+      "autonomy_level": null,
+      "correction_of": null,
+      "dtg": "2026-11-21T20:44:46.720511+00:00",
+      "kind": "legacy-event",
+      "operation_id": null,
+      "payload": {"kind": "legacy-event", "ordinal": 7},
+      "record_id": "00000000-0000-0000-0000-000000000007"
+    },
+    {
+      "action_class": null,
+      "autonomy_level": null,
+      "correction_of": null,
+      "dtg": "2026-11-21T20:44:46.720457+00:00",
+      "kind": "legacy-event",
+      "operation_id": null,
+      "payload": {"kind": "legacy-event", "ordinal": 6},
+      "record_id": "00000000-0000-0000-0000-000000000006"
+    }
+  ],
+  "cockpit_dsor_original_operation_ids": [],
+  "cockpit_dsor_record_ids": [
+    "00000000-0000-0000-0000-000000000006",
+    "00000000-0000-0000-0000-000000000007",
+    "00000000-0000-0000-0000-000000000008"
+  ],
+  "cockpit_dsor_trimmed_record_ids": [
+    "00000000-0000-0000-0000-000000000001",
+    "00000000-0000-0000-0000-000000000002",
+    "00000000-0000-0000-0000-000000000003",
+    "00000000-0000-0000-0000-000000000004",
+    "00000000-0000-0000-0000-000000000005"
+  ]
+}
