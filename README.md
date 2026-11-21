@@ -5,7 +5,26 @@
 **Settlement & Custody Console:** [/cockpit](https://aureon-production.up.railway.app/cockpit) — pipeline, breaks workbench, and cash leg
 **Status:** Research prototype · paper trading · no real capital at risk · no commercial offering
 **Classification:** Public research prototype · doctrine published in this repository
-**Last updated:** 242250Z OCT 26. Reflects `main` at `254713b`. Latest merged change: #121, GR-1, Cato parity closed and deployed live-client claims hardened.
+**Last updated:** 18 Nov 2026. Release `v1.0.1` (minimum viable product closed, orders MVP-0 to MVP-5C).
+
+> **What CFMA is (18 November 2026).** CFMA (Cannae Financial Markets Architecture) is a
+> synthetic simulator of a self-clearing US broker-dealer with agentic AI built in, across five
+> public repositories. One synthetic retail customer runs from account opening to account statement
+> through real components: onboarding and identity checks, a recommended order through market access
+> controls, a venue fill, Continuous Net Settlement, the firm's double-entry books, a trade
+> confirmation and a statement. The daily close computes customer reserve, net capital and
+> possession or control from those books, checks them against an independent oracle, reconciles the
+> stock record against an independent street side, and drafts Rule 17a-11 notices for a human
+> Financial and Operations Principal. Agents advise; a verified human approves every consequential
+> decision. It is research code on synthetic data: not production, not a compliance claim, and
+> connected to no real venue, depository or bank. Release `v1.0.1`. Live view: the public Common
+> Operating Picture, https://cannae-cop-public-production.up.railway.app/section/controls
+>
+> In that simulator, **aureon is the pre-trade layer**: it turns portfolio intent into a governed,
+> human-approved intent record (the Decision System of Record) and hosts the advisory agent stack.
+
+> The description below predates 18 November 2026 and is kept as design history; the current
+> identity is stated above.
 
 Aureon is a doctrine-governed control layer between portfolio intent and execution — built for the convergence of tokenization, AI execution, and programmable payment rails. It sits above OMS, EMS, and post-trade infrastructure. It governs what enters those systems, and it produces the unified lineage record a trustee, rating agency, or regulator can rely on.
 
@@ -49,6 +68,10 @@ Aureon exists to make that pre-trade decision layer explicit. It creates a gover
 ---
 
 ## Phase 1 Deployment Position
+
+> Historical framing: until 18 November 2026 this section described Aureon as a governance overlay
+> for firms' existing OMS (Order Management System) and EMS (Execution Management System) stacks.
+> The current identity is the CFMA simulator described at the top of this README.
 
 Phase 1 positions Aureon as a governance and execution-intelligence overlay for Equities, with Electronic Execution as the first pilot motion.
 
@@ -294,7 +317,7 @@ All Thifur agents operate under strict governance constraints:
 
 Cato Sec is the Verana L0 pre-settlement doctrine gate for tokenized institutional repo. It answers one question before every settlement: is atomic on-chain Delivery-versus-Payment viable right now, or should this trade route to FICC (Fixed Income Clearing Corporation)? The gate runs four deterministic checks and emits PROCEED, HOLD, or ESCALATE plus a recommended settlement rail.
 
-Cato Sec exists in two implementations: the external open-source MCP server (Node.js, MIT license, 24 tools at [github.com/br-collab/Cato-FICC-MCP](https://github.com/br-collab/Cato-FICC-MCP)) and the in-process Python twin inside Aureon. Their current compatibility status is `INCOMPATIBLE`; the divergence is tracked in the open conflicts log.
+Cato Sec exists in two implementations: the external open-source MCP server (Node.js, MIT license, 29 read-only tools at [github.com/br-collab/Cato-FICC-MCP](https://github.com/br-collab/Cato-FICC-MCP)) and the in-process Python twin inside Aureon. Their current compatibility status is `INCOMPATIBLE`; the divergence is tracked in the open conflicts log.
 
 **Backtest verified (produced as an SR 11-7 Tier 1 artefact; SR 11-7 is now superseded by Federal Reserve SR 26-2 / Office of the Comptroller of the Currency (OCC) Bulletin 2026-13):** March 2020 COVID repo freeze (100%), September 2019 repo spike (80% post-fix), March 2023 SVB collapse (45.5% — documented calibration limit; Cato Sec is a market-regime gate, not a counterparty-credit gate).
 
@@ -461,7 +484,7 @@ Aureon's governance architecture is mapped against six regulatory frameworks:
 | Thifur-J | Pre-trade structuring, policy checks | Full tokenized asset lifecycle, DeFi convergence |
 | Thifur-H | **Phase 2 validated** — five-gate governance layer live on Kraken, 20-cycle protocol passed end-to-end (5 clean execution + 15 breach tests), DSOR evidence committed under `evidence/`, Tier 1 under NIST AI RMF 1.0 plus Aureon doctrine | VWAP/TWAP/POV recommendations, multi-venue expansion, tokenized equity rails |
 | AI usage | Controlled, role-bound workflow support with HITL | Expanded supervised agent coverage |
-| Regulatory | NIST AI RMF 1.0 plus Aureon doctrine (Tier 2), SR 26-2 / OCC 2026-13 (supersedes SR 11-7), OCC 2023-17, BCBS 239 P3/P5 | Full six-framework coverage |
+| Regulatory | NIST AI RMF 1.0 plus Aureon doctrine (Tier 2), SR 26-2 / OCC 2026-13 (supersedes SR 11-7), OCC 2023-17, BCBS 239 P3/P5 | A completeness claim against the frameworks to the left, after counsel review (none is made today) |
 
 ---
 
@@ -630,7 +653,7 @@ POST /mcp
 
 Cato Sec is the **public-facing twin** of Verana L0's settlement-doctrine gate. Where Verana L0 exposes Aureon's full governance state over HTTP JSON-RPC to authenticated clients (above), Cato Sec re-implements the settlement-doctrine portion as a stdio MCP server suitable for desktop AI clients (Claude Desktop, Claude Code, Agent SDK apps).
 
-**Repository:** [github.com/br-collab/Cato-FICC-MCP](https://github.com/br-collab/Cato-FICC-MCP) — Node.js, MIT, 24 tools
+**Repository:** [github.com/br-collab/Cato-FICC-MCP](https://github.com/br-collab/Cato-FICC-MCP) — Node.js, MIT, 29 read-only tools
 **Transport:** stdio JSON-RPC (per MCP convention for desktop clients)
 **Paired with:** `aureon/mcp/cato_client.py` — the in-process Python twin called by `/api/cato/*` endpoints
 
