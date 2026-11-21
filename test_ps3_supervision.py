@@ -1,12 +1,12 @@
-import json
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
 from aureon.agents.jtac.aml_case_advisory import draft_case_narrative
-from aureon.agents.jtac.equities_surveillance import EquityOrderFill, screen_equities
+from aureon.agents.jtac.equities_surveillance import SurveillanceResult
 from aureon.agents.ranger.reg_reporting import RegReporting
+from test_ps3d_lc_export import Fill, Sources, screen, write_sources
 
 
 def record(
@@ -18,35 +18,24 @@ def record(
     volume: str = "1",
     price: str = "100",
     close: str = "100",
-) -> EquityOrderFill:
-    return EquityOrderFill(
-        order_id, side, owner, datetime(2026, 11, 18, 20, minute, tzinfo=UTC),
-        Decimal(price), Decimal(close), Decimal(volume), "SYNTHETIC-ABC", Decimal(10),
+) -> Fill:
+    return Fill(
+        order_id,
+        side,
+        owner,
+        datetime(2026, 11, 18, 20, minute, tzinfo=UTC),
+        price=Decimal(price),
+        close=Decimal(close),
+        volume_percent=Decimal(volume),
     )
 
 
-def _export(directory: Path, name: str, records: tuple[EquityOrderFill, ...]) -> Path:
-    rows = []
-    for item in records:
-        row: dict[str, object] = {
-            "order_id": item.order_id,
-            "side": item.side,
-            "filled_at": item.filled_at.isoformat(),
-            "price": str(item.price),
-            "close_price": str(item.close_price),
-            "session_volume_percent": str(item.session_volume_percent),
-            "symbol": item.symbol,
-            "quantity": None if item.quantity is None else str(item.quantity),
-        }
-        if item.beneficial_owner_id is not None:
-            row["beneficial_owner_id"] = item.beneficial_owner_id
-        rows.append(row)
-    path = directory / name
-    path.write_text(
-        json.dumps({"schema": "lc.lifecycle_export/1", "executions": rows}),
-        encoding="utf-8",
-    )
-    return path
+def _export(directory: Path, name: str, records: tuple[Fill, ...]) -> Sources:
+    return write_sources(directory, name.removesuffix(".json"), records)
+
+
+def screen_equities(sources: Sources) -> SurveillanceResult:
+    return screen(sources)
 
 
 def test_equities_wash_pair_is_flagged_for_human(tmp_path: Path) -> None:
@@ -89,7 +78,7 @@ def test_wash_match_requires_symbol_time_and_quantity(tmp_path: Path) -> None:
     assert "WASH_TRADE" not in screen_equities(export).matched
 
 
-def _at(when: datetime, **changes: object) -> EquityOrderFill:
+def _at(when: datetime, **changes: object) -> Fill:
     base = record("B", "BUY", "OWNER-1", volume="25", price="101", close="100")
     return replace(base, filled_at=when, **changes)
 
