@@ -14,7 +14,11 @@ confirms execution.  Tape fields follow institutional standards:
 
 from datetime import datetime, timezone
 
-from aureon.policy_engine.evidence import fabricated_reason, is_fabricated, provenance_of
+from aureon.policy_engine.evidence import (
+    fabricated_reason,
+    is_fabricated,
+    provenance_of,
+)
 
 
 def build_trade_report(
@@ -168,7 +172,7 @@ def build_trade_report(
     # ── Optional PDF generation ────────────────────────────────────
 
     try:
-        from server import _generate_compliance_pdf  # noqa: PLC0415
+        from server import _generate_compliance_pdf
         report["pdf_bytes"] = _generate_compliance_pdf(report)
     except Exception as exc:
         print(f"[AUREON] PDF generation failed: {exc}")

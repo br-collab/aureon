@@ -22,12 +22,11 @@
 
 import hashlib
 import threading
-import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from aureon.agents.ranger._base import RangerConcreteBase
 from aureon.agents.base import Escalation
+from aureon.agents.ranger._base import RangerConcreteBase
 
 if TYPE_CHECKING:
     from aureon.agents.c2.coordinator import ThifurC2
@@ -228,19 +227,19 @@ class RegReporting(RangerConcreteBase):
             "floating_index":     swap_record.get("floating_index", ""),
             "audit_trail_ref":    swap_record.get("authority_hash", ""),
             "doctrine_version":   swap_record.get("doctrine_version", "unknown"),
-            "submission_status":  "READY",
+            "submission_status":  "NOT_VALIDATED",
         }
 
         self._write_regrep_log(
             task_id=swap_record.get("task_id", ""),
             ts=ts,
             action="CFTC_PART45_REPORT",
-            status="READY",
+            status="NOT_VALIDATED",
             authority_hash=swap_record.get("authority_hash", ""),
             doctrine_version=swap_record.get("doctrine_version", "unknown"),
         )
 
-        print(f"[REG-REPORTING] CFTC Part 45: READY | "
+        print(f"[REG-REPORTING] CFTC Part 45: NOT_VALIDATED | "
               f"USI: {usi[:16]}... | {swap_record.get('symbol', '?')}")
 
         return report
@@ -304,9 +303,10 @@ class RegReporting(RangerConcreteBase):
     # ─────────────────────────────────────────────────────────────────────────
 
     def process_cat_event(self, reportable_event: dict) -> dict:
-        """Process CAT reporting trigger.
+        """Retired CAT stub.
 
-        Stamp every reportable event and return submission-ready record.
+        L.C. owns CAT construction and validation. Aureon keeps this method only
+        for compatibility and explicitly refuses to claim validation.
         """
         event_ts_str = reportable_event.get("event_ts")
         stamp_ts = datetime.now(timezone.utc)
@@ -331,19 +331,21 @@ class RegReporting(RangerConcreteBase):
             "action":           reportable_event.get("action", ""),
             "decision_id":      reportable_event.get("decision_id", ""),
             "order_id":         reportable_event.get("order_id", ""),
-            "submission_status": "READY",
+            "submission_status": "NOT_VALIDATED",
+            "deprecated": True,
+            "validator_owner": "L.C.",
         }
 
         self._write_regrep_log(
             task_id=reportable_event.get("task_id", "CAT"),
             ts=stamp_ts_iso,
             action="CAT_EVENT",
-            status="READY",
+            status="NOT_VALIDATED",
             authority_hash="",
             doctrine_version=self._state.get("doctrine_version", "unknown"),
         )
 
-        print(f"[REG-REPORTING] CAT event: READY | "
+        print(f"[REG-REPORTING] CAT event: NOT_VALIDATED | "
               f"{reportable_event.get('event_type', '?')} | "
               f"{reportable_event.get('symbol', '?')}")
 

@@ -33,7 +33,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-
 # Canonical schema the gate MUST emit on both sides. Extend this list
 # when new fields land; both sides updated in the same PR series.
 CANONICAL_GATE_TOP_KEYS = {

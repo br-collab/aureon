@@ -33,11 +33,10 @@
 import hashlib
 import json
 import os
-import urllib.request
-import urllib.parse
 import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
-from typing import Optional
 
 # ── Unusual Whales API Config ─────────────────────────────────────────────────
 UW_BASE_URL      = "https://api.unusualwhales.com"
@@ -82,7 +81,7 @@ class UnusualWhalesClient:
         packet = client.get_atrox_ingestion_packet(tickers=["SPY","QQQ","MSFT"])
     """
 
-    def __init__(self, api_token: Optional[str] = None):
+    def __init__(self, api_token: str | None = None):
         self._token   = api_token or os.environ.get("UW_API_TOKEN", "")
         self._ready   = bool(self._token)
 
@@ -90,7 +89,7 @@ class UnusualWhalesClient:
     def is_ready(self) -> bool:
         return self._ready
 
-    def _get(self, path: str, params: Optional[dict] = None) -> dict:
+    def _get(self, path: str, params: dict | None = None) -> dict:
         """
         Execute a GET request against the Unusual Whales API.
         Returns a provenance-wrapped response dict.
@@ -162,12 +161,12 @@ class UnusualWhalesClient:
 
     def get_flow_alerts(self,
                         limit: int = 25,
-                        min_premium: Optional[int] = None,
-                        ticker_symbol: Optional[str] = None,
-                        is_call: Optional[bool] = None,
-                        is_put: Optional[bool] = None,
-                        is_otm: Optional[bool] = None,
-                        size_greater_oi: Optional[bool] = None) -> dict:
+                        min_premium: int | None = None,
+                        ticker_symbol: str | None = None,
+                        is_call: bool | None = None,
+                        is_put: bool | None = None,
+                        is_otm: bool | None = None,
+                        size_greater_oi: bool | None = None) -> dict:
         """
         Unusual options flow alerts — whale trades.
         Endpoint: GET /api/option-trades/flow-alerts
@@ -205,10 +204,10 @@ class UnusualWhalesClient:
 
     def get_options_screener(self,
                              limit: int = 25,
-                             min_premium: Optional[int] = None,
-                             option_type: Optional[str] = None,
-                             is_otm: Optional[bool] = None,
-                             min_volume_oi_ratio: Optional[float] = None) -> dict:
+                             min_premium: int | None = None,
+                             option_type: str | None = None,
+                             is_otm: bool | None = None,
+                             min_volume_oi_ratio: float | None = None) -> dict:
         """
         Hottest chains / options screener.
         Endpoint: GET /api/screener/option-contracts
@@ -314,7 +313,7 @@ class UnusualWhalesClient:
     # ─────────────────────────────────────────────────────────────────────────
 
     def get_atrox_ingestion_packet(self,
-                                     tickers: Optional[list] = None,
+                                     tickers: list | None = None,
                                      flow_min_premium: int = 100_000,
                                      flow_limit: int = 25,
                                      darkpool_limit: int = 25) -> dict:
@@ -412,10 +411,10 @@ class UnusualWhalesClient:
 
 
 # ── Module-level singleton (injected by server.py) ────────────────────────────
-_client: Optional[UnusualWhalesClient] = None
+_client: UnusualWhalesClient | None = None
 
 
-def init_atrox_pipe(api_token: Optional[str] = None) -> UnusualWhalesClient:
+def init_atrox_pipe(api_token: str | None = None) -> UnusualWhalesClient:
     """
     Initialize the Atrox / Unusual Whales data pipe.
     Called by server.py at startup — token read from UW_API_TOKEN env var.
@@ -428,7 +427,7 @@ def init_atrox_pipe(api_token: Optional[str] = None) -> UnusualWhalesClient:
     return _client
 
 
-def get_client() -> Optional[UnusualWhalesClient]:
+def get_client() -> UnusualWhalesClient | None:
     """Return the initialized client, or None if not initialized."""
     return _client
 

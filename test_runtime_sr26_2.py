@@ -17,8 +17,8 @@ import tempfile
 
 os.environ.setdefault("RAILWAY_VOLUME_MOUNT_PATH", tempfile.mkdtemp(prefix="aureon-sr262-test-"))
 
-import server  # noqa: E402
-from aureon.mcp import server as mcp  # noqa: E402
+import server
+from aureon.mcp import server as mcp
 
 ROOT = pathlib.Path(__file__).parent
 

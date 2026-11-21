@@ -340,3 +340,8 @@ These are non-negotiable design constraints:
   records why — not by learning. This is the property that keeps ongoing monitoring under SR 26-2 / OCC 2026-13 (supersedes SR 11-7)
   tractable; do not compromise it casually.
 - Operational journal entries use military DTG format (YYYYMMDDHHMM)
+## Merge authority
+
+Builders open pull requests and may enable auto-merge. A pull request merges only when every
+required status check passes on an up-to-date branch. Builders never bypass required checks,
+use an admin override, or force-push to main. Only Bill creates tags and releases.

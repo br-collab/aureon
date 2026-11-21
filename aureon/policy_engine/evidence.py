@@ -144,7 +144,7 @@ def _decimal(value: float | None) -> Decimal:
     try:
         return Decimal(str(value if value is not None else 0))
     except InvalidOperation:
-        return Decimal("0")
+        return Decimal(0)
 
 
 def _observed_at(snapshot: Mapping[str, Any] | None) -> datetime | None:

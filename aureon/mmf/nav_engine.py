@@ -49,16 +49,15 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 import uuid
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Callable, Optional
+from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
 from aureon.agents.base import DSORRecord
-from aureon.mmf import yield_engine, persistence
+from aureon.mmf import persistence, yield_engine
 
 log = logging.getLogger("aureon.mmf.nav_engine")
 
@@ -67,7 +66,7 @@ log = logging.getLogger("aureon.mmf.nav_engine")
 # the Railway volume (or ~/.aureon/ locally). Hydration happens at
 # module import — prior sweep_count / cnav / fnav / circuit state
 # restores before the first action.
-_journal_sink: Optional[Callable[[dict], None]] = None
+_journal_sink: Callable[[dict], None] | None = None
 
 
 def bind_journal_sink(fn: Callable[[dict], None]) -> None:
@@ -112,13 +111,13 @@ _dsor_log: list[DSORRecord] = []
 # AUM-dependent). The reset hook zeros fund_state's daily-redemption
 # counters at the end of a successful sweep; without it counters would
 # accumulate across days, breaking the liquidity-fee denominator.
-_fund_state_getter: Optional[Callable[[], dict]] = None
-_fund_state_reset:  Optional[Callable[[], None]] = None
+_fund_state_getter: Callable[[], dict] | None = None
+_fund_state_reset:  Callable[[], None] | None = None
 
 
 # ─── Fund-state dependency injection ────────────────────────────────────────
 def bind_fund_state(getter: Callable[[], dict],
-                    reset_daily_counters: Optional[Callable[[], None]] = None) -> None:
+                    reset_daily_counters: Callable[[], None] | None = None) -> None:
     """Called once from Prompt 3's fund_state module to register an AUM
     provider and (optionally) a post-sweep reset hook.
 
@@ -138,7 +137,7 @@ def bind_fund_state(getter: Callable[[], dict],
 
 def _aum_snapshot() -> tuple[Decimal, Decimal]:
     if _fund_state_getter is None:
-        return Decimal("0"), Decimal("0")
+        return Decimal(0), Decimal(0)
     try:
         st = _fund_state_getter() or {}
         return (
@@ -147,7 +146,7 @@ def _aum_snapshot() -> tuple[Decimal, Decimal]:
         )
     except Exception as e:
         log.warning("fund_state getter failed: %s: %s", type(e).__name__, e)
-        return Decimal("0"), Decimal("0")
+        return Decimal(0), Decimal(0)
 
 
 # ─── Sweep-time helpers ─────────────────────────────────────────────────────
@@ -295,7 +294,7 @@ def compute_nav() -> dict:
     # means 0.10%). A normal MMF daily move is ~0.01% at current rates;
     # anything 10x that is anomalous.
     if previous_fnav > 0:
-        variance_pct = abs(new_fnav - previous_fnav) / previous_fnav * Decimal("100")
+        variance_pct = abs(new_fnav - previous_fnav) / previous_fnav * Decimal(100)
         if variance_pct > NAV_VARIANCE_HALT_PCT:
             return {
                 "status": "HALTED",
@@ -402,7 +401,7 @@ def run_sweep(force_allow_stale: bool = False) -> dict:
             new_fnav = _quantize_nav(previous_fnav + accrual["net_yield_daily"])
             # Variance check still applies under force.
             if previous_fnav > 0:
-                variance_pct = abs(new_fnav - previous_fnav) / previous_fnav * Decimal("100")
+                variance_pct = abs(new_fnav - previous_fnav) / previous_fnav * Decimal(100)
                 if variance_pct > NAV_VARIANCE_HALT_PCT:
                     result = {
                         "status": "HALTED",
@@ -533,7 +532,7 @@ def get_nav_state() -> dict:
 
 
 # ─── Scheduler (stdlib threading) ───────────────────────────────────────────
-_scheduler_thread: Optional[threading.Thread] = None
+_scheduler_thread: threading.Thread | None = None
 _scheduler_stop = threading.Event()
 
 

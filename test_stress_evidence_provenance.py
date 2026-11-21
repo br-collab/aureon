@@ -32,11 +32,22 @@ import pytest
 
 os.environ.setdefault("RAILWAY_VOLUME_MOUNT_PATH", tempfile.mkdtemp(prefix="aureon-f1-test-"))
 
-from aureon.approval_service.operator_auth import OPERATOR_ACTOR  # noqa: E402
-from aureon.policy_engine.binding import PolicyBindingError, pretrade_rules_digest  # noqa: E402
-from aureon.policy_engine.evidence import EvidenceProvenance, provenance_of  # noqa: E402
-from aureon.policy_engine.service import evaluate_pretrade_decision  # noqa: E402
-from cannae_kernel.session import BusinessDate, MarketSession, SessionContext  # noqa: E402
+from cannae_kernel.session import (
+    BusinessDate,
+    MarketSession,
+    SessionContext,
+)
+
+from aureon.approval_service.operator_auth import OPERATOR_ACTOR
+from aureon.policy_engine.binding import (
+    PolicyBindingError,
+    pretrade_rules_digest,
+)
+from aureon.policy_engine.evidence import (
+    EvidenceProvenance,
+    provenance_of,
+)
+from aureon.policy_engine.service import evaluate_pretrade_decision
 
 RISK = {"drawdown_warn_pct": 5.0, "drawdown_fail_pct": 8.0}
 RULES = pretrade_rules_digest(risk_policy=RISK, operating_cash_floor_pct=0.03, ofac_blocked_isins={})

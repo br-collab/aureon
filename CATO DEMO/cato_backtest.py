@@ -54,19 +54,19 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # Add the project root to sys.path so `aureon.mcp.cato_client` imports cleanly.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from aureon.mcp.cato_client import (  # noqa: E402
-    atomic_settlement_gate,
+from aureon.mcp.cato_client import (
     CATO_DOCTRINE_VERSION,
     CATO_GAS_GWEI_HOLD_THRESHOLD,
     CATO_OFR_ESCALATE_THRESHOLD,
     CATO_OFR_HOLD_THRESHOLD,
     CATO_SOFR_DELTA_HOLD_BPS,
+    atomic_settlement_gate,
 )
 
 FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
@@ -172,11 +172,11 @@ def fetch_fred(series_id: str, start: str, end: str) -> list[dict[str, Any]]:
     return out
 
 
-def forward_fill_weekly(weekly_obs: list[dict[str, Any]], target_dates: list[str]) -> dict[str, Optional[float]]:
+def forward_fill_weekly(weekly_obs: list[dict[str, Any]], target_dates: list[str]) -> dict[str, float | None]:
     """For each daily target date, return the most-recent weekly observation
     that was published on or before that date (forward-fill)."""
     weekly_sorted = sorted(weekly_obs, key=lambda o: o["date"])
-    result: dict[str, Optional[float]] = {}
+    result: dict[str, float | None] = {}
     for target in target_dates:
         latest = None
         for obs in weekly_sorted:
@@ -193,10 +193,10 @@ def forward_fill_weekly(weekly_obs: list[dict[str, Any]], target_dates: list[str
 @dataclass
 class DayResult:
     date: str
-    sofr: Optional[float]
-    ofr: Optional[float]
-    sofr_prev: Optional[float]
-    sofr_delta_bps: Optional[float]
+    sofr: float | None
+    ofr: float | None
+    sofr_prev: float | None
+    sofr_delta_bps: float | None
     decision: str
     reasons: list[str] = field(default_factory=list)
     in_expected_window: bool = False
@@ -209,7 +209,7 @@ class EventResult:
     counts: dict[str, int]
     expected_days_count: int
     correct_in_window: int
-    accuracy: Optional[float]
+    accuracy: float | None
 
 
 def run_event_backtest(event: StressEvent) -> EventResult:
@@ -228,14 +228,14 @@ def run_event_backtest(event: StressEvent) -> EventResult:
 
     results: list[DayResult] = []
     counts = {"PROCEED": 0, "HOLD": 0, "ESCALATE": 0}
-    prev_sofr: Optional[float] = None
+    prev_sofr: float | None = None
 
     for day in sofr_daily:
         target = day["date"]
         sofr = day["value"]
         ofr = ofr_by_day.get(target)
 
-        sofr_delta_bps: Optional[float] = None
+        sofr_delta_bps: float | None = None
         if prev_sofr is not None and sofr is not None:
             sofr_delta_bps = round(abs(sofr - prev_sofr) * 100, 2)
 
@@ -379,7 +379,7 @@ def write_report(path: Path, results: list[EventResult]) -> None:
             peak_delta = max((d.sofr_delta_bps for d in expected_days if d.sofr_delta_bps is not None), default=None)
             peak_sofr = max((d.sofr for d in expected_days if d.sofr is not None), default=None)
             min_sofr = min((d.sofr for d in expected_days if d.sofr is not None), default=None)
-            lines.append(f"**Peak in-window metrics:**")
+            lines.append("**Peak in-window metrics:**")
             lines.append(f"- OFR STLFSI4 peak: `{peak_ofr}`")
             lines.append(f"- SOFR range: `{min_sofr}%` → `{peak_sofr}%`")
             lines.append(f"- Peak SOFR 1-day move: `{peak_delta} bps`")
@@ -528,7 +528,7 @@ def main() -> int:
           f"HOLD OFR > {CATO_OFR_HOLD_THRESHOLD}, "
           f"HOLD gas > {CATO_GAS_GWEI_HOLD_THRESHOLD} gwei")
     print(f"FRED API key: {'set' if FRED_API_KEY else 'NOT SET (unauthenticated)'}")
-    print(f"Historical ETH gas is unavailable — gas threshold not tested in this run")
+    print("Historical ETH gas is unavailable — gas threshold not tested in this run")
 
     results: list[EventResult] = []
     for event in EVENTS:

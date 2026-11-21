@@ -31,18 +31,17 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Callable, Optional
 
 # ── CAOM-001 integration ──────────────────────────────────────────────────────
 from aureon.config.caom import (
-    is_caom_active,
+    CAOM_OPERATOR,
     get_caom_roles,
     get_operator_approval_token,
-    CAOM_OPERATOR,
+    is_caom_active,
 )
-
 
 # ── Decision Dataclass ────────────────────────────────────────────────────────
 
@@ -223,9 +222,9 @@ def record_approval(decision_raw: dict, approval_role: str, actor_id: str | None
 def release_to_oms(
     decision:       dict,
     authority_hash: str,
-    oms_send:       Optional[Callable] = None,
-    approved_intent: Optional[dict] = None,
-    dsor_write: Optional[Callable[[dict], str]] = None,
+    oms_send:       Callable | None = None,
+    approved_intent: dict | None = None,
+    dsor_write: Callable[[dict], str] | None = None,
 ) -> dict:
     """
     Build the governed OMS release package and optionally call oms_send.

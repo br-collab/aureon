@@ -29,11 +29,10 @@ import csv
 import hashlib
 import io
 import json
-import os
-import urllib.request
 import urllib.error
+import urllib.request
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Optional
 
 # ── CBOE CDN Endpoints ────────────────────────────────────────────────────────
 CBOE_CDN_BASE    = "https://cdn.cboe.com/api/global/us_indices/daily_prices"
@@ -99,7 +98,7 @@ class CboeClient:
     def is_ready(self) -> bool:
         return True
 
-    def _fetch_csv(self, url: str, limit: Optional[int] = None) -> dict:
+    def _fetch_csv(self, url: str, limit: int | None = None) -> dict:
         """
         Fetch a CBOE CSV file and parse into a list of row dicts.
         Returns provenance-wrapped dict.

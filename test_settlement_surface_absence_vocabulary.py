@@ -27,8 +27,7 @@ import pathlib
 import re
 
 import pytest
-
-from cannae_kernel.absence import Absent, AbsenceKind
+from cannae_kernel.absence import AbsenceKind, Absent
 from cannae_kernel.disposition import Disposition
 
 DASHBOARD = pathlib.Path(__file__).parent / "atreides-settlement-dashboard.html"

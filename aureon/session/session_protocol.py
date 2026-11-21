@@ -26,16 +26,14 @@
 import threading
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
 
 from aureon.config.caom import (
-    is_caom_active,
-    build_caom_session_declaration,
-    build_caom_role_ack_record,
-    CAOM_OPERATOR,
     CAOM_DOC_ID,
+    CAOM_OPERATOR,
+    build_caom_role_ack_record,
+    build_caom_session_declaration,
+    is_caom_active,
 )
-
 
 # ── Session State ─────────────────────────────────────────────────────────────
 
@@ -140,7 +138,7 @@ class SessionProtocol:
         self._steps: dict[int, SessionStep] = {i: SessionStep.PENDING for i in range(1, 7)}
         self._step_details: dict[int, dict] = {}
         self._session_status = SessionStatus.NOT_STARTED
-        self._opened_at: Optional[str] = None
+        self._opened_at: str | None = None
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -242,8 +240,8 @@ class SessionProtocol:
                 "tier":      "Session",
                 "type":      "CAOM_SESSION_DECLARATION",
                 "authority": CAOM_OPERATOR["name"],
-                "outcome":   f"CAOM-001 declared active. Operator holds Tier 1/2/3. "
-                              f"Agent-advisory mode. Deployment: one-man shop.",
+                "outcome":   "CAOM-001 declared active. Operator holds Tier 1/2/3. "
+                              "Agent-advisory mode. Deployment: one-man shop.",
                 "hash":      declaration["id"],
             })
             self._state["caom_active"]      = True
@@ -360,7 +358,7 @@ class SessionProtocol:
 
     # ── Step 5 — Systemic Stress Review (OPERATOR) ────────────────────────────
 
-    def run_step_5_stress_review(self, stress_data: Optional[dict] = None) -> dict:
+    def run_step_5_stress_review(self, stress_data: dict | None = None) -> dict:
         """
         Verana surfaces stress signals. Operator reviews and confirms
         they are aware of current systemic conditions.
@@ -466,8 +464,8 @@ class SessionProtocol:
 
     # ── Convenience: Run All Auto Steps ──────────────────────────────────────
 
-    def run_auto_steps(self, agents: Optional[dict] = None,
-                       stress_data: Optional[dict] = None) -> dict:
+    def run_auto_steps(self, agents: dict | None = None,
+                       stress_data: dict | None = None) -> dict:
         """
         Run Steps 1 and 4 (both automated) without operator interaction.
         Step 1 runs immediately; Step 4 runs if agents are provided.

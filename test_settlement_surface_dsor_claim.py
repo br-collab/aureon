@@ -34,13 +34,12 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
-
 from atreides.agents.tier1.outputs import SettlementKind, SettlementRail
 from atreides.cockpit.clearing_cockpit import ClearingCockpit, PortalRegime
 from atreides.contracts.dsor_stub import CAOMTier
 
 DASHBOARD = pathlib.Path(__file__).parent / "atreides-settlement-dashboard.html"
-MATERIAL_THRESHOLD = Decimal("50000000")
+MATERIAL_THRESHOLD = Decimal(50000000)
 
 #: Words the surface uses to assert a record exists. "na" and a label that says
 #: nothing was recorded are the honest forms when there is none.
@@ -62,8 +61,8 @@ def _observe(amount: Decimal, *, clearing_fund_compliant: bool = True):
         net_delivery_quantity=amount,
         net_payment_amount=amount,
         ficc_published_net_delivery=amount,
-        intraday_credit_limit=Decimal("100000000000"),
-        intraday_credit_current_usage=Decimal("1000000"),
+        intraday_credit_limit=Decimal(100000000000),
+        intraday_credit_current_usage=Decimal(1000000),
         ficc_clearing_fund_compliant=clearing_fund_compliant,
     )
     gate = cockpit.run_validation_gates(tasking)

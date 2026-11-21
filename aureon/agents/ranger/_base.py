@@ -31,7 +31,7 @@ from abc import abstractmethod
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from aureon.agents.base import RangerAgent, Intent, Advisory, Tasking, Result
+from aureon.agents.base import Advisory, Intent, RangerAgent, Result, Tasking
 
 if TYPE_CHECKING:
     from aureon.agents.c2.coordinator import ThifurC2
@@ -82,7 +82,7 @@ class RangerConcreteBase(RangerAgent):
                                     exec_price: float,
                                     authority_hash: str,
                                     gate_results: list,
-                                    c2: "ThifurC2") -> dict:
+                                    c2: ThifurC2) -> dict:
         """Emit execution confirmation telemetry to C2 — BCBS 239 P3."""
         ts = datetime.now(timezone.utc).isoformat()
         confirmation_hash = self._build_confirmation_hash(
@@ -123,7 +123,7 @@ class RangerConcreteBase(RangerAgent):
     def prepare_execution_package(self,
                                   decision: dict,
                                   task_id: str,
-                                  c2: "ThifurC2") -> dict:
+                                  c2: ThifurC2) -> dict:
         """Role-specific package assembly. Subclass responsibility."""
         ...
 

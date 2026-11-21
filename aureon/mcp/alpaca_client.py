@@ -29,11 +29,11 @@
 import hashlib
 import json
 import os
-import urllib.request
-import urllib.parse
 import urllib.error
-from datetime import datetime, timezone, timedelta
-from typing import Optional, List
+import urllib.parse
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 # ── Alpaca API Config ─────────────────────────────────────────────────────────
 ALPACA_DATA_BASE  = "https://data.alpaca.markets/v2"
@@ -73,7 +73,7 @@ class AlpacaClient:
         packet = client.get_atrox_ingestion_packet(["SPY", "QQQ", "NVDA"])
     """
 
-    def __init__(self, api_key: Optional[str] = None, api_secret: Optional[str] = None):
+    def __init__(self, api_key: str | None = None, api_secret: str | None = None):
         self._key    = api_key    or os.environ.get("ALPACA_API_KEY", "")
         self._secret = api_secret or os.environ.get("ALPACA_API_SECRET", "")
         self._ready  = bool(self._key and self._secret)
@@ -82,7 +82,7 @@ class AlpacaClient:
     def is_ready(self) -> bool:
         return self._ready
 
-    def _get(self, base: str, path: str, params: Optional[dict] = None) -> dict:
+    def _get(self, base: str, path: str, params: dict | None = None) -> dict:
         """GET request with provenance wrapping."""
         if not self._ready:
             raise RuntimeError(
@@ -145,11 +145,11 @@ class AlpacaClient:
     # PRICE BARS
     # ─────────────────────────────────────────────────────────────────────────
 
-    def get_bars(self, symbols: List[str],
+    def get_bars(self, symbols: list[str],
                  timeframe: str = "1Day",
                  limit: int = 252,
-                 start: Optional[str] = None,
-                 end: Optional[str] = None,
+                 start: str | None = None,
+                 end: str | None = None,
                  feed: str = "iex") -> dict:
         """
         OHLCV price bars for one or multiple symbols.
@@ -191,7 +191,7 @@ class AlpacaClient:
     # QUOTES + TRADES
     # ─────────────────────────────────────────────────────────────────────────
 
-    def get_latest_quotes(self, symbols: List[str], feed: str = "iex") -> dict:
+    def get_latest_quotes(self, symbols: list[str], feed: str = "iex") -> dict:
         """
         Latest bid/ask quote for each symbol.
         Endpoint: GET /stocks/quotes/latest
@@ -201,7 +201,7 @@ class AlpacaClient:
             "feed":    feed,
         })
 
-    def get_latest_trades(self, symbols: List[str], feed: str = "iex") -> dict:
+    def get_latest_trades(self, symbols: list[str], feed: str = "iex") -> dict:
         """
         Latest trade print for each symbol.
         Endpoint: GET /stocks/trades/latest
@@ -215,7 +215,7 @@ class AlpacaClient:
     # SNAPSHOTS
     # ─────────────────────────────────────────────────────────────────────────
 
-    def get_snapshots(self, symbols: List[str], feed: str = "iex") -> dict:
+    def get_snapshots(self, symbols: list[str], feed: str = "iex") -> dict:
         """
         Aggregated snapshot — latest quote, latest trade, daily bar, prev bar.
         Endpoint: GET /stocks/snapshots
@@ -230,10 +230,10 @@ class AlpacaClient:
     # NEWS
     # ─────────────────────────────────────────────────────────────────────────
 
-    def get_news(self, symbols: Optional[List[str]] = None,
+    def get_news(self, symbols: list[str] | None = None,
                  limit: int = 20,
-                 start: Optional[str] = None,
-                 end: Optional[str] = None) -> dict:
+                 start: str | None = None,
+                 end: str | None = None) -> dict:
         """
         News articles — company-specific or broad market.
         Endpoint: GET /news (v1beta1)
@@ -254,7 +254,7 @@ class AlpacaClient:
     # ─────────────────────────────────────────────────────────────────────────
 
     def get_corporate_actions(self, symbol: str,
-                              ca_types: Optional[List[str]] = None) -> dict:
+                              ca_types: list[str] | None = None) -> dict:
         """
         Corporate actions: splits, dividends, mergers.
         Endpoint: GET /stocks/{symbol}/corporate_actions
@@ -268,7 +268,7 @@ class AlpacaClient:
     # ATROX INGESTION PACKET
     # ─────────────────────────────────────────────────────────────────────────
 
-    def get_atrox_ingestion_packet(self, symbols: List[str],
+    def get_atrox_ingestion_packet(self, symbols: list[str],
                                       bar_limit: int = 252,
                                       news_limit: int = 20) -> dict:
         """
@@ -300,8 +300,8 @@ class AlpacaClient:
 # Module-level pipe interface
 # ─────────────────────────────────────────────────────────────────────────────
 
-def init_alpaca_pipe(api_key: Optional[str] = None,
-                     api_secret: Optional[str] = None) -> "AlpacaClient":
+def init_alpaca_pipe(api_key: str | None = None,
+                     api_secret: str | None = None) -> "AlpacaClient":
     """Initialize (or re-initialize) the Alpaca pipe client."""
     global _client
     _client = AlpacaClient(api_key=api_key, api_secret=api_secret)

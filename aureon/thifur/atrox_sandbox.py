@@ -13,14 +13,11 @@ Named for: Atrox. Executed blind into denied territory with incomplete
 information, zero margin for error, single objective.
 """
 
-import time
-import uuid
-import logging
-from datetime import datetime, timezone
-from dataclasses import dataclass
-from typing import Optional
-import urllib.request
 import json
+import logging
+import urllib.request
+import uuid
+from datetime import datetime, timezone
 
 from aureon.thifur.thifur_h import AtroxSignal
 
@@ -52,7 +49,7 @@ class AtroxSandboxSignalGenerator:
         self.signal_count = 0
         logger.info("Atrox sandbox signal generator initialized")
 
-    def _get_sandbox_price(self) -> Optional[float]:
+    def _get_sandbox_price(self) -> float | None:
         """Fetch live BTC price from Gemini sandbox."""
         try:
             req = urllib.request.Request(self.SANDBOX_TICKER_URL)
@@ -65,7 +62,7 @@ class AtroxSandboxSignalGenerator:
             logger.error(f"Atrox price fetch failed: {e}")
             return None
 
-    def generate_buy_signal(self, rationale_override: str = None) -> Optional[AtroxSignal]:
+    def generate_buy_signal(self, rationale_override: str = None) -> AtroxSignal | None:
         """
         Generate a buy signal. Advisory only.
         Caller must set caom_approved=True after human approval.
@@ -96,7 +93,7 @@ class AtroxSandboxSignalGenerator:
         logger.info(f"Atrox generated BUY signal {signal.signal_id} | ${limit_price:,.2f} | {self.SANDBOX_QTY} BTC")
         return signal
 
-    def generate_sell_signal(self, rationale_override: str = None) -> Optional[AtroxSignal]:
+    def generate_sell_signal(self, rationale_override: str = None) -> AtroxSignal | None:
         """Generate a sell signal for position close or short."""
         price = self._get_sandbox_price()
         if not price:
@@ -123,7 +120,7 @@ class AtroxSandboxSignalGenerator:
         logger.info(f"Atrox generated SELL signal {signal.signal_id} | ${limit_price:,.2f}")
         return signal
 
-    def generate_breach_signal(self, breach_type: str) -> Optional[AtroxSignal]:
+    def generate_breach_signal(self, breach_type: str) -> AtroxSignal | None:
         """
         Intentionally generate a signal designed to breach a specific gate.
         Used for governance validation cycles 6-20 (stress testing).

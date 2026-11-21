@@ -30,28 +30,31 @@ import pytest
 
 os.environ.setdefault("RAILWAY_VOLUME_MOUNT_PATH", tempfile.mkdtemp(prefix="aureon-envelope-test-"))
 
-from cannae_kernel.actor import ActorKind, ActorRef  # noqa: E402
-from cannae_kernel.canonical import digest_bytes  # noqa: E402
-from cannae_kernel.effects import ExternalEffect  # noqa: E402
-from cannae_kernel.envelopes import ApprovedIntentEnvelope  # noqa: E402
-from cannae_kernel.ids import LifecycleId  # noqa: E402
-from cannae_kernel.session import (  # noqa: E402
+from cannae_kernel.actor import ActorKind, ActorRef
+from cannae_kernel.canonical import digest_bytes
+from cannae_kernel.effects import ExternalEffect
+from cannae_kernel.envelopes import ApprovedIntentEnvelope
+from cannae_kernel.ids import LifecycleId
+from cannae_kernel.session import (
     BusinessDate,
     BusinessDateNotEstablishedError,
     MarketSession,
     SessionContext,
 )
 
-from aureon.approval_service.operator_auth import OPERATOR_ACTOR  # noqa: E402
-from aureon.approval_service.service import AuthorityError, resolve_pending_decision  # noqa: E402
-from aureon.contracts.approved_intent import (  # noqa: E402
+from aureon.approval_service.operator_auth import OPERATOR_ACTOR
+from aureon.approval_service.service import (
+    AuthorityError,
+    resolve_pending_decision,
+)
+from aureon.contracts.approved_intent import (
     ApprovedIntentPayload,
     IntentShapeError,
     normalize_quantity,
     verify_envelope,
 )
-from aureon.policy_engine.binding import pretrade_rules_digest  # noqa: E402
-from aureon.policy_engine.service import evaluate_pretrade_decision  # noqa: E402
+from aureon.policy_engine.binding import pretrade_rules_digest
+from aureon.policy_engine.service import evaluate_pretrade_decision
 
 RISK = {"drawdown_warn_pct": 5.0, "drawdown_fail_pct": 8.0}
 RULES = pretrade_rules_digest(risk_policy=RISK, operating_cash_floor_pct=0.03, ofac_blocked_isins={})

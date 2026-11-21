@@ -26,10 +26,10 @@
 
 import hashlib
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 from datetime import datetime, timezone
-from typing import Optional, List, Dict
+from typing import Optional
 
 # ── Blockscout API Endpoints ─────────────────────────────────────────────────
 BLOCKSCOUT_CHAINS = {
@@ -214,7 +214,7 @@ class BlockscoutClient:
     # ── Atrox Composite Packet ─────────────────────────────────────────────
 
     def get_onchain_packet(self, chain_id: str = None,
-                           watch_addresses: List[str] = None) -> dict:
+                           watch_addresses: list[str] = None) -> dict:
         """
         Full Atrox on-chain intelligence packet.
         Network stats + gas + recent blocks + optional whale watch.

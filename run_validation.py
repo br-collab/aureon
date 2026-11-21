@@ -24,19 +24,18 @@ Usage:
   python run_validation.py --dry-run
 """
 
-import os
-import sys
-import json
-import time
 import argparse
 import logging
+import os
+import sys
+import time
 from datetime import datetime, timezone
 
 # Add parent to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from aureon.thifur.thifur_h import ThifurH, AtroxSignal, ThifurHDoctrine
 from aureon.thifur.atrox_sandbox import AtroxSandboxSignalGenerator
+from aureon.thifur.thifur_h import ThifurH, ThifurHDoctrine
 
 logger = logging.getLogger("validation_runner")
 
@@ -73,7 +72,7 @@ def run_dry_cycle(n: int, label: str, expected: str) -> bool:
     print(f"  [DRY RUN] Simulating {label}")
     print(f"  Result   : {expected.split('_')[0]}_SIMULATED")
     print(f"  Expected : {expected}")
-    print(f"  Verdict  : ✓ PASS (dry run)")
+    print("  Verdict  : ✓ PASS (dry run)")
     return True
 
 
@@ -125,7 +124,7 @@ def main():
     # CYCLES 1-5: Clean execution
     # ══════════════════════════════════════════════════════
     for i in range(1, min(6, total + 1)):
-        label = f"Clean execution — Gate pass expected"
+        label = "Clean execution — Gate pass expected"
         if args.dry_run:
             passed = run_dry_cycle(i, label, "PASS_OR_HOLD")
         else:
