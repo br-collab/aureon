@@ -108,8 +108,6 @@ requests==2.34.2
     #   -r requirements.txt
     #   twelvedata
     #   yfinance
-six==1.17.0
-    # via python-dateutil
 soupsieve==4.1
     # via
     #   -r requirements.txt
@@ -128,6 +126,8 @@ typing-extensions==4.16.0
     #   xrpl-py
 typing-inspection==0.4.4
     # via pydantic
+tzdata==2026.6
+    # via python-dateutil
 urllib3==2.8.0
     # via requests
 websockets==15.0.1
