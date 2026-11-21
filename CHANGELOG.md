@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+Phase A: equities surveillance reads order and fill rows from an L.C. (Legiones Cannenses) lifecycle export. `screen_equities` no longer accepts a caller-built tuple. A wash pair in that export is flagged. A row with the beneficial-owner field removed is `SURVEIL_DATA_INCOMPLETE`. No run writes the export yet.
+
 ## 1.2.0 - 18 Nov 2026
 
 Correct equities surveillance to require symbol, side, time and quantity agreement for wash

@@ -1,10 +1,16 @@
-"""Equities surveillance using Aureon's existing disposition ladder."""
+"""Equities surveillance using Aureon's existing disposition ladder.
+
+Phase A reads an L.C. (Legiones Cannenses) lifecycle export. It does not accept a
+caller-built tuple of fills. No run writes that export yet.
+"""
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from aureon.agents.jtac.market_calendar import (
@@ -36,12 +42,47 @@ class SurveillanceResult:
     human_review_required: bool
 
 
+def _records_from_lc_export(export: Path) -> tuple[EquityOrderFill, ...]:
+    """Order and fill fields come from the export. They are not function arguments."""
+
+    document = json.loads(export.read_text(encoding="utf-8"))
+    rows = document["executions"]
+    records: list[EquityOrderFill] = []
+    for row in rows:
+        if "beneficial_owner_id" in row and row["beneficial_owner_id"] is not None:
+            owner: str | None = str(row["beneficial_owner_id"])
+        else:
+            owner = None
+        symbol = row.get("symbol")
+        quantity = row.get("quantity")
+        records.append(
+            EquityOrderFill(
+                order_id=str(row["order_id"]),
+                side=str(row["side"]),
+                beneficial_owner_id=owner,
+                filled_at=datetime.fromisoformat(str(row["filled_at"])),
+                price=Decimal(str(row["price"])),
+                close_price=Decimal(str(row["close_price"])),
+                session_volume_percent=Decimal(str(row["session_volume_percent"])),
+                symbol=None if symbol in (None, "") else str(symbol),
+                quantity=None if quantity in (None, "") else Decimal(str(quantity)),
+            )
+        )
+    return tuple(records)
+
+
 def screen_equities(
-    records: tuple[EquityOrderFill, ...],
+    export: Path,
     *,
     close_window_seconds: int = 300,
     close_volume_threshold: Decimal = Decimal(20),
 ) -> SurveillanceResult:
+    """Screen one L.C. lifecycle export.
+
+    Side, symbol, quantity, time and owner are fields of that export.
+    """
+
+    records = _records_from_lc_export(export)
     if not records:
         return SurveillanceResult("SURVEIL_DATA_INCOMPLETE", (), ("records",), True)
     missing = []
