@@ -66,8 +66,6 @@ markupsafe==3.0.4
     #   flask
     #   jinja2
     #   werkzeug
-multitasking==0.0.13
-    # via yfinance
 numpy==2.4.6
     # via
     #   pandas
@@ -91,7 +89,7 @@ pydantic==2.14.3
     #   -r requirements.txt
     #   atreides
     #   cannae-kernel
-pydantic-core==2.50.1
+pydantic-core==2.50.4
     # via pydantic
 python-dateutil==2.9.0.post0
     # via pandas
