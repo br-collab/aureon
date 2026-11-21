@@ -250,6 +250,18 @@ def test_legacy_tombstones_are_bounded_by_log_cap() -> None:
     assert len(state["cockpit_dsor_legacy_trimmed_record_ids"]) == 2
 
 
+def test_real_11c9db2_tombstone_fixture_migrates_and_evicts_by_age() -> None:
+    import uuid
+
+    oldest, middle, newest = (uuid.UUID(int=value) for value in (30, 10, 20))
+    state = {
+        "cockpit_dsor_trimmed_record_ids": [str(oldest), str(middle), str(newest)]
+    }
+    AureonStateDSORStore(state, threading.Lock(), cap=2)
+    assert "cockpit_dsor_trimmed_record_ids" not in state
+    assert state["cockpit_dsor_legacy_trimmed_record_ids"] == [str(middle), str(newest)]
+
+
 if __name__ == "__main__":
     print("— unit —");            unit_tests()
     print("— cockpit integ —");   st = cockpit_integration()

@@ -96,9 +96,13 @@ class AureonStateDSORStore:
             persisted_operation_ids = set(self._state.get(self._operation_ids_key, []))
             self._next_sequence = int(self._state.get(self._next_sequence_key, 1))
             self._trim_watermark = int(self._state.get(self._trim_watermark_key, 0))
-            legacy_trimmed_ids = list(self._state.get(self._legacy_trimmed_ids_key, []))
-            self._legacy_trimmed_ids = set(legacy_trimmed_ids[-self._cap :])
-            self._state[self._legacy_trimmed_ids_key] = legacy_trimmed_ids[-self._cap :]
+            pre_upgrade_ids = list(self._state.pop("cockpit_dsor_trimmed_record_ids", []))
+            legacy_trimmed_ids = [
+                *self._state.get(self._legacy_trimmed_ids_key, []),
+                *pre_upgrade_ids,
+            ][-self._cap :]
+            self._legacy_trimmed_ids = list(dict.fromkeys(legacy_trimmed_ids))
+            self._state[self._legacy_trimmed_ids_key] = list(self._legacy_trimmed_ids)
         self._by_id: dict[uuid.UUID, Any] = {
             uuid.UUID(entry["record_id"]): entry["payload"] for entry in persisted
         }
@@ -158,11 +162,13 @@ class AureonStateDSORStore:
                     self._by_id.pop(old_id, None)
                     sequence = old.get("record_sequence")
                     if sequence is None:
-                        self._legacy_trimmed_ids.add(str(old_id))
+                        old_text = str(old_id)
+                        if old_text not in self._legacy_trimmed_ids:
+                            self._legacy_trimmed_ids.append(old_text)
                     else:
                         self._trim_watermark = max(self._trim_watermark, int(sequence))
-            legacy_ids = sorted(self._legacy_trimmed_ids)[-self._cap :]
-            self._legacy_trimmed_ids = set(legacy_ids)
+            legacy_ids = self._legacy_trimmed_ids[-self._cap :]
+            self._legacy_trimmed_ids = list(legacy_ids)
             self._state[self._legacy_trimmed_ids_key] = legacy_ids
             self._state[self._trim_watermark_key] = self._trim_watermark
         return rec
