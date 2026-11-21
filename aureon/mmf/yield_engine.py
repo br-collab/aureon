@@ -52,7 +52,6 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Optional
 from zoneinfo import ZoneInfo
 
 log = logging.getLogger("aureon.mmf.yield_engine")
@@ -62,7 +61,7 @@ FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 
 # Money-market day-count convention. DGS1MO and SOFR are quoted ACT/360.
-DAYS_PER_YEAR_ACT360 = Decimal("360")
+DAYS_PER_YEAR_ACT360 = Decimal(360)
 
 _CACHE_TTL_S = 3600.0              # 1 hour — intra-day yield changes minimally
 
@@ -80,7 +79,7 @@ _cache: dict = {"ts": 0.0, "payload": None}
 
 
 # --- FRED helper ------------------------------------------------------------
-def _fred_latest(series_id: str, timeout: float = 6.0) -> Optional[dict]:
+def _fred_latest(series_id: str, timeout: float = 6.0) -> dict | None:
     """
     Return the latest non-null observation for a FRED series as
     {"date": "YYYY-MM-DD", "value": float}, or None on any failure.
@@ -221,9 +220,9 @@ def compute_daily_accrual(nav_per_share, management_fee_bps: int = 15) -> dict:
 
     if annual_rate_pct is None:
         return {
-            "gross_yield_daily": Decimal("0"),
-            "fee_daily":         Decimal("0"),
-            "net_yield_daily":   Decimal("0"),
+            "gross_yield_daily": Decimal(0),
+            "fee_daily":         Decimal(0),
+            "net_yield_daily":   Decimal(0),
             "annual_rate_pct":   None,
             "source":            source,
             "stale":             inputs["stale"],
@@ -231,8 +230,8 @@ def compute_daily_accrual(nav_per_share, management_fee_bps: int = 15) -> dict:
         }
 
     rate = Decimal(str(annual_rate_pct))
-    gross_yield_daily = (nav * (rate / Decimal("100"))) / DAYS_PER_YEAR_ACT360
-    fee_daily         = (nav * (fee_bps / Decimal("10000"))) / DAYS_PER_YEAR_ACT360
+    gross_yield_daily = (nav * (rate / Decimal(100))) / DAYS_PER_YEAR_ACT360
+    fee_daily         = (nav * (fee_bps / Decimal(10000))) / DAYS_PER_YEAR_ACT360
     net_yield_daily   = gross_yield_daily - fee_daily
 
     return {

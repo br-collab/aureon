@@ -48,18 +48,17 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
-from decimal import Decimal, ROUND_DOWN
-from typing import Optional
+from decimal import ROUND_DOWN, Decimal
 
-from typing import Callable, Optional
 from aureon.agents.base import DSORRecord
 from aureon.mmf import fund_state, nav_engine
 
 log = logging.getLogger("aureon.mmf.redemption_engine")
 
 # Phase 2 P2-1: operational journal sink.
-_journal_sink: Optional[Callable[[dict], None]] = None
+_journal_sink: Callable[[dict], None] | None = None
 
 
 def bind_journal_sink(fn: Callable[[dict], None]) -> None:
@@ -68,8 +67,8 @@ def bind_journal_sink(fn: Callable[[dict], None]) -> None:
 
 # ─── Constants ──────────────────────────────────────────────────────────────
 LIQUIDITY_FEE_THRESHOLD_PCT  = Decimal("0.05")   # 5% daily net redemptions of lane AUM
-LIQUIDITY_FEE_BPS            = Decimal("10")     # 10bps fee when threshold breached
-LIQUIDITY_FEE_DE_MINIMIS_BPS = Decimal("1")      # Under 1bp → zero fee (de minimis)
+LIQUIDITY_FEE_BPS            = Decimal(10)     # 10bps fee when threshold breached
+LIQUIDITY_FEE_DE_MINIMIS_BPS = Decimal(1)      # Under 1bp → zero fee (de minimis)
 WEEKLY_LIQUID_ASSET_FLOOR_PCT = Decimal("0.30")  # 30% floor — warning threshold
 
 _PAYOUT_QUANTUM = Decimal("0.01")   # cents — USD and simulated USDC both at 2dp
@@ -182,14 +181,14 @@ def process_redemption(investor_id: str, shares_to_redeem) -> dict:
     # Numerator is cumulative daily redemptions today + the current gross.
     aum_lane = _pre_redemption_lane_aum(lane)
     daily_pre = _pre_redemption_lane_daily_redemptions(lane)
-    fee_amount = Decimal("0")
+    fee_amount = Decimal(0)
     liquidity_fee_applied = False
 
     if aum_lane > 0:
         projected_pct = (daily_pre + gross_payout) / aum_lane
         if projected_pct > LIQUIDITY_FEE_THRESHOLD_PCT:
-            raw_fee = gross_payout * (LIQUIDITY_FEE_BPS / Decimal("10000"))
-            de_minimis_floor = gross_payout * (LIQUIDITY_FEE_DE_MINIMIS_BPS / Decimal("10000"))
+            raw_fee = gross_payout * (LIQUIDITY_FEE_BPS / Decimal(10000))
+            de_minimis_floor = gross_payout * (LIQUIDITY_FEE_DE_MINIMIS_BPS / Decimal(10000))
             if raw_fee < de_minimis_floor:
                 # De minimis exemption: fee is below 1bp, waive.
                 _stamp_dsor("LIQUIDITY_FEE_APPLIED", {

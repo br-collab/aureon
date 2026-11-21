@@ -41,23 +41,24 @@ STRUCTURE:
 # 'time'      → sleep between price ticks
 # 'hashlib'   → generate deterministic audit hashes (like a fingerprint)
 
-import os
-import uuid
+import hashlib
 import io
 import json
 import math
+import os
 import random
 import re
+import smtplib
 import subprocess
+import tempfile
 import threading
 import time
-import hashlib
-import tempfile
-import zipfile
-import smtplib
-from importlib import metadata as importlib_metadata
 import urllib.parse
 import urllib.request
+import uuid
+import zipfile
+from importlib import metadata as importlib_metadata
+
 try:
     import yfinance as yf  # real live prices from Yahoo Finance
     _YFINANCE_AVAILABLE = True
@@ -65,32 +66,87 @@ except ImportError:
     yf = None
     _YFINANCE_AVAILABLE = False
     print("[AUREON] yfinance not installed — running on simulated prices")
+import zoneinfo
+from datetime import datetime, timedelta, timezone
+from datetime import time as dt_time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from html import unescape
-from datetime import datetime, timedelta, timezone, time as dt_time
-import zoneinfo
-from flask import Flask, Response, g, jsonify, send_from_directory, request
+
+from cannae_kernel.session import BusinessDateNotEstablishedError, SessionContext
+from flask import Flask, Response, g, jsonify, request, send_from_directory
+from pydantic import ValidationError
+
+from aureon.agents import SettlementOps, ThifurJ
+from aureon.agents.c2.coordinator import ThifurC2
+from aureon.agents.jtac import AmlKyc, RiskReporting, TradeSurveillance
+from aureon.agents.payloads import CounterpartyScreeningRequest
+from aureon.approval_service.release_control import (
+    OMSReleaseError,
+    can_release,
+    missing_roles,
+    normalize_decision,
+    release_to_oms,
+)
+from aureon.approval_service.service import (
+    AuthorityError,
+    resolve_pending_decision,
+    routed_required_approvals,
+)
+from aureon.booking.consumer import book_fill
+from aureon.config.atrox import get_atrox_source_document_text
 from aureon.config.settings import LOG_FILE, STATE_FILE
-from aureon.config.atrox import get_atrox_source_document_text, get_atrox_declaration
-from aureon.config.thifur_c2_doctrine import get_c2_source_document_text, get_c2_doctrine_declaration
-from aureon.mcp.server import mcp_bp, init_mcp
-from aureon.mcp.atrox_client import init_atrox_pipe, get_client as get_atrox_client, pipe_status as atrox_pipe_status
-from aureon.mcp.tradier_client import init_tradier_pipe, get_client as get_tradier_client, pipe_status as tradier_pipe_status
-from aureon.mcp.alpaca_client  import init_alpaca_pipe,  get_client as get_alpaca_client,  pipe_status as alpaca_pipe_status
-from aureon.mcp.cboe_client    import init_cboe_pipe,    get_client as get_cboe_client,    pipe_status as cboe_pipe_status
-from aureon.mcp.edgar_client       import init_edgar_pipe,       get_client as get_edgar_client,       pipe_status as edgar_pipe_status
-from aureon.mcp.blockscout_client  import init_blockscout_pipe,  get_client as get_blockscout_client,  pipe_status as blockscout_pipe_status
+from aureon.config.thifur_c2_doctrine import (
+    get_c2_source_document_text,
+)
+from aureon.contracts.approved_intent import IntentShapeError, normalize_quantity
+from aureon.data.market_data import get_prices_batch
+from aureon.evidence_service.service import (
+    build_trade_report as evidence_build_trade_report,
+)
+from aureon.integration_adapters.ems_adapter import build_execution_release
+from aureon.integration_adapters.oms_adapter import send as oms_send
+from aureon.integration_adapters.paper_venue import (
+    PaperVenue,
+    PriceObservation,
+    VenueRejection,
+)
+from aureon.mcp.alpaca_client import get_client as get_alpaca_client
+from aureon.mcp.alpaca_client import init_alpaca_pipe
+from aureon.mcp.alpaca_client import pipe_status as alpaca_pipe_status
+from aureon.mcp.atrox_client import get_client as get_atrox_client
+from aureon.mcp.atrox_client import init_atrox_pipe
+from aureon.mcp.atrox_client import pipe_status as atrox_pipe_status
+from aureon.mcp.blockscout_client import get_client as get_blockscout_client
+from aureon.mcp.blockscout_client import init_blockscout_pipe
+from aureon.mcp.blockscout_client import pipe_status as blockscout_pipe_status
 from aureon.mcp.cato_client import (
     atomic_settlement_gate as cato_atomic_settlement_gate,
-    tokenized_settlement_context as cato_tokenized_settlement_context,
-    compare_settlement_rails as cato_compare_settlement_rails,
-    CATO_GATE_LABEL,
 )
-from aureon.persistence.store import load_state as persistence_load_state, save_state as persistence_save_state
-from aureon.policy_engine.service import evaluate_pretrade_decision
-from aureon.policy_engine.evidence import EvidenceProvenance, is_fabricated as _is_fabricated
-from aureon.policy_engine.regulatory_register import REGISTER_NOTE, frameworks_summary
+from aureon.mcp.cato_client import (
+    compare_settlement_rails as cato_compare_settlement_rails,
+)
+from aureon.mcp.cato_client import (
+    tokenized_settlement_context as cato_tokenized_settlement_context,
+)
+from aureon.mcp.cboe_client import get_client as get_cboe_client
+from aureon.mcp.cboe_client import init_cboe_pipe
+from aureon.mcp.cboe_client import pipe_status as cboe_pipe_status
+from aureon.mcp.edgar_client import get_client as get_edgar_client
+from aureon.mcp.edgar_client import init_edgar_pipe
+from aureon.mcp.edgar_client import pipe_status as edgar_pipe_status
+from aureon.mcp.server import init_mcp, mcp_bp
+from aureon.mcp.tradier_client import get_client as get_tradier_client
+from aureon.mcp.tradier_client import init_tradier_pipe
+from aureon.mcp.tradier_client import pipe_status as tradier_pipe_status
+from aureon.mmf import (
+    fund_state,
+    nav_engine,
+    redemption_engine,
+    subscription_engine,
+)
+from aureon.persistence.store import load_state as persistence_load_state
+from aureon.persistence.store import save_state as persistence_save_state
 from aureon.policy_engine.binding import (
     PolicyBindingError,
     grant_hold_exception,
@@ -99,28 +155,12 @@ from aureon.policy_engine.binding import (
     pretrade_rules_digest,
     require_approvable,
 )
-from aureon.evidence_service.service import build_trade_report as evidence_build_trade_report
-from aureon.approval_service.release_control import OMSReleaseError, can_release, missing_roles, normalize_decision, release_to_oms
-from aureon.approval_service.service import AuthorityError, resolve_pending_decision, routed_required_approvals
-from aureon.contracts.approved_intent import IntentShapeError, normalize_quantity
-from cannae_kernel.session import BusinessDateNotEstablishedError, SessionContext
-from pydantic import ValidationError
-from aureon.booking.consumer import book_fill
-from aureon.integration_adapters.paper_venue import PaperVenue, PriceObservation, VenueRejection
-from aureon.integration_adapters.oms_adapter import send as oms_send
-from aureon.integration_adapters.ems_adapter import build_execution_release
+from aureon.policy_engine.evidence import EvidenceProvenance
+from aureon.policy_engine.evidence import is_fabricated as _is_fabricated
+from aureon.policy_engine.regulatory_register import REGISTER_NOTE, frameworks_summary
+from aureon.policy_engine.service import evaluate_pretrade_decision
 from aureon.session.session_protocol import SessionProtocol
-from aureon.data.market_data import get_price, get_prices_batch
-from aureon.agents import ThifurJ, SettlementOps
-from aureon.agents.jtac import RiskReporting, AmlKyc, TradeSurveillance
-from aureon.agents.payloads import CounterpartyScreeningRequest
-from aureon.agents.c2.coordinator import ThifurC2
-from aureon.mmf import (
-    nav_engine,
-    fund_state,
-    subscription_engine,
-    redemption_engine,
-)
+
 # xrpl_integration imported inside handlers to keep server.py
 # importable during the requirements.txt rollout (xrpl-py is added
 # to requirements in the same commit but may take a Railway rebuild
@@ -248,9 +288,14 @@ app = Flask(__name__, static_folder=THIS_DIR)
 # protection. See aureon/approval_service/operator_auth.py. The decorator runs
 # before the handler, so a refused request changes no state.
 import functools as _functools
+
 from aureon.approval_service.operator_auth import (
     BOOT_SERVICE_ACTOR as _BOOT_SERVICE_ACTOR,
+)
+from aureon.approval_service.operator_auth import (
     NonceCache as _NonceCache,
+)
+from aureon.approval_service.operator_auth import (
     authenticate as _authenticate_operator,
 )
 
@@ -327,6 +372,7 @@ def _authority_required(action: str):
 
     return decorate
 from flask_cors import CORS
+
 CORS(app, origins=[
     "http://localhost:3000",
     "http://localhost:5001",
@@ -658,13 +704,20 @@ PENDING_DECISIONS_INIT = []  # Queue starts empty — Thifur-H generates live si
 
 # ── Compliance PDF imports ────────────────────────────────────────
 import io as _io
-from reportlab.lib.pagesizes import letter
+
 from reportlab.lib import colors as rl_colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,
-                                 TableStyle, HRFlowable)
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.platypus import (
+    HRFlowable,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
 
 def _generate_compliance_pdf(report: dict) -> bytes:
@@ -3496,9 +3549,9 @@ def _generate_signal():
         )
     else:
         _commanders_intent = (
-            f"Endowment Series I — Argus. No asset class exceeds the 4% "
-            f"rebalance threshold. Thifur-H surfacing opportunistic alpha within doctrine bounds. "
-            f"Mandate: optimize risk-adjusted return while preserving intergenerational equity."
+            "Endowment Series I — Argus. No asset class exceeds the 4% "
+            "rebalance threshold. Thifur-H surfacing opportunistic alpha within doctrine bounds. "
+            "Mandate: optimize risk-adjusted return while preserving intergenerational equity."
         )
         _first_order = (
             f"{action} {shares:,} {symbol} @ ~${live_price:,.2f}. "
@@ -3509,8 +3562,8 @@ def _generate_signal():
             f"No rebalance cascade triggered — all classes within doctrine tolerance."
         )
         _third_order = (
-            f"Opportunistic trades accumulate alpha within doctrine bounds without disrupting "
-            f"the rebalance cadence. Signal quality data feeds the Walk phase performance record."
+            "Opportunistic trades accumulate alpha within doctrine bounds without disrupting "
+            "the rebalance cadence. Signal quality data feeds the Walk phase performance record."
         )
         _doctrine_ref = "OPPORTUNISTIC signal — no allocation breach | Within DRIFT_THRESHOLD"
 
@@ -3715,7 +3768,7 @@ def _atrox_scan():
                 signal_sources=["CBOE-PIPE-001"],
                 risk_factors=["Complacency can precede sharp corrections", "Single-name concentration", "Entry timing"],
                 first_order=f"BUY {shares:,} {sym} @ ~${sym_price:,.2f}. Notional: ${notional:,}.",
-                second_order=f"Increases equity allocation. Positions portfolio for continued risk-on environment.",
+                second_order="Increases equity allocation. Positions portfolio for continued risk-on environment.",
                 third_order="Builds alpha during low-vol regime. Position sized within doctrine concentration limits.",
                 ts=ts,
             ))
@@ -5982,7 +6035,8 @@ def _resolve_decision_request(decision_id, data, *, actor):
     }), 200
 
 
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 
 
 def _evaluate_pretrade(decision_id, *, macro_snapshot_fn):
@@ -6867,10 +6921,12 @@ def api_c2_algo_inventory_check():
     so the operator can resume/override via /api/c2/resume/<task_id>
     (dual-authority per approval_lineage_rules.json).
     """
+    import hashlib as _hashlib
+    from datetime import datetime as _dt
+    from datetime import timezone as _tz
+
     from aureon.agents.jtac import JTAC_AGENTS
     from aureon.agents.payloads import AlgoInventoryCheckRequest
-    import hashlib as _hashlib
-    from datetime import datetime as _dt, timezone as _tz
 
     body = request.get_json(silent=True) or {}
     active = body.get("active_algorithms") or []
@@ -9102,19 +9158,23 @@ def _mmf_journal_detail(payload: dict) -> str:
     return " | ".join(bits) if bits else str(payload)[:240]
 
 # THIFUR-H PHASE 2 ACTIVATION
-from aureon.thifur.thifur_h import ThifurH, AtroxSignal, SessionState
+import time as _time
+
 from aureon.thifur.atrox_sandbox import AtroxSandboxSignalGenerator
 from aureon.thifur.kraken_client import KrakenLiveClient, ThifurHDoctrineLive
-import time as _time
+from aureon.thifur.thifur_h import SessionState, ThifurH
 
 _thifur_h_session = None
 _pending_signal = None
 _atrox_generator = AtroxSandboxSignalGenerator()
 
 # ── Atrox Live (automated 5-min signal loop) — see aureon/thifur/atrox_live.py
-from aureon.thifur.atrox_live import AtroxLive as _AtroxLive
 import pathlib as _pathlib
-from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+from datetime import datetime as _dt
+from datetime import timedelta as _td
+from datetime import timezone as _tz
+
+from aureon.thifur.atrox_live import AtroxLive as _AtroxLive
 
 # Auto-close policy: operator-armed, time- and cycle-bounded
 _auto_close_policy = {
@@ -9197,8 +9257,9 @@ _atrox_live = _AtroxLive(
 _atrox_live.start()
 
 def _get_kraken_engine():
-    from aureon.thifur.thifur_h import SessionLedger, ThifurHGates
     from datetime import datetime, timezone
+
+    from aureon.thifur.thifur_h import SessionLedger, ThifurHGates
     if os.environ.get("RAILWAY_ENVIRONMENT"):
         return None, "Kraken live path is disabled in every deployed profile"
     if os.environ.get("AUREON_KRAKEN_LIVE_ENABLED", "false").lower() != "true":
@@ -9396,7 +9457,9 @@ def thifur_h_dsor_export():
       2. Most recent /data/dsor/ archive file (survives Railway restarts)
       3. 404 only if both are empty
     """
-    import json as _json, os as _os, pathlib as _pathlib
+    import json as _json
+    import os as _os
+    import pathlib as _pathlib
     if _thifur_h_session:
         return jsonify(_json.loads(_thifur_h_session.export_dsor()))
     try:
@@ -9523,18 +9586,30 @@ def thifur_h_balance():
 # propagates across every primitive.
 from decimal import Decimal as _CkDecimal
 from uuid import UUID as _CkUUID
-from atreides.cockpit import (
-    ClearingCockpit as _ClearingCockpit,
-    CockpitHalted as _CockpitHalted,
-    PortalRegime as _PortalRegime,
+
+from atreides.agents.tier1.outputs import (
+    CreditFacilityType as _CkCredit,
+)
+from atreides.agents.tier1.outputs import (
+    GCFPoolCustodian as _CkGCF,
+)
+from atreides.agents.tier1.outputs import (
+    SettlementKind as _CkKind,
 )
 from atreides.agents.tier1.outputs import (
     SettlementRail as _CkRail,
-    SettlementKind as _CkKind,
-    CreditFacilityType as _CkCredit,
-    GCFPoolCustodian as _CkGCF,
+)
+from atreides.cockpit import (
+    ClearingCockpit as _ClearingCockpit,
+)
+from atreides.cockpit import (
+    CockpitHalted as _CockpitHalted,
+)
+from atreides.cockpit import (
+    PortalRegime as _PortalRegime,
 )
 from atreides.contracts.dsor_stub import CAOMTier as _CkTier
+
 from aureon.dsor import AureonStateDSORStore as _AureonStateDSORStore
 
 # WS-1: bridge cockpit gate DSOR records into the unified persisted lineage
@@ -9727,24 +9802,46 @@ def cockpit_workbench():
 # The boundary is unchanged and unchangeable: /api/cashleg/instruction returns
 # a PREPARED artifact for the entitled member to submit. Nothing here submits.
 # ---------------------------------------------------------------------------
-from atreides.messaging import (                                     # noqa: E402
+from atreides.messaging import (
     CashLegInstruction as _ClInstruction,
+)
+from atreides.messaging import (
     FinancialInstitution as _ClFI,
+)
+from atreides.messaging import (
     emit_instruction_artifact as _cl_emit,
+)
+from atreides.messaging import (
     settlement_method_for_rail as _cl_method_for_rail,
 )
-from atreides.rails.cato_cash import (                               # noqa: E402
+from atreides.rails.cato_cash import (
     CashRail as _ClRail,
+)
+from atreides.rails.cato_cash import (
     FinalityClass as _ClFinality,
+)
+from atreides.rails.cato_cash import (
     OperationContext as _ClOpCtx,
+)
+from atreides.rails.cato_cash import (
     RailState as _ClRailState,
+)
+from atreides.rails.cato_cash import (
     RailStatus as _ClRailStatus,
+)
+from atreides.rails.cato_cash import (
     absent_gate_decision as _cl_absent_gate,
+)
+from atreides.rails.cato_cash import (
     evaluate as _cl_gate_evaluate,
 )
-from atreides.rails.funding_state import (                           # noqa: E402
+from atreides.rails.funding_state import (
     CashFlow as _ClCashFlow,
+)
+from atreides.rails.funding_state import (
     FundingInputs as _ClFundingInputs,
+)
+from atreides.rails.funding_state import (
     project_funding as _cl_project_funding,
 )
 
@@ -9901,8 +9998,9 @@ def cashleg_instruction():
     their own credentials — is_submission is Literal[False] and no submit
     path exists anywhere in the framework.
     """
+    from datetime import datetime as _dt
+    from datetime import timezone as _tz
     from decimal import Decimal as _D
-    from datetime import datetime as _dt, timezone as _tz
     d = request.get_json(silent=True) or {}
     try:
         rail = _ClRail(d.get("rail", "fedwire"))
@@ -9947,18 +10045,19 @@ def cashleg_demo():
     Mirrors docs/CASH-LEG-WALKTHROUGH.md in the Project-Atreides repo, so
     the site, the repo and the runnable script tell one story.
     """
+    from datetime import datetime as _dt
+    from datetime import timezone as _tz
     from decimal import Decimal as _D
-    from datetime import datetime as _dt, timezone as _tz
     stages = []
 
     # 1 — short at the instant, covered inside the window: a QUEUE, not a fail.
     queued = _cl_project_funding(_ClFundingInputs(
-        opening_position=_D("250000"), obligation=_D("1000000"),
+        opening_position=_D(250000), obligation=_D(1000000),
         finality_class=_ClFinality.GROSS_FINAL,
         settlement_offset_seconds=1800, window_close_offset_seconds=14400,
-        flows=(_ClCashFlow(5400, _D("900000"), "incoming FICC net receipt"),),
-        net_debit_cap=_D("50000000"),
-        clearing_fund_requirement=_D("500000"), clearing_fund_posted=_D("500000"),
+        flows=(_ClCashFlow(5400, _D(900000), "incoming FICC net receipt"),),
+        net_debit_cap=_D(50000000),
+        clearing_fund_requirement=_D(500000), clearing_fund_posted=_D(500000),
     ))
     stages.append({
         "stage": "1. Funding — can it settle?",
@@ -9973,15 +10072,15 @@ def cashleg_demo():
     })
 
     funded = _cl_project_funding(_ClFundingInputs(
-        opening_position=_D("5000000"), obligation=_D("1000000"),
+        opening_position=_D(5000000), obligation=_D(1000000),
         finality_class=_ClFinality.GROSS_FINAL,
         settlement_offset_seconds=1800, window_close_offset_seconds=14400,
-        net_debit_cap=_D("50000000"),
-        clearing_fund_requirement=_D("500000"), clearing_fund_posted=_D("500000"),
+        net_debit_cap=_D(50000000),
+        clearing_fund_requirement=_D(500000), clearing_fund_posted=_D(500000),
     ))
 
     # 2 — rail + finality, then the same operation under three conditions.
-    op = _ClOpCtx(notional=_D("1000000"), currency="USD",
+    op = _ClOpCtx(notional=_D(1000000), currency="USD",
                   is_material=False, is_lvps_material=True)
     rails = _cl_rails_from(None)
     cleared = _cl_gate_evaluate(operation=op, funding=funded.to_gate_input(),

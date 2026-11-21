@@ -22,8 +22,8 @@ import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from aureon.agents.ranger._base import RangerConcreteBase
 from aureon.agents.base import Escalation
+from aureon.agents.ranger._base import RangerConcreteBase
 
 if TYPE_CHECKING:
     from aureon.agents.c2.coordinator import ThifurC2
@@ -205,7 +205,9 @@ class TradeSupport(RangerConcreteBase):
         side must come from a venue fill, never from the decision (AUR-I-06).
         """
         from aureon.booking.reconcile import (
-            EXACT_FIELDS, TOLERANCE_FIELDS, compare_intent_with_execution,
+            EXACT_FIELDS,
+            TOLERANCE_FIELDS,
+            compare_intent_with_execution,
         )
 
         ts = datetime.now(timezone.utc).isoformat()

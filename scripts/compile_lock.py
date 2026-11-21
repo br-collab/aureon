@@ -101,7 +101,7 @@ def declared_refs(requirements: str) -> dict[str, tuple[str, str]]:
 
 def canonical_header(lock: str) -> str:
     """Replace uv's recorded command line, which carries a temporary path."""
-    return re.sub(r"^#\s+uv pip compile .*$\n", HEADER_COMMAND, lock, count=1, flags=re.M)
+    return re.sub(r"^#\s+uv pip compile .*$\n", HEADER_COMMAND, lock, count=1, flags=re.MULTILINE)
 
 
 def restore_refs(lock: str, refs: dict[str, tuple[str, str]]) -> str:

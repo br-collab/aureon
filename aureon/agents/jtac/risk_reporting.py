@@ -40,10 +40,9 @@ import json
 import os
 import threading
 from datetime import datetime, timezone
-from typing import Optional
 
+from aureon.agents.base import Advisory, Intent, Result, Tasking
 from aureon.agents.jtac._base import JTACConcreteBase
-from aureon.agents.base import Intent, Advisory, Tasking, Result
 
 AGENT_RISK_VERSION = "0.1"
 ROLE_ID = "AUR-J-RISK-001"
@@ -103,7 +102,7 @@ class RiskReporting(JTACConcreteBase):
             f"{list(self._approved_paths.keys())}"
         )
 
-    def _load_thresholds(self, source_path: Optional[str] = None) -> None:
+    def _load_thresholds(self, source_path: str | None = None) -> None:
         if self._thresholds_loaded:
             return
         path = source_path or _RISK_THRESHOLDS

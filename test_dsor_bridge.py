@@ -9,15 +9,25 @@ Proves:
   3. cockpit_dsor_log survives a persistence.store save_state -> load_state
      cycle (a deploy) — the cockpit lineage is now durable (WS-0.1 parity).
 """
-import threading, tempfile, os, json
-from decimal import Decimal
+import json
+import os
+import tempfile
+import threading
 from datetime import datetime, timezone
+from decimal import Decimal
 
-from aureon.dsor.bridge import AureonStateDSORStore, DSORAppendOnlyError
+import pytest
+from atreides.agents.tier1.outputs import SettlementKind, SettlementRail
 from atreides.cockpit import ClearingCockpit, PortalRegime
-from atreides.agents.tier1.outputs import SettlementRail, SettlementKind
 from atreides.contracts.dsor_stub import CAOMTier
-from aureon.persistence.store import save_state, load_state
+
+from aureon.dsor.bridge import (
+    AureonStateDSORStore,
+    DSORAppendOnlyError,
+    DSORRecordNotFoundError,
+    DSORReplayUnavailableError,
+)
+from aureon.persistence.store import load_state, save_state
 
 FAIL = []
 def ck(name, cond):
@@ -42,7 +52,7 @@ def unit_tests():
     r1 = store.append(FakeOut(op, "settlement_telemetry"))
     ck("append returns record with record_id", hasattr(r1, "record_id"))
     ck("mirrored into state log", state["cockpit_dsor_log"][0]["operation_id"] == str(op))
-    ck("replay returns the output", store.replay(r1.record_id).kind == "settlement_telemetry")
+    ck("replay returns the output", store.replay(r1.record_id)["kind"] == "settlement_telemetry")
     try:
         store.append(FakeOut(op, "settlement_telemetry")); ck("append-only enforced", False)
     except DSORAppendOnlyError:
@@ -60,9 +70,9 @@ def cockpit_integration():
     t = cp.capture_tasking(regime=PortalRegime.CCP, rail=SettlementRail.FICC_GSD_DVP,
         settlement_kind=SettlementKind.DVP, counterparty_id="CP-A", settlement_date=SD,
         authority_id="operator-bill", authority_tier=CAOMTier.T1, cusip="912828XX",
-        net_delivery_quantity=Decimal("1000000"), net_payment_amount=Decimal("1000000"),
-        ficc_published_net_delivery=Decimal("1000000"),
-        intraday_credit_limit=Decimal("100000000"), intraday_credit_current_usage=Decimal("1000000"))
+        net_delivery_quantity=Decimal(1000000), net_payment_amount=Decimal(1000000),
+        ficc_published_net_delivery=Decimal(1000000),
+        intraday_credit_limit=Decimal(100000000), intraday_credit_current_usage=Decimal(1000000))
     # Atreides v0.4.0 (ATR-I-02): validation is pure. Emission is the only
     # cockpit step that writes to the DSOR, so the bridge is exercised there.
     g = cp.run_validation_gates(t)
@@ -76,9 +86,9 @@ def cockpit_integration():
     t2 = cp.capture_tasking(regime=PortalRegime.CCP, rail=SettlementRail.FICC_GSD_DVP,
         settlement_kind=SettlementKind.DVP, counterparty_id="CP-B", settlement_date=SD,
         authority_id="operator-bill", authority_tier=CAOMTier.T1, cusip="912828YY",
-        net_delivery_quantity=Decimal("1000000"), net_payment_amount=Decimal("1000000"),
-        ficc_published_net_delivery=Decimal("1000000"),
-        intraday_credit_limit=Decimal("100000000"), intraday_credit_current_usage=Decimal("1000000"),
+        net_delivery_quantity=Decimal(1000000), net_payment_amount=Decimal(1000000),
+        ficc_published_net_delivery=Decimal(1000000),
+        intraday_credit_limit=Decimal(100000000), intraday_credit_current_usage=Decimal(1000000),
         ficc_clearing_fund_compliant=False)
     g2 = cp.run_validation_gates(t2)
     ck("held gate does not pass", g2.passed is False)
@@ -102,6 +112,154 @@ def persistence_roundtrip(state):
     ck("cockpit_dsor_log survives load", reloaded and len(reloaded.get("cockpit_dsor_log", [])) == 2)
     ck("escalation survived the deploy",
        any(e["kind"] == "settlement_escalation" for e in reloaded["cockpit_dsor_log"]))
+
+
+def test_fresh_store_replays_migration_fields_and_persisted_header(tmp_path):
+    import uuid
+
+    expected_header = {
+        "schema_version": "aureon.cockpit_dsor_log/2",
+        "append_only": True,
+        "source": "persisted migration header",
+    }
+    state, lock = {"cockpit_dsor_header": expected_header}, threading.Lock()
+    first = AureonStateDSORStore(state, lock)
+    record = first.append_metadata_migration(
+        [uuid.uuid4()],
+        autonomy_level="CONSTRAINED_EXECUTION",
+        action_class="WRITE_CORE_RECORD",
+        classification_basis="ONB-1C verified migration",
+        classifier_version="onb-1c/1",
+        migrated_at=SD,
+    )
+    state.setdefault("positions", [])
+    state.setdefault("trades", [])
+    state_file = tmp_path / "state.json"
+    save_state(
+        state=state,
+        lock=lock,
+        state_file=str(state_file),
+        resolve_mmf_provider=lambda provider: provider or "FIX",
+        log_error=lambda *args: None,
+    )
+    reloaded = load_state(state_file=str(state_file), log_error=lambda *args: None)
+    fresh = AureonStateDSORStore(reloaded, threading.Lock())
+    replayed = fresh.replay(record.record_id)
+    assert replayed == record.output
+    assert replayed["classification_basis"] == "ONB-1C verified migration"
+    assert replayed["classifier_version"] == "onb-1c/1"
+    assert replayed["migrated_at"] == SD.isoformat()
+    assert fresh.header == expected_header
+
+
+def test_capped_operation_id_still_refuses_duplicate_after_restart(tmp_path):
+    import uuid
+
+    state, lock = {}, threading.Lock()
+    first = AureonStateDSORStore(state, lock, cap=1)
+    evicted_operation_id = uuid.uuid4()
+    evicted = first.append(FakeOut(evicted_operation_id, "settlement_telemetry"), dtg=SD)
+    first.append(FakeOut(uuid.uuid4(), "settlement_telemetry"), dtg=SD)
+    assert state["cockpit_dsor_log"][0]["operation_id"] != str(evicted_operation_id)
+    assert state["cockpit_dsor_trim_watermark"] == evicted.record_id.int
+    assert state["cockpit_dsor_next_sequence"] == 3
+    assert "cockpit_dsor_trimmed_record_ids" not in state
+
+    state.setdefault("positions", [])
+    state.setdefault("trades", [])
+    state_file = tmp_path / "state.json"
+    save_state(
+        state=state,
+        lock=lock,
+        state_file=str(state_file),
+        resolve_mmf_provider=lambda provider: provider or "FIX",
+        log_error=lambda *args: None,
+    )
+    reloaded = load_state(state_file=str(state_file), log_error=lambda *args: None)
+    restarted = AureonStateDSORStore(reloaded, threading.Lock(), cap=1)
+
+    with pytest.raises(DSORReplayUnavailableError, match="trimmed past"):
+        restarted.replay(evicted.record_id)
+    with pytest.raises(DSORRecordNotFoundError, match="never stored"):
+        restarted.replay(uuid.UUID(int=state["cockpit_dsor_next_sequence"] + 100))
+
+    with pytest.raises(DSORAppendOnlyError, match="already exists"):
+        restarted.append(FakeOut(evicted_operation_id, "settlement_telemetry"), dtg=SD)
+
+
+def test_replay_returns_a_copy() -> None:
+    import uuid
+
+    store = AureonStateDSORStore({}, threading.Lock())
+    record = store.append(FakeOut(uuid.uuid4(), "settlement_telemetry"), dtg=SD)
+    replayed = store.replay(record.record_id)
+    replayed["kind"] = "mutated"
+    assert store.replay(record.record_id)["kind"] == "settlement_telemetry"
+
+
+def test_legacy_trim_keeps_unknown_ids_never_stored_and_watermark_zero(tmp_path) -> None:
+    import uuid
+
+    legacy_id = uuid.uuid4()
+    unknown_id = uuid.uuid4()
+    legacy_state = {
+        "cockpit_dsor_log": [
+            {
+                "record_id": str(legacy_id),
+                "dtg": SD.isoformat(),
+                "kind": "settlement_telemetry",
+                "operation_id": None,
+                "correction_of": None,
+                "autonomy_level": None,
+                "action_class": None,
+                "payload": {"kind": "legacy"},
+            }
+        ],
+        "cockpit_dsor_trim_watermark": 0,
+        "positions": [],
+        "trades": [],
+    }
+    state_file = tmp_path / "legacy-state.json"
+    save_state(
+        state=legacy_state,
+        lock=threading.Lock(),
+        state_file=str(state_file),
+        resolve_mmf_provider=lambda provider: provider or "FIX",
+        log_error=lambda *args: None,
+    )
+    reloaded = load_state(state_file=str(state_file), log_error=lambda *args: None)
+    store = AureonStateDSORStore(reloaded, threading.Lock(), cap=1)
+    store.append(FakeOut(uuid.uuid4(), "settlement_telemetry"), dtg=SD)
+
+    assert reloaded["cockpit_dsor_trim_watermark"] == 0
+    assert reloaded["cockpit_dsor_legacy_trimmed_record_ids"] == [str(legacy_id)]
+    with pytest.raises(DSORReplayUnavailableError, match="legacy record.*trimmed past"):
+        store.replay(legacy_id)
+    with pytest.raises(DSORRecordNotFoundError, match="never stored"):
+        store.replay(unknown_id)
+
+
+def test_legacy_tombstones_are_bounded_by_log_cap() -> None:
+    import uuid
+
+    legacy_ids = [uuid.uuid4() for _ in range(3)]
+    state = {
+        "cockpit_dsor_legacy_trimmed_record_ids": [str(value) for value in legacy_ids],
+    }
+    AureonStateDSORStore(state, threading.Lock(), cap=2)
+    assert len(state["cockpit_dsor_legacy_trimmed_record_ids"]) == 2
+
+
+def test_real_11c9db2_tombstone_fixture_migrates_and_evicts_by_age() -> None:
+    import uuid
+
+    oldest, middle, newest = (uuid.UUID(int=value) for value in (30, 10, 20))
+    state = {
+        "cockpit_dsor_trimmed_record_ids": [str(oldest), str(middle), str(newest)]
+    }
+    AureonStateDSORStore(state, threading.Lock(), cap=2)
+    assert "cockpit_dsor_trimmed_record_ids" not in state
+    assert state["cockpit_dsor_legacy_trimmed_record_ids"] == [str(middle), str(newest)]
 
 
 if __name__ == "__main__":

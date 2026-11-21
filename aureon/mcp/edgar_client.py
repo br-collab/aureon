@@ -34,11 +34,11 @@ import hashlib
 import json
 import os
 import time
-import urllib.request
-import urllib.parse
 import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Optional
 
 # ── SEC EDGAR API Endpoints ───────────────────────────────────────────────────
 EDGAR_DATA_BASE  = "https://data.sec.gov"
@@ -108,7 +108,7 @@ class EdgarClient:
         crowding = client.get_crowding_analysis(["AAPL", "MSFT", "NVDA"])
     """
 
-    def __init__(self, user_agent: Optional[str] = None):
+    def __init__(self, user_agent: str | None = None):
         self._ua    = user_agent or os.environ.get("EDGAR_USER_AGENT", DEFAULT_UA)
         self._ready = True   # No key required
 
@@ -124,7 +124,7 @@ class EdgarClient:
             time.sleep(EDGAR_REQ_INTERVAL - elapsed)
         _last_request_ts = time.time()
 
-    def _get_json(self, base: str, path: str, params: Optional[dict] = None) -> dict:
+    def _get_json(self, base: str, path: str, params: dict | None = None) -> dict:
         """GET request returning JSON with provenance wrapping."""
         self._rate_limit()
 
@@ -402,8 +402,8 @@ class EdgarClient:
 
     def search_filings(self, query: str,
                        form_type: str = "13F-HR",
-                       date_from: Optional[str] = None,
-                       date_to: Optional[str] = None,
+                       date_from: str | None = None,
+                       date_to: str | None = None,
                        limit: int = 10) -> dict:
         """
         Full-text search across EDGAR filings.
@@ -432,7 +432,7 @@ class EdgarClient:
     # ─────────────────────────────────────────────────────────────────────────
 
     def get_atrox_institutional_packet(self,
-                                          institutions: Optional[List[str]] = None) -> dict:
+                                          institutions: list[str] | None = None) -> dict:
         """
         Full Atrox institutional intelligence packet.
 
@@ -494,7 +494,7 @@ def _quarter_from_date(date_str: str) -> str:
 # Module-level pipe interface
 # ─────────────────────────────────────────────────────────────────────────────
 
-def init_edgar_pipe(user_agent: Optional[str] = None) -> "EdgarClient":
+def init_edgar_pipe(user_agent: str | None = None) -> "EdgarClient":
     """Initialize (or re-initialize) the EDGAR pipe client."""
     global _client
     _client = EdgarClient(user_agent=user_agent)

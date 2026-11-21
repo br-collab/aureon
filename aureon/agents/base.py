@@ -6,8 +6,6 @@ import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
-
 
 # ── Exceptions ────────────────────────────────────────────────────────────────
 
@@ -69,7 +67,7 @@ class GuardrailResult:
     """Single gate / guardrail check outcome."""
     passed: bool
     rule: str
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 @dataclass

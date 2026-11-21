@@ -18,21 +18,19 @@ Architecture position:
 Author: Project Aureon · Guillermo "Bill" Ravelo
 """
 
-import asyncio
+import base64
 import hashlib
 import hmac
-import base64
 import json
-import time
 import logging
-from decimal import Decimal, ROUND_HALF_UP
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Optional
-import urllib.request
-import urllib.parse
+import time
 import urllib.error
+import urllib.parse
+import urllib.request
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal
+from enum import Enum
 
 logger = logging.getLogger("thifur_h")
 logging.basicConfig(
@@ -109,7 +107,7 @@ class AtroxSignal:
     suggested_qty: float         # Quantity suggestion
     caom_approved: bool = False  # Must be True before Thifur-H acts
     approved_by: str = "CAOM-001"
-    approval_timestamp: Optional[str] = None
+    approval_timestamp: str | None = None
 
 
 @dataclass
@@ -121,8 +119,8 @@ class GateRecord:
     signal_id: str
     timestamp: str
     reason: str
-    checked_value: Optional[float] = None
-    threshold: Optional[float] = None
+    checked_value: float | None = None
+    threshold: float | None = None
 
 
 @dataclass
@@ -162,8 +160,8 @@ class DSOREntry:
     session_id: str
     timestamp: str
     details: dict
-    gate_result: Optional[str] = None
-    order_id: Optional[str] = None
+    gate_result: str | None = None
+    order_id: str | None = None
     caom_operator: str = "CAOM-001"
 
 
@@ -754,7 +752,8 @@ class ThifurH:
                    $RAILWAY_VOLUME_MOUNT_PATH/dsor/dsor_{session_id}_{ts}.json
                    (defaults to /data/dsor on Railway). Survives restarts.
         """
-        import os, pathlib
+        import os
+        import pathlib
         export = {
             "session_summary": self.session_report(),
             "gate_records": self.ledger.gate_records,

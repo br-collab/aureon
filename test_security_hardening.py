@@ -109,9 +109,9 @@ def test_auto_close_is_bounded() -> None:
 def test_halt_reaches_the_engine() -> None:
     print("\nhalt propagation")
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from aureon.thifur.thifur_h import ThifurH
-
     import inspect
+
+    from aureon.thifur.thifur_h import ThifurH
     sig = inspect.signature(ThifurH.__init__)
     check("ThifurH accepts halt_check", "halt_check" in sig.parameters)
     check(
@@ -147,7 +147,7 @@ def test_halt_reaches_the_engine() -> None:
 
 def test_halt_blocks_a_signal_without_touching_an_exchange() -> None:
     print("\nhalt behaviour (no exchange involved)")
-    from aureon.thifur.thifur_h import ThifurH, SessionState
+    from aureon.thifur.thifur_h import SessionState, ThifurH
 
     engine = ThifurH.__new__(ThifurH)
     engine.halt_check = lambda: True

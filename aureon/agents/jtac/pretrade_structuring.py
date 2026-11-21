@@ -33,7 +33,7 @@ import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from aureon.agents.base import Intent, Advisory, Tasking, Result
+from aureon.agents.base import Advisory, Intent, Result, Tasking
 from aureon.agents.jtac._base import JTACConcreteBase
 
 if TYPE_CHECKING:

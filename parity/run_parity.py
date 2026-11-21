@@ -38,7 +38,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from aureon.mcp.cato_client import atomic_settlement_gate  # noqa: E402
+from aureon.mcp.cato_client import atomic_settlement_gate
 
 
 def run_python(spec):

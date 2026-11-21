@@ -22,14 +22,25 @@ in the production server and in tests.
 from __future__ import annotations
 
 import uuid
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
+
+from cannae_kernel.governance import ActionClass, AutonomyLevel
 
 
 class DSORAppendOnlyError(Exception):
     """Raised when an append would overwrite an existing (non-correction)
     record for an ``operation_id``. Per Axiom 4 (immutable lineage)."""
+
+
+class DSORReplayUnavailableError(LookupError):
+    """Raised when a known record body was trimmed past the configured cap."""
+
+
+class DSORRecordNotFoundError(LookupError):
+    """Raised when a record identifier was never stored."""
 
 
 @dataclass(frozen=True)
@@ -42,6 +53,8 @@ class BridgedDSORRecord:
     kind: str
     record_id: uuid.UUID = field(default_factory=uuid.uuid4)
     correction_of: uuid.UUID | None = None
+    autonomy_level: AutonomyLevel | None = None
+    action_class: ActionClass | None = None
 
 
 class AureonStateDSORStore:
@@ -52,49 +65,147 @@ class AureonStateDSORStore:
     head of ``state[log_key]`` under ``lock`` and trims to ``cap``.
     """
 
-    def __init__(self, state, lock, *, log_key: str = "cockpit_dsor_log", cap: int = 500) -> None:
+    def __init__(
+        self,
+        state,
+        lock,
+        *,
+        log_key: str = "cockpit_dsor_log",
+        header_key: str = "cockpit_dsor_header",
+        operation_ids_key: str = "cockpit_dsor_original_operation_ids",
+        next_sequence_key: str = "cockpit_dsor_next_sequence",
+        trim_watermark_key: str = "cockpit_dsor_trim_watermark",
+        legacy_trimmed_ids_key: str = "cockpit_dsor_legacy_trimmed_record_ids",
+        cap: int = 500,
+    ) -> None:
         self._state = state
         self._lock = lock
         self._log_key = log_key
+        self._header_key = header_key
+        self._operation_ids_key = operation_ids_key
+        self._next_sequence_key = next_sequence_key
+        self._trim_watermark_key = trim_watermark_key
+        self._legacy_trimmed_ids_key = legacy_trimmed_ids_key
         self._cap = cap
-        self._by_id: dict[uuid.UUID, Any] = {}
-        self._originals: set = set()
+        with self._lock:
+            self._state.setdefault(
+                self._header_key,
+                {"schema_version": "aureon.cockpit_dsor_log/1", "append_only": True},
+            )
+            persisted = list(self._state.get(self._log_key, []))
+            persisted_operation_ids = set(self._state.get(self._operation_ids_key, []))
+            self._next_sequence = int(self._state.get(self._next_sequence_key, 1))
+            self._trim_watermark = int(self._state.get(self._trim_watermark_key, 0))
+            pre_upgrade_ids = list(self._state.pop("cockpit_dsor_trimmed_record_ids", []))
+            legacy_trimmed_ids = [
+                *self._state.get(self._legacy_trimmed_ids_key, []),
+                *pre_upgrade_ids,
+            ][-self._cap :]
+            self._legacy_trimmed_ids = list(dict.fromkeys(legacy_trimmed_ids))
+            self._state[self._legacy_trimmed_ids_key] = list(self._legacy_trimmed_ids)
+        self._by_id: dict[uuid.UUID, Any] = {
+            uuid.UUID(entry["record_id"]): entry["payload"] for entry in persisted
+        }
+        self._originals: set[str] = persisted_operation_ids | {
+            entry["operation_id"]
+            for entry in persisted
+            if entry.get("operation_id") is not None and entry.get("correction_of") is None
+        }
 
-    def append(self, output, *, dtg: datetime | None = None, correction_of=None) -> BridgedDSORRecord:
+    @property
+    def header(self) -> dict[str, object]:
+        return dict(self._state[self._header_key])
+
+    def append(self, output, *, dtg: datetime | None = None, correction_of=None, autonomy_level=None, action_class=None) -> BridgedDSORRecord:
         dtg = dtg or datetime.now(tz=timezone.utc)
         op = getattr(output, "operation_id", None)
-        if correction_of is None and op is not None and op in self._originals:
+        if correction_of is None and op is not None and str(op) in self._originals:
             raise DSORAppendOnlyError(
                 f"non-correction DSOR record for operation_id={op} already "
                 f"exists (Axiom 4). Pass correction_of to append a correction."
             )
+        record_sequence = self._next_sequence
+        self._next_sequence += 1
         rec = BridgedDSORRecord(
             output=output,
             dtg=dtg,
-            kind=getattr(output, "kind", "unknown"),
+            kind=output.get("kind", "unknown") if isinstance(output, dict) else getattr(output, "kind", "unknown"),
+            record_id=uuid.UUID(int=record_sequence),
             correction_of=correction_of,
+            autonomy_level=AutonomyLevel(autonomy_level) if autonomy_level else None,
+            action_class=ActionClass(action_class) if action_class else None,
         )
-        self._by_id[rec.record_id] = output
-        if correction_of is None and op is not None:
-            self._originals.add(op)
-
         entry = {
             "record_id": str(rec.record_id),
+            "record_sequence": record_sequence,
             "dtg": dtg.isoformat(),
             "kind": rec.kind,
             "operation_id": str(op) if op is not None else None,
             "correction_of": str(correction_of) if correction_of is not None else None,
+            "autonomy_level": rec.autonomy_level.value if rec.autonomy_level else None,
+            "action_class": rec.action_class.value if rec.action_class else None,
             "payload": self._compact(output),
         }
+        self._by_id[rec.record_id] = entry["payload"]
+        if correction_of is None and op is not None:
+            self._originals.add(str(op))
         with self._lock:
+            self._state[self._operation_ids_key] = sorted(self._originals)
+            self._state[self._next_sequence_key] = self._next_sequence
             log = self._state.setdefault(self._log_key, [])
             log.insert(0, entry)
             if len(log) > self._cap:
+                trimmed = log[self._cap:]
                 del log[self._cap:]
+                for old in trimmed:
+                    old_id = uuid.UUID(str(old["record_id"]))
+                    self._by_id.pop(old_id, None)
+                    sequence = old.get("record_sequence")
+                    if sequence is None:
+                        old_text = str(old_id)
+                        if old_text not in self._legacy_trimmed_ids:
+                            self._legacy_trimmed_ids.append(old_text)
+                    else:
+                        self._trim_watermark = max(self._trim_watermark, int(sequence))
+            legacy_ids = self._legacy_trimmed_ids[-self._cap :]
+            self._legacy_trimmed_ids = list(legacy_ids)
+            self._state[self._legacy_trimmed_ids_key] = legacy_ids
+            self._state[self._trim_watermark_key] = self._trim_watermark
         return rec
 
     def replay(self, record_id: uuid.UUID):
-        return self._by_id[record_id]
+        payload = self._by_id.get(record_id)
+        if payload is not None:
+            return deepcopy(payload)
+        if str(record_id) in self._legacy_trimmed_ids:
+            raise DSORReplayUnavailableError(
+                f"DSOR legacy record {record_id} was trimmed past the configured replay cap"
+            )
+        if 0 < record_id.int <= self._trim_watermark:
+            raise DSORReplayUnavailableError(
+                f"DSOR record {record_id} was trimmed past the configured replay cap"
+            )
+        raise DSORRecordNotFoundError(f"DSOR record {record_id} was never stored")
+
+    def append_metadata_migration(
+        self, record_ids, *, autonomy_level, action_class, classification_basis,
+        classifier_version, migrated_at
+    ) -> BridgedDSORRecord:
+        event = {
+            "kind": "dsor_metadata_migration",
+            "schema_version": "3",
+            "record_ids": [str(value) for value in record_ids],
+            "autonomy_level": AutonomyLevel(autonomy_level).value,
+            "action_class": ActionClass(action_class).value,
+            "classification_basis": classification_basis,
+            "classifier_version": classifier_version,
+            "migrated_at": migrated_at.isoformat(),
+        }
+        return self.append(
+            event, dtg=migrated_at,
+            autonomy_level=AutonomyLevel.CONSTRAINED_EXECUTION,
+            action_class=ActionClass.WRITE_CORE_RECORD,
+        )
 
     @staticmethod
     def _compact(output) -> dict:
@@ -104,13 +215,21 @@ class AureonStateDSORStore:
                 return output.model_dump(mode="json")
             except Exception:
                 pass
+        if isinstance(output, dict):
+            return output.copy()
         return {"repr": str(output)}
 
-    def __enter__(self) -> "AureonStateDSORStore":
+    def __enter__(self) -> AureonStateDSORStore:
         return self
 
     def __exit__(self, *_: object) -> bool:
         return False
 
 
-__all__ = ["AureonStateDSORStore", "BridgedDSORRecord", "DSORAppendOnlyError"]
+__all__ = [
+    "AureonStateDSORStore",
+    "BridgedDSORRecord",
+    "DSORAppendOnlyError",
+    "DSORRecordNotFoundError",
+    "DSORReplayUnavailableError",
+]

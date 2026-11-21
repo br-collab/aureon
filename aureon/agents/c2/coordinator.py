@@ -31,15 +31,18 @@ import hashlib
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Any
 
-from aureon.agents.base import Agent, Intent, Advisory, Tasking, Result
-from aureon.agents.ranger import RANGER_AGENTS
+from aureon.agents.base import Advisory, Agent, Intent, Result, Tasking
 from aureon.agents.jtac import JTAC_AGENTS
 from aureon.agents.payloads import (
-    ExecutionConfirmation, DSORIntent, BreachEvent, ReportingContext,
-    CounterpartyScreeningRequest, PreTradePolicyCheckRequest,
+    BreachEvent,
+    CounterpartyScreeningRequest,
+    DSORIntent,
+    ExecutionConfirmation,
+    PreTradePolicyCheckRequest,
+    ReportingContext,
 )
+from aureon.agents.ranger import RANGER_AGENTS
 
 # ── C2 Operating Constants ────────────────────────────────────────────────────
 C2_VERSION          = "1.0"

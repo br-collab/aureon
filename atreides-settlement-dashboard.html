@@ -256,7 +256,7 @@
             <p class="dd" id="dispD">Pick a tasking on the left to run it through the pipeline. The flow stops at the first gate that holds — the settlement agent escalates, it never deviates. Escalations surface in the Breaks Workbench tab.</p>
           </div>
           <div class="ledger">
-            <p class="dl"><span>Decision-of-Record · DSOR</span><span class="ap" id="apFlag">append-only</span></p>
+            <p class="dl"><span>Decision System of Record · DSOR</span><span class="ap" id="apFlag">append-only</span></p>
             <ul class="ledlist" id="ledger"><li class="ledempty">No records yet. Each completed run appends one — never overwrites.</li></ul>
           </div>
         </div>
@@ -313,7 +313,7 @@ const PHASES = [
   {id:'safety',n:'04',t:'Inherent-Safety & Failure-Mode',l:'Contracts',c:'UR-F → inherent-safety → quorum cross-validation',build:'built'},
   {id:'quorum',n:'05',t:'Quorum Authority',l:'Tier 2',c:'Material magnitude → N-of-M quorum routing',build:'partial',note:'routing decision built · signature ceremony roadmap'},
   {id:'settle',n:'06',t:'Settlement Execution',l:'Tier 1 · Settlement Ops Analyst',c:'DSOR pre-trade · intraday funding · clearing-fund · net-obligation · rail',build:'partial',note:'gate decisions built · live rail execution roadmap'},
-  {id:'dsor',n:'07',t:'Decision-of-Record',l:'DSOR',c:'Append-only · DTG-stamped · deterministically replayable',build:'built'},
+  {id:'dsor',n:'07',t:'Decision System of Record',l:'DSOR',c:'Append-only · DTG-stamped · deterministically replayable',build:'built'},
 ];
 const PIDX = Object.fromEntries(PHASES.map((p,i)=>[p.id,i]));
 const SCEN = [
@@ -453,7 +453,7 @@ function renderDetail(){
       <div class="tnode orig"><span>Originating event</span>${b.orig}</div>
     </div>
 
-    <p class="wbsec"><span>Decision-of-Record</span></p>
+    <p class="wbsec"><span>Decision System of Record</span></p>
     <div class="dsorrec"><span class="dtg">${dtg()}</span> · ${b.id} · <span class="k">${b.kind}</span> · ${b.rail} · <span class="e">${b.kind==='quorum_required'?'QUORUM REQUIRED':'ESCALATED'}</span></div>
 
     <p class="wbsec"><span>Action · callability</span></p>

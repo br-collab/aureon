@@ -31,20 +31,25 @@ import pytest
 
 os.environ.setdefault("RAILWAY_VOLUME_MOUNT_PATH", tempfile.mkdtemp(prefix="aureon-binding-test-"))
 
-from aureon.approval_service.operator_auth import OPERATOR_ACTOR  # noqa: E402
-from aureon.approval_service.service import (  # noqa: E402
+from cannae_kernel.session import (
+    BusinessDate,
+    MarketSession,
+    SessionContext,
+)
+
+from aureon.approval_service.operator_auth import OPERATOR_ACTOR
+from aureon.approval_service.service import (
     resolve_pending_decision,
     routed_required_approvals,
 )
-from aureon.policy_engine import binding  # noqa: E402
-from aureon.policy_engine.binding import (  # noqa: E402
+from aureon.policy_engine import binding
+from aureon.policy_engine.binding import (
     PolicyBindingError,
     grant_hold_exception,
     latest_policy_record,
     pretrade_rules_digest,
 )
-from aureon.policy_engine.service import evaluate_pretrade_decision  # noqa: E402
-from cannae_kernel.session import BusinessDate, MarketSession, SessionContext  # noqa: E402
+from aureon.policy_engine.service import evaluate_pretrade_decision
 
 RISK = {"drawdown_warn_pct": 5.0, "drawdown_fail_pct": 8.0,
         "position_warn_pct": 20.0, "position_fail_pct": 35.0}

@@ -39,7 +39,48 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: "KYC Agent/aureon-kyc/package-lock.json"
-      - run: npm audit --audit-level=high
+      - run: npm audit --omit=dev --audit-level=high
+
+  npm-development-dependencies:
+    name: npm development dependency vulnerabilities (one recorded exception)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: "KYC Agent/aureon-kyc"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: "KYC Agent/aureon-kyc/package-lock.json"
+      - name: Full dependency audit with the one recorded exception
+        # SECURITY.md records one exception: GHSA-fc5q-39xc-vjpf, until 2027-03-31. Any other
+        # high or critical advisory fails this job, and from 2027-03-31 that one does too.
+        run: |
+          set +e
+          npm audit --audit-level=high --json > audit.json
+          set -e
+          node - <<'JS'
+          const fs = require("fs");
+          const report = JSON.parse(fs.readFileSync("audit.json", "utf8"));
+          const excepted = "GHSA-fc5q-39xc-vjpf";
+          const expired = new Date().toISOString().slice(0, 10) >= "2027-03-31";
+          const blocking = new Set();
+          for (const item of Object.values(report.vulnerabilities || {})) {
+            for (const via of item.via || []) {
+              if (typeof via !== "object" || !["high", "critical"].includes(via.severity)) continue;
+              const id = String(via.url || via.source || via.title).split("/").pop();
+              if (id === excepted && !expired) continue;
+              blocking.add(`${id} (${via.severity}, ${via.name})`);
+            }
+          }
+          const lines = ["### Development dependency audit", ""];
+          lines.push(`- Recorded exception ${excepted}: ${expired ? "EXPIRED" : "active until 2027-03-31"}`);
+          lines.push(blocking.size ? `- Blocking: ${[...blocking].join("; ")}` : "- Blocking: none");
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+          if (blocking.size) { console.error(lines.join("\n")); process.exit(1); }
+          JS
 
   codeql:
     name: CodeQL

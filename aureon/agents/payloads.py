@@ -16,9 +16,9 @@ with Ranger methods that use dict-style access.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields, asdict
+from dataclasses import dataclass, field, fields
 from datetime import datetime, timezone
-from typing import Optional, Any
+from typing import Any
 
 
 class MissingPayloadFieldError(ValueError):
@@ -91,7 +91,7 @@ class ExecutionConfirmation(_DictCompatMixin):
     price: float = 0.0
     venue: str = ""
     execution_ts: str = ""
-    fix_msg_ref: Optional[str] = None
+    fix_msg_ref: str | None = None
 
     # Aliases for backward compat: 'id' maps to decision_id
     @property
@@ -154,7 +154,7 @@ class LineageCheckResult(_DictCompatMixin):
     agent: str = ""
     ts: str = ""
     decision_id: str = ""
-    break_id: Optional[str] = None
+    break_id: str | None = None
 
     def __post_init__(self):
         _validate_required(self, ["status"])
@@ -251,8 +251,8 @@ class ApprovedPath(_DictCompatMixin):
     path_id: str = None
     role_id: str = None
     description: str = ""
-    callable_ref: Optional[str] = None
-    rule_data: Optional[dict] = None
+    callable_ref: str | None = None
+    rule_data: dict | None = None
     requires_approval: bool = False
     approval_predicates: list = field(default_factory=list)
     conflict_keys: list = field(default_factory=list)
@@ -277,8 +277,8 @@ class JTACPathSelection(_DictCompatMixin):
     requires_approval: bool = False
     pending_approval_for: list = field(default_factory=list)
     requires_authority_resolution: bool = False
-    conflict_id: Optional[str] = None
-    doctrine_version: Optional[str] = None
+    conflict_id: str | None = None
+    doctrine_version: str | None = None
     selected_at: str = ""
 
     def __post_init__(self):
@@ -297,7 +297,7 @@ class ApprovalGateContext(_DictCompatMixin):
     """
     task_id: str = None
     role_id: str = None
-    path_selection: Optional[JTACPathSelection] = None
+    path_selection: JTACPathSelection | None = None
     intent_summary: dict = field(default_factory=dict)
     risk_summary: dict = field(default_factory=dict)
     pending_predicates: list = field(default_factory=list)
@@ -325,9 +325,9 @@ class ConflictResolution(_DictCompatMixin):
     conflict_summary: str = ""
     requires_compliance_authority: bool = True
     requires_legal_authority: bool = True
-    compliance_authority_decision: Optional[dict] = None
-    legal_authority_decision: Optional[dict] = None
-    combined_resolution: Optional[dict] = None
+    compliance_authority_decision: dict | None = None
+    legal_authority_decision: dict | None = None
+    combined_resolution: dict | None = None
     halt_ts: str = ""
 
     def __post_init__(self):
@@ -347,7 +347,7 @@ class CounterpartyScreeningRequest(_DictCompatMixin):
     task_id: str = None
     counterparty_name: str = None
     counterparty_jurisdiction: str = ""
-    counterparty_lei: Optional[str] = None
+    counterparty_lei: str | None = None
     requested_at: str = ""
 
     def __post_init__(self):
@@ -412,11 +412,11 @@ class PreTradePolicyCheckResult(_DictCompatMixin):
     status: str = None               # "PASS" | "HOLD" | "BLOCK"
     policy_checks_performed: list = field(default_factory=list)
     failures: list = field(default_factory=list)
-    ips_eligibility: Optional[dict] = None
+    ips_eligibility: dict | None = None
     pending_approval_for: list = field(default_factory=list)
-    selected_path_id: Optional[str] = None  # PRETRADE_POLICY_PASS/HOLD/BLOCK
-    mandate_version: Optional[str] = None
-    ips_version: Optional[str] = None
+    selected_path_id: str | None = None  # PRETRADE_POLICY_PASS/HOLD/BLOCK
+    mandate_version: str | None = None
+    ips_version: str | None = None
 
     def __post_init__(self):
         _validate_required(self, ["task_id", "status"])
@@ -451,7 +451,7 @@ class AlgoInventoryCheckResult(_DictCompatMixin):
     registered_algorithms: list = field(default_factory=list)
     missing_registrations: list = field(default_factory=list)
     pending_approval_for: list = field(default_factory=list)
-    selected_path_id: Optional[str] = None
+    selected_path_id: str | None = None
 
     def __post_init__(self):
         _validate_required(self, ["task_id", "status"])
@@ -468,7 +468,7 @@ class ApprovalLineageRequirement(_DictCompatMixin):
     task_id: str = None
     pause_reason: str = None
     required_authorities: list = field(default_factory=list)
-    sla_seconds: Optional[int] = None
+    sla_seconds: int | None = None
     fallback_authorities: list = field(default_factory=list)
 
     def __post_init__(self):
