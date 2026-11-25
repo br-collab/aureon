@@ -3,7 +3,7 @@ yfinance>=1.8.0
 twelvedata>=1.2.0
 reportlab>=5.1.0
 python-dotenv>=1.2.4
-gunicorn>=21.2.0
+gunicorn>=27.0.1
 requests>=2.31.0
 flask-cors>=4.0.0
 # CVE-2026-126190 is fixed in 4.0.0. Beautiful Soup otherwise permits 3.x.
